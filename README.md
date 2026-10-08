@@ -4,21 +4,21 @@ Chat with your coding agents like it's 2005.
 
 This public repository hosts packaged downloads only. The application source is maintained in a separate private repository.
 
-**[Download for Mac — Apple Silicon](https://github.com/SafaElmali/agent-messenger-releases/releases/latest/download/Agent-Messenger-mac-arm64.dmg)**
+**[Download for Mac — Apple Silicon](https://github.com/SafaElmali/buddylist/releases/latest/download/Agent-Messenger-mac-arm64.dmg)**
 
-[Release notes and ZIP downloads](https://github.com/SafaElmali/agent-messenger-releases/releases/latest).
+[Release notes and ZIP downloads](https://github.com/SafaElmali/buddylist/releases/latest).
 
 ## Version history
 
 [Read the full changelog](CHANGELOG.md) or open a version below for its notes and downloads.
 
-| Version                                                                              | Released   | Highlights                                                             |
-| ------------------------------------------------------------------------------------ | ---------- | ---------------------------------------------------------------------- |
-| [v0.2.4](https://github.com/SafaElmali/agent-messenger-releases/releases/tag/v0.2.4) | 2026-10-07 | Clickable links, question slides and a Changes toolbar button.         |
-| [v0.2.3](https://github.com/SafaElmali/agent-messenger-releases/releases/tag/v0.2.3) | 2026-10-07 | Website deployment maintenance; no new app features.                   |
-| [v0.2.2](https://github.com/SafaElmali/agent-messenger-releases/releases/tag/v0.2.2) | 2026-10-07 | Agent-created terminals, hands-free voice clips and smaller downloads. |
-| [v0.2.1](https://github.com/SafaElmali/agent-messenger-releases/releases/tag/v0.2.1) | 2026-10-07 | Changes tab, pull request status and automatic effort selection.       |
-| [v0.2.0](https://github.com/SafaElmali/agent-messenger-releases/releases/tag/v0.2.0) | 2026-10-07 | First public Apple Silicon release.                                    |
+| Version                                                               | Released   | Highlights                                                             |
+| --------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------- |
+| [v0.2.4](https://github.com/SafaElmali/buddylist/releases/tag/v0.2.4) | 2026-10-07 | Clickable links, question slides and a Changes toolbar button.         |
+| [v0.2.3](https://github.com/SafaElmali/buddylist/releases/tag/v0.2.3) | 2026-10-07 | Website deployment maintenance; no new app features.                   |
+| [v0.2.2](https://github.com/SafaElmali/buddylist/releases/tag/v0.2.2) | 2026-10-07 | Agent-created terminals, hands-free voice clips and smaller downloads. |
+| [v0.2.1](https://github.com/SafaElmali/buddylist/releases/tag/v0.2.1) | 2026-10-07 | Changes tab, pull request status and automatic effort selection.       |
+| [v0.2.0](https://github.com/SafaElmali/buddylist/releases/tag/v0.2.0) | 2026-10-07 | First public Apple Silicon release.                                    |
 
 ## Install
 
