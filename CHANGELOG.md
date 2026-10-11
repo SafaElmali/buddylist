@@ -6,7 +6,6 @@ Version-by-version changes to the public buddylist downloads, newest first. Date
 
 ## [v0.2.5](https://github.com/SafaElmali/buddylist-releases/releases/tag/v0.2.5) — 2026-10-11
 
-- Agent Messenger is now **buddylist**, at [buddylist.dev](https://buddylist.dev/). Your contacts and conversations move over the first time you open it.
 - A welcome wizard signs you in to Claude without a terminal and ends in your first contact.
 - A dark theme, and a **Professional** look beside the messenger one, under **Tools > Theme** and **Tools > Look**.
 - A **Settings** window for the app and each project: scripts, variables, branches, instructions and files to copy.
@@ -17,6 +16,7 @@ Version-by-version changes to the public buddylist downloads, newest first. Date
 - buddylist says when a newer version is out and downloads it for you.
 - **Help > Send feedback** for feedback, bug reports and feature requests.
 - Faster history search, smoother streaming of long replies, and fixes for crashes, lost replies and settings that could be wiped.
+- Agent Messenger is now buddylist, at [buddylist.dev](https://buddylist.dev/). Your contacts and conversations move over the first time you open it.
 
 ## [v0.2.4](https://github.com/SafaElmali/buddylist-releases/releases/tag/v0.2.4) — 2026-10-07
 
