@@ -1,0 +1,366 @@
+name: Build app
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  # Always report test, including on docs-only PRs, so main can require it.
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Release from main, or only build an installer for the selected branch'
+        type: choice
+        default: release
+        options: [release, build]
+
+permissions:
+  contents: read
+
+# Manual runs on main release by default, preserving npm run release.
+# Choose mode=build to package any branch without publishing or bumping a version.
+#
+# Releases, manual tags and their retries run one at a time. Builds of main have a
+# group of their own, so a newer one waiting can never take the place of a release
+# that is waiting. Superseded PR and main checks are cancelled; releases finish.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('app-pr-{0}', github.event.pull_request.number) || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'app-main' || 'app-release' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Tests use Node and the bundle leaves Electron external; keep native addon install scripts.
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      source: ${{ steps.plan.outputs.source }}
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      installers: ${{ steps.packaging.outputs.installers }}
+      phone: ${{ steps.packaging.outputs.phone }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Choose release version
+        id: plan
+        run: node scripts/release.js plan "$RELEASE_MODE"
+        env:
+          RELEASE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode != 'build' && github.ref == 'refs/heads/main' && 'auto' || startsWith(github.ref, 'refs/tags/v') && 'tag' || 'build' }}
+      # A pull request is checked out as its merge commit, whose first parent is what it goes into.
+      # Labels are read at each push: a label added later builds from the next push.
+      - name: Choose installer builds and the phone check
+        id: packaging
+        if: github.event_name == 'pull_request'
+        run: node scripts/packaging-changes.js HEAD^1
+        env:
+          BUILD_INSTALLERS: ${{ contains(github.event.pull_request.labels.*.name, 'build-installers') }}
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - name: Validate app bundle on Linux
+        run: npm run build:app
+
+  # A pull request that changes the phone app, or what serves it or a build makes of it (the test job's
+  # Choose installer builds and the phone check), packs the app as a release is, on Linux and with no
+  # installer, and pairs a phone-sized WebKit and Chromium with it, against a stand-in for Tailscale:
+  # a file the phone asks for that the packaged app lacks fails it, and so does a phone that can't do
+  # what scripts/check-remote-ui.js does with it.
+  phone:
+    needs: test
+    if: github.event_name == 'pull_request' && needs.test.outputs.phone == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # electron-builder downloads the Electron it packs: the one npm would install is never run.
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # A release's scripts, each made from a module of its own (sourceMaps() in scripts/build-app.js):
+      # a token with no org or project sends nothing to Sentry.
+      - name: Build the app as a release is built
+        run: npm run dist:linux -- --dir --x64 --publish never
+        env:
+          SENTRY_AUTH_TOKEN: local
+      # As installing the .deb does: Electron's sandbox helper runs as root.
+      - name: Set up the sandbox helper
+        run: |
+          sudo chown root dist/linux-unpacked/chrome-sandbox
+          sudo chmod 4755 dist/linux-unpacked/chrome-sandbox
+      - name: Install the phones' browsers
+        run: npx playwright-core install --with-deps webkit chromium
+      # With a video of the app's windows and of each phone: a failure's media.
+      - name: Pair a phone and use the phone app
+        run: xvfb-run -a node scripts/check-remote-ui.js dist/linux-unpacked/buddylist dist/remote-check
+        env:
+          BUDDYLIST_CHECK_VIDEO: '1'
+      # What the phones and the app's windows showed, their videos and the app's log, for a day: only
+      # when it failed.
+      - name: Upload what the check saw
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phone-check
+          path: dist/remote-check
+          if-no-files-found: ignore
+          retention-days: 1
+
+  mac:
+    needs: test
+    # Only explicit builds and releases need macOS packaging.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    # Apple Silicon. When GitHub has none free, the MAC_RUNNER variable names a Mac of your own (docs/releases.md).
+    runs-on: ${{ vars.MAC_RUNNER || 'macos-latest' }}
+    timeout-minutes: 30 # notarizing can take several minutes
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Use the tested version
+        run: node scripts/release.js version "$RELEASE_VERSION"
+        env:
+          RELEASE_VERSION: ${{ needs.test.outputs.version }}
+      - run: npm ci
+      # With a Developer ID certificate the app is signed with it under the hardened runtime and
+      # notarized. A signed app that is not notarized still stops at Gatekeeper, so a certificate
+      # without the three Apple values fails. Only build-only runs may fall back to ad-hoc signing.
+      - name: Build .dmg
+        run: |
+          if [ "$RELEASE_BUILD" = true ]; then
+            : "${CSC_LINK:?A release requires the MAC_CERTIFICATE secret}"
+            : "${CSC_KEY_PASSWORD:?A release requires the MAC_CERTIFICATE_PASSWORD secret}"
+          fi
+          if [ -n "$CSC_LINK" ]; then
+            : "${APPLE_ID:?MAC_CERTIFICATE is set, so the APPLE_ID secret is needed to notarize}"
+            : "${APPLE_APP_SPECIFIC_PASSWORD:?MAC_CERTIFICATE is set, so the APPLE_APP_SPECIFIC_PASSWORD secret is needed to notarize}"
+            : "${APPLE_TEAM_ID:?MAC_CERTIFICATE is set, so the APPLE_TEAM_ID variable is needed to notarize}"
+            npm run dist -- --arm64 --publish never -c.mac.identity="$APPLE_TEAM_ID" -c.mac.hardenedRuntime=true
+          else
+            unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+            npm run dist -- --arm64 --publish never
+          fi
+        env:
+          RELEASE_BUILD: ${{ needs.test.outputs.tag != '' }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          # Source maps go to Sentry for a release only, so its error reports can be read.
+          SENTRY_AUTH_TOKEN: ${{ needs.test.outputs.tag != '' && secrets.SENTRY_AUTH_TOKEN || '' }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          # Where the installed app reports errors and counts its use: without them it does neither.
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+          POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+      # The Claude Code binary keeps Anthropic's own signature: it must run as Anthropic published it.
+      # Installed copies update from the ZIP that latest-mac.yml names, and app-update.yml in the
+      # app says where that is.
+      - name: Check installers
+        run: |
+          test -s dist/buddylist-mac-arm64.dmg
+          test -s dist/buddylist-mac-arm64.zip
+          test -s dist/buddylist-mac-arm64.zip.blockmap
+          grep -q 'url: buddylist-mac-arm64.zip' dist/latest-mac.yml
+          app=dist/mac-arm64/buddylist.app
+          grep -qx 'repo: buddylist' "$app/Contents/Resources/app-update.yml"
+          claude="$app/Contents/Resources/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude"
+          codesign --verify --deep --strict "$app"
+          codesign --verify --strict "$claude"
+          codesign -dv --verbose=2 "$claude" 2>&1 | grep 'Authority=Developer ID Application: Anthropic PBC'
+          if [ "$SIGNED" = true ]; then
+            spctl --assess --type execute -vv "$app"
+            xcrun stapler validate "$app"
+          fi
+        env:
+          SIGNED: ${{ secrets.MAC_CERTIFICATE != '' }}
+      - name: Check packaged runtime
+        run: node scripts/check-package.js
+      - name: Upload installers
+        continue-on-error: ${{ needs.test.outputs.tag == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: buddylist-mac-arm64
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+            dist/latest-mac.yml
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  desktop:
+    needs: test
+    # A pull request builds these only when it changes them (the test job's Choose installer builds).
+    if: (github.event_name == 'pull_request' && needs.test.outputs.installers == 'true') || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+          - os: ubuntu-latest
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Use the tested version
+        run: node scripts/release.js version "$RELEASE_VERSION"
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.test.outputs.version }}
+      - run: npm ci
+      - name: Build installer
+        run: npm run dist:${{ matrix.platform }} -- --x64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          SENTRY_AUTH_TOKEN: ${{ needs.test.outputs.tag != '' && secrets.SENTRY_AUTH_TOKEN || '' }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+          POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+      - name: Test platform integration
+        run: node --test test/app-updater.test.js test/shell-env.test.js test/spawnable.test.js test/git-bash.test.js
+      - name: Check installers and packaged runtime
+        run: node scripts/check-package.js
+      - name: Install and open Windows app
+        if: matrix.platform == 'win'
+        shell: pwsh
+        run: |
+          $install = Join-Path $env:RUNNER_TEMP 'buddylist-installed'
+          $installer = Start-Process -FilePath '.\dist\buddylist-win-x64.exe' -ArgumentList '/S', "/D=$install" -Wait -PassThru
+          if ($installer.ExitCode -ne 0) { throw "Installer exited $($installer.ExitCode)" }
+          node scripts/check-package-ui.js "$install\buddylist.exe" dist/smoke/windows
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install and open Linux apps
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb ./dist/buddylist-linux-amd64.deb
+          xvfb-run -a node scripts/check-package-ui.js /opt/buddylist/buddylist dist/smoke/deb
+          xvfb-run -a node scripts/check-package-ui.js dist/buddylist-linux-x86_64.AppImage dist/smoke/appimage
+      # Artifact storage is shared and small: a pull request keeps its screenshots and logs only when
+      # a check failed, and no installers. A release needs the installers; mode=build is for them.
+      - name: Upload app screenshots and logs
+        if: failure() || (always() && github.event_name != 'pull_request')
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-${{ matrix.platform }}-x64
+          path: dist/smoke
+          if-no-files-found: ignore
+          retention-days: 1
+      - name: Upload installers
+        if: github.event_name != 'pull_request'
+        continue-on-error: ${{ needs.test.outputs.tag == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: buddylist-${{ matrix.platform }}-x64
+          path: |
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.blockmap
+            dist/latest*.yml
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  release:
+    needs: [test, mac, desktop]
+    if: needs.test.outputs.tag != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Collect installers from every platform
+        uses: actions/download-artifact@v4
+        with:
+          pattern: buddylist-*
+          merge-multiple: true
+          path: dist
+      # Only record a version after tests and packaging pass. GITHUB_TOKEN
+      # is available to Git only in this step; its pushes do not trigger CI.
+      - name: Record version and tag
+        if: needs.test.outputs.tag != ''
+        id: finalize
+        run: |
+          gh auth setup-git
+          node scripts/release.js finalize
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_MODE: ${{ needs.test.outputs.mode }}
+          RELEASE_SOURCE: ${{ needs.test.outputs.source }}
+          RELEASE_VERSION: ${{ needs.test.outputs.version }}
+          RELEASE_TAG: ${{ needs.test.outputs.tag }}
+      # Nobody else will publish what was asked for here, so a release that was skipped must not look done.
+      - name: Stop when main moved
+        if: needs.test.outputs.tag != '' && steps.finalize.outputs.publish != 'true'
+        run: |
+          echo '::error::Main moved while this release was building, so nothing was published. Run the release again.'
+          exit 1
+      # "What's new": this version's part of site/changelog.md, which is written by hand.
+      - name: Write release notes
+        if: steps.finalize.outputs.publish == 'true'
+        run: node scripts/release.js notes
+        env:
+          RELEASE_TAG: ${{ needs.test.outputs.tag }}
+      # Public development uses its own token. Keep the cross-repository token only for
+      # releases from the private source repo during migration; forks get neither.
+      - name: Publish public release
+        if: steps.finalize.outputs.publish == 'true'
+        run: node scripts/release.js publish
+        env:
+          GH_TOKEN: ${{ github.repository == 'SafaElmali/buddylist' && github.token || secrets.RELEASES_TOKEN }}
+          RELEASE_TAG: ${{ needs.test.outputs.tag }}
+
+  # The changelog lists a version once package.json on main names it. The release's version commit
+  # does, but a push with GITHUB_TOKEN starts no workflow, so the site is deployed from here.
+  changelog:
+    needs: [test, release]
+    if: needs.test.outputs.tag != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Deploy the site
+        run: gh workflow run deploy-site.yml --repo "$GITHUB_REPOSITORY" --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}

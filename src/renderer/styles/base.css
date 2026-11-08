@@ -1,0 +1,1477 @@
+/* Reset, XP controls (buttons, inputs, scrollbars, menus, dialogs). */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  font: 11px/1.35 var(--font-ui);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a,
+.link {
+  color: var(--link);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+a:hover,
+.link:hover {
+  text-decoration: underline;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+:focus-visible {
+  outline: 1px dotted var(--text);
+  outline-offset: 1px;
+}
+
+/* ---- XP buttons ------------------------------------------------------------------ */
+.btn {
+  min-width: 70px;
+  min-height: 23px;
+  padding: 0 10px;
+  border: 1px solid var(--xp-border);
+  border-radius: 3px;
+  background: var(--btn-bg, linear-gradient(180deg, #ffffff 0%, #f3f2ec 40%, #ebe9e0 85%, #d8d3c6 100%));
+  box-shadow: inset 0 0 0 1px var(--gloss, rgba(255, 255, 255, 0.7));
+  cursor: default;
+}
+
+.btn:hover:not(:disabled) {
+  box-shadow:
+    inset 0 0 0 1px var(--gloss, #fff),
+    inset 0 -2px 0 1px #f8b330,
+    inset 0 2px 0 1px #fde7ab;
+}
+
+.btn:active:not(:disabled) {
+  background: var(--btn-press-bg, linear-gradient(180deg, #e3e2da 0%, #efeee7 100%));
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+.btn:disabled {
+  color: var(--text-faint, #a1a192);
+  border-color: var(--hairline, #c9c7ba);
+}
+
+.btn.default {
+  box-shadow:
+    inset 0 0 0 1px var(--gloss, #fff),
+    var(--btn-default-ring);
+}
+
+/* Destructive actions stay quiet beside a primary button, in the menu's danger colour. */
+.btn.danger:not(:disabled) {
+  color: var(--danger, #b3261e);
+  border-color: var(--danger-border, #f0c9c5);
+  background: var(--danger-bg, #fff5f4);
+}
+
+/* ---- text inputs -------------------------------------------------------------------- */
+.input,
+.dialog input:is([type='text'], [type='number'], [type='time']),
+.dialog textarea,
+.dialog select {
+  min-height: 21px;
+  padding: 2px 4px;
+  border: 1px solid var(--pane-border);
+  background: var(--pane);
+  user-select: text;
+}
+
+.input:focus,
+.dialog input:focus,
+.dialog textarea:focus,
+.dialog select:focus {
+  outline: none;
+  border-color: var(--focus-border, #3c6fc4);
+}
+
+::placeholder {
+  color: var(--text-faint, #8a8f99);
+}
+
+/* A drop-down with a list of our own, such as a contact's model. It looks like the selects next to it. */
+:is(.dialog, .st-row) .combo {
+  min-height: 21px;
+  /* A select keeps its text a little further in than a text box does. */
+  padding: 2px 22px 2px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--pane-border);
+  background: var(--pane)
+    var(
+      --combo-arrow,
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23000' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    )
+    right 6px center / 9px no-repeat;
+  text-align: left;
+  white-space: nowrap;
+}
+
+:is(.dialog, .st-row) .combo:focus {
+  outline: none;
+  border-color: var(--focus-border, #3c6fc4);
+}
+
+.combo-label {
+  flex: none;
+}
+
+/* A choice's picture beside its name, such as a service's or a display picture, in the field and in its list. */
+.combo-icon {
+  display: grid;
+  flex: none;
+}
+
+.combo-icon:empty {
+  display: none;
+}
+
+.combo-icon :is(svg, img),
+.combo-menu .menu-check :is(svg, img) {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
+/* In the list, each picture and name stand where the field's own do. */
+.combo-menu .menu-item {
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  column-gap: 6px;
+  padding-left: 6px;
+}
+
+/* A long name, such as a picture's from the pack, is cut short. */
+.combo-icon + .combo-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Windows XP scrollbars -------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scroll-track, linear-gradient(90deg, #eeede6 0%, #fbfbf8 60%, #f3f2ec 100%));
+}
+
+::-webkit-scrollbar-track:horizontal {
+  background: var(--scroll-track-h, linear-gradient(180deg, #eeede6 0%, #fbfbf8 60%, #f3f2ec 100%));
+}
+
+::-webkit-scrollbar-thumb {
+  border: 1px solid var(--scroll-edge, #fff);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--scroll-outline, #9db5ec);
+  background: var(
+    --scroll-thumb,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M0 1.5h8M0 3.5h8M0 5.5h8' stroke='%23eef4ff' stroke-width='1'/%3E%3Cpath d='M0 2.5h8M0 4.5h8M0 6.5h8' stroke='%238aa6e6' stroke-width='1'/%3E%3C/svg%3E")
+      center / 8px 8px no-repeat,
+    linear-gradient(90deg, #c7d8fd 0%, #bcd0fb 45%, #adc4f5 100%)
+  );
+}
+
+::-webkit-scrollbar-thumb:horizontal {
+  background: var(
+    --scroll-thumb-h,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M1.5 0v8M3.5 0v8M5.5 0v8' stroke='%23eef4ff' stroke-width='1'/%3E%3Cpath d='M2.5 0v8M4.5 0v8M6.5 0v8' stroke='%238aa6e6' stroke-width='1'/%3E%3C/svg%3E")
+      center / 8px 8px no-repeat,
+    linear-gradient(180deg, #c7d8fd 0%, #bcd0fb 45%, #adc4f5 100%)
+  );
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #d3e1fe;
+  filter: brightness(1.04);
+}
+
+/* Arrow buttons. macOS draws none by default, so name each one we want
+   and hide the doubled pairs some platforms add. */
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+::-webkit-scrollbar-button:vertical:start:decrement,
+::-webkit-scrollbar-button:vertical:end:increment,
+::-webkit-scrollbar-button:horizontal:start:decrement,
+::-webkit-scrollbar-button:horizontal:end:increment {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--scroll-edge, #fff);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--scroll-outline, #9db5ec);
+  background-color: var(--scroll-button, #c4d6fc);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 8px 8px;
+}
+
+::-webkit-scrollbar-button:vertical:start:decrement {
+  background-image: var(
+    --scroll-up,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1 5.5 4 2.5l3 3' fill='none' stroke='%234d6185' stroke-width='1.6'/%3E%3C/svg%3E")
+  );
+}
+
+::-webkit-scrollbar-button:vertical:end:increment {
+  background-image: var(
+    --scroll-down,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1 2.5 4 5.5l3-3' fill='none' stroke='%234d6185' stroke-width='1.6'/%3E%3C/svg%3E")
+  );
+}
+
+::-webkit-scrollbar-button:horizontal:start:decrement {
+  background-image: var(
+    --scroll-left,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M5.5 1 2.5 4l3 3' fill='none' stroke='%234d6185' stroke-width='1.6'/%3E%3C/svg%3E")
+  );
+}
+
+::-webkit-scrollbar-button:horizontal:end:increment {
+  background-image: var(
+    --scroll-right,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M2.5 1 5.5 4l-3 3' fill='none' stroke='%234d6185' stroke-width='1.6'/%3E%3C/svg%3E")
+  );
+}
+
+::-webkit-scrollbar-button:hover {
+  background-color: var(--scroll-button-hover, #d6e3fe);
+}
+
+::-webkit-scrollbar-button:active {
+  background-color: var(--scroll-button-press, #a9c1f1);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--scroll-corner, #f3f2ec);
+}
+
+/* ---- a helper line for a button --------------------------------------------------------- */
+/* One line that says what a button does, as soon as it is pointed at (see lib/tips.js): the
+   pale yellow note Windows XP showed, over everything else in the window. */
+.tip {
+  position: fixed;
+  z-index: 200;
+  max-width: min(280px, calc(100vw - 8px));
+  padding: 2px 6px 3px;
+  border: 1px solid #000;
+  background: #ffffe1;
+  box-shadow: 2px 2px 3px rgba(0, 0, 0, 0.25);
+  color: #000;
+  font: 11px/14px var(--font-ui);
+  white-space: pre-line;
+  /* It is read, never pointed at: the button under it stays the one the pointer is on. */
+  pointer-events: none;
+}
+
+/* ---- menus and popovers ----------------------------------------------------------------- */
+.popup {
+  position: fixed;
+  z-index: 100;
+  border: 1px solid var(--xp-menu-border);
+  background: var(--menu-bg, #fff);
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.32);
+  animation: popup-in 0.1s ease-out;
+}
+
+@keyframes popup-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+.menu {
+  min-width: 170px;
+  padding: 2px;
+}
+
+.menu-item {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 14px 1px 2px;
+  white-space: nowrap;
+}
+
+.menu-item.active {
+  background: var(--select);
+  color: #fff;
+}
+
+.menu-item.disabled {
+  color: var(--muted);
+}
+
+/* A line about the rows, such as why there are no others: read, never chosen. Under the labels. */
+.menu-note {
+  max-width: 320px;
+  padding: 2px 14px 3px 22px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.menu-item.bold .menu-label {
+  font-weight: bold;
+}
+
+.menu-item.danger {
+  color: var(--danger, #b3261e);
+}
+
+.menu-item.danger.active {
+  background: #b3261e;
+  color: #fff;
+}
+
+.menu-check {
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+}
+
+/* An app's own icon, as the Open button's ▼ lists them, is as big as a drawing. */
+.menu-check :is(svg, img) {
+  width: 16px;
+  height: 16px;
+}
+
+.menu-hint {
+  padding-left: 20px;
+  color: inherit;
+  opacity: 0.75;
+}
+
+.menu-sep {
+  height: 1px;
+  margin: 3px 1px;
+  background: var(--xp-menu-border);
+}
+
+/* ---- XP dialogs (inside a window) ----------------------------------------------------- */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  /* A dialog taller than its window scrolls its own body (see .dialog). Only a window too short for even
+     its title and buttons scrolls the dialog as a whole, from the top, so none of it is out of reach. */
+  place-items: safe center;
+  overflow-y: auto;
+  background: var(--backdrop, rgba(20, 50, 100, 0.18));
+  animation: fade-in 0.12s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* No taller than its window: the title and buttons stay in sight, and the body between them scrolls.
+   A dialog that needs more room sets --dialog-width on itself, which wins over the look's own. */
+.dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 16px);
+  width: min(94vw, var(--dialog-width, 290px));
+  border: 1px solid var(--frame-dark);
+  border-radius: 7px 7px 0 0;
+  background: var(--frame);
+  padding: 0 3px 3px;
+  box-shadow: 3px 4px 14px rgba(0, 20, 60, 0.45);
+  animation: dialog-in 0.14s ease-out;
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.dialog-title {
+  height: 24px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  font: bold 12px var(--font-title);
+  color: var(--titlebar-text);
+  text-shadow: 1px 1px 0 var(--titlebar-shadow);
+  border-radius: 6px 6px 0 0;
+}
+
+.dialog-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 11px;
+  background: var(--xp-face);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dialog .row {
+  display: flex;
+  gap: 5px;
+}
+
+.dialog .row :is(input, select) {
+  flex: 1;
+  min-width: 0;
+}
+
+.dialog .row .btn {
+  min-width: 0;
+}
+
+.dialog .hint {
+  color: var(--text-dim, #555);
+}
+
+/* A group of either/or choices, such as how a voice clip is recorded. */
+.dialog .choices {
+  margin: 0;
+  padding: 4px 8px 7px;
+  border: 1px solid var(--xp-menu-border);
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dialog .choices legend,
+.dialog .section legend {
+  padding: 0 3px;
+  color: var(--heading);
+}
+
+/* A part of a long form, such as where a contact works: an XP group box around its fields.
+   No wider than the dialog, however long a path or an option in it is. */
+.dialog .section {
+  min-width: 0;
+  margin: 0;
+  padding: 3px 8px 9px;
+  border: 1px solid var(--xp-menu-border);
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The fields a folder brings are laid out with the rest of the form, and take no room without one. */
+:is(.github-fields, .branch-fields) {
+  display: contents;
+}
+
+/* "Add a Contact": its picture beside its service and name. A click on the picture picks another. */
+.contact-who {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.contact-who-fields {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.picture-button {
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+}
+
+/* What a new contact starts out with, folded under a line that says what it is. */
+.more-options > summary {
+  list-style: none;
+}
+
+.more-options > summary::-webkit-details-marker {
+  display: none;
+}
+
+.more-options > summary::before {
+  content: '▸';
+  display: inline-block;
+  width: 14px;
+}
+
+.more-options[open] > summary::before {
+  content: '▾';
+}
+
+/* Open, the fields say it themselves. */
+.options-summary {
+  display: block;
+  padding-left: 14px;
+  color: var(--text-faint, #7a7a7a);
+}
+
+.more-options[open] .options-summary {
+  display: none;
+}
+
+.more-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.no-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.no-team .btn {
+  flex: none;
+}
+
+/* A field's name, with a note at the other end, such as that it can be left as it is. */
+.dialog .field-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dialog .optional {
+  color: var(--text-faint, #7a7a7a);
+}
+
+.dialog label.choice {
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+}
+
+.dialog label.choice input {
+  margin: 0;
+}
+
+/* The box that listens for a shortcut: it shows keys, it isn't typed in. In a dialog, and in Settings. */
+.shortcut-box {
+  cursor: default;
+  caret-color: transparent;
+}
+
+.dialog .error,
+.dialog .warning {
+  color: var(--danger, #b3261e);
+}
+
+/* "New schedule": its prompt, its cadence's preset with the time and day beside it, the cron under them, and
+   what that comes to in words. */
+.schedule-form {
+  width: 380px;
+  max-width: 100%;
+}
+
+.schedule-form textarea {
+  resize: vertical;
+  font: inherit;
+}
+
+.cadence-row {
+  display: flex;
+  gap: 5px;
+}
+
+.cadence-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.cadence-row input[type='time'] {
+  flex: none;
+  width: 104px;
+  font: inherit;
+}
+
+.dialog .cron-input {
+  margin-top: 2px;
+  font: 11px/1.45 var(--font-mono);
+}
+
+.cadence-words .next-run {
+  display: block;
+  color: var(--text-faint, #7a7a7a);
+}
+
+.dialog input[type='number'] {
+  font: inherit;
+}
+
+/* What a form says while its OK takes long: an XP progress bar that keeps going, and what is going on. */
+.dialog .busy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-mid, #444);
+}
+
+.busy-bar {
+  position: relative;
+  flex: none;
+  width: 84px;
+  height: 11px;
+  overflow: hidden;
+  border: 1px solid var(--pane-border);
+  border-radius: 3px;
+  background: var(--pane);
+}
+
+.busy-bar::before {
+  content: '';
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 0;
+  width: 30px;
+  background: repeating-linear-gradient(90deg, #36b436 0 6px, transparent 6px 8px);
+  animation: busy-slide 1.4s linear infinite;
+}
+
+@keyframes busy-slide {
+  from {
+    transform: translateX(-30px);
+  }
+
+  to {
+    transform: translateX(84px);
+  }
+}
+
+/* "Delete contact" with a worktree to keep or remove. */
+.delete-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.delete-form .hint,
+.delete-form .warning {
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+
+/* The contacts it deletes, one to a line, each with its box. A long list scrolls, so the box under it
+   stays in sight. */
+.delete-names {
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--pane-border);
+  background: var(--pane);
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
+/* A name that wraps keeps its box on its first line. */
+.delete-names label.choice {
+  align-items: baseline;
+  padding: 1px 0;
+}
+
+/* Grouped by how their pull requests stand: a group's line, with the box for all of it, and its
+   contacts under it, set in as far as the boxes. */
+.delete-names ul {
+  margin: 0;
+  padding: 0 0 0 18px;
+  list-style: none;
+}
+
+.delete-group + .delete-group {
+  margin-top: 4px;
+}
+
+.delete-group-name {
+  font-weight: bold;
+}
+
+.delete-group-count {
+  color: var(--text-faint, #7a7a7a);
+  font-weight: normal;
+}
+
+.dialog .buttons {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 0 11px 11px;
+  background: var(--xp-face);
+}
+
+/* A body too tall for its window scrolls: a line over the buttons shows where it is cut off. */
+.dialog.scrolls .buttons {
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline, #e6edf7);
+}
+
+/* ---- display pictures: a glossy rounded frame, as in MSN 7.5 ------------------------------- */
+.dp {
+  position: relative;
+  flex: none;
+  padding: 4px;
+  border: 1px solid var(--control-border, #9cb3d6);
+  border-radius: 8px;
+  background: var(--dp-bg, linear-gradient(180deg, #ffffff 0%, #f2f6fd 45%, #dce6f5 100%));
+  box-shadow:
+    0 1px 3px rgba(26, 58, 110, 0.22),
+    inset 0 1px 0 var(--gloss, #fff),
+    inset 0 -1px 0 rgba(140, 166, 205, 0.35);
+}
+
+.dp-inner {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--hairline, #c4d2e8);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.dp-inner img,
+.dp-inner svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dp-tiny {
+  width: 32px;
+  height: 32px;
+  padding: 2px;
+  border-radius: 5px;
+}
+
+.dp-tiny .dp-inner {
+  border-radius: 3px;
+}
+
+.dp-small {
+  width: 46px;
+  height: 46px;
+  padding: 3px;
+  border-radius: 6px;
+}
+
+.dp-small .dp-inner {
+  border-radius: 3px;
+}
+
+.dp-medium {
+  width: 56px;
+  height: 56px;
+}
+
+.dp-large {
+  width: 100px;
+  height: 100px;
+}
+
+.dp-menu {
+  position: absolute;
+  right: -16px;
+  bottom: 0;
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: none;
+  color: var(--text-mid, #3d5578);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.dp-menu:hover {
+  border-color: var(--hover-border);
+  background: var(--hover-bg);
+  color: var(--text);
+}
+
+/* ---- emoticons, and the grids you pick them (and winks, and pictures) from ---------------- */
+img.emoticon {
+  width: 19px;
+  height: 19px;
+  vertical-align: -5px;
+  margin: 0 1px;
+}
+
+.pick-grid {
+  display: grid;
+  gap: 1px;
+  padding: 4px;
+  max-height: 232px;
+  overflow-y: auto;
+}
+
+.pick-grid button {
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  background: none;
+}
+
+.pick-grid button:hover,
+.pick-grid button.current {
+  border-color: var(--select);
+  background: var(--chosen-bg, #e3edfb);
+}
+
+.emoticon-grid {
+  grid-template-columns: repeat(8, 26px);
+  grid-auto-rows: 26px;
+}
+
+.picture-grid {
+  grid-template-columns: repeat(4, 54px);
+  grid-auto-rows: 54px;
+}
+
+.popup-foot {
+  padding: 2px 6px 6px;
+  text-align: right;
+}
+
+.emoticon-grid img.emoticon {
+  margin: 0;
+  vertical-align: 0;
+}
+
+.popup-caption {
+  padding: 4px 6px 2px;
+  color: var(--muted);
+  border-top: 1px solid var(--hairline, #e3e3dc);
+}
+
+/* ---- a box to search a list in, over it: a contact's models, a conversation's commands ------------ */
+.menu-search {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  /* The magnifier sits over the rows' pictures, what is typed over their names. */
+  padding: 4px 6px 4px 9px;
+  border-bottom: 1px solid var(--hairline, #e3e3dc);
+}
+
+.menu-search svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.menu-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  user-select: text;
+}
+
+.model-picker .menu {
+  min-width: 0;
+}
+
+.model-picker .menu-item {
+  grid-template-columns: 22px minmax(0, 1fr) 14px;
+  min-height: 22px;
+  padding-right: 4px;
+}
+
+.model-picker .menu-check svg {
+  border-radius: 3px;
+}
+
+.model-picker .menu-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A few words about a model, after its name. */
+.model-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+
+.model-hint:empty {
+  display: none;
+}
+
+.menu-label .model-hint {
+  margin-left: 6px;
+}
+
+.menu-item.active .model-hint {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.model-current {
+  text-align: center;
+}
+
+/* ---- the open pull requests and issues under the GitHub field of "New Contact" ---------------- */
+.item-list .menu {
+  min-width: 0;
+  max-height: 264px;
+  overflow-y: auto;
+}
+
+.item-list .menu-item {
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+}
+
+.item-list .menu-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-number {
+  color: var(--muted);
+}
+
+.menu-item.active .item-number {
+  color: inherit;
+  opacity: 0.75;
+}
+
+/* What the rows under it are: the pull requests, then the issues. */
+.menu-heading {
+  padding: 3px 6px 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.menu-item + .menu-heading {
+  margin-top: 3px;
+  padding-top: 5px;
+  border-top: 1px solid var(--hairline, #e3e3dc);
+}
+
+/* In place of the rows: the list on its way, or why there is none. */
+.item-note {
+  padding: 5px 8px;
+  color: var(--muted);
+}
+
+/* ---- the palette (⌘K): the contacts, past conversations, files and actions to jump to ------------ */
+.popup.palette {
+  width: min(480px, calc(100vw - 16px));
+}
+
+.palette .menu {
+  min-width: 0;
+  max-height: min(380px, calc(100vh - 180px));
+  overflow-y: auto;
+}
+
+.palette .menu-item {
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+}
+
+.palette .menu-label {
+  display: flex;
+  min-width: 0;
+  gap: 4px;
+}
+
+.palette-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Whose a conversation is and when, a contact's project or a file's folder: never all the room the name needs. */
+.palette .menu-hint {
+  max-width: min(180px, 30vw);
+  padding-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Works on, in Add a Contact: where each project is says less than its name, and is cut short first. The list
+   stays in the window, however far from home a project is. */
+.where-menu {
+  max-width: calc(100vw - 8px);
+}
+
+.where-menu .menu-hint {
+  max-width: min(160px, 40vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.palette .menu-hint:empty {
+  display: none;
+}
+
+/* The menus an action is in, before its name. */
+.palette-path {
+  flex-shrink: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+
+.menu-item.active .palette-path {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.palette-status,
+.palette-foot {
+  padding: 4px 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.palette-status {
+  border-top: 1px solid var(--hairline, #e3e3dc);
+}
+
+.palette-foot {
+  padding-top: 0;
+}
+
+/* ---- "Claude Models": the models to choose from, ticked in a list ----------------------------- */
+.models-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-checks {
+  max-height: 232px;
+  overflow-y: auto;
+  padding: 2px;
+  border: 1px solid var(--pane-border);
+  background: var(--pane);
+}
+
+/* A model's name next to its box, and a few words about it under the name. */
+.dialog label.model-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 6px;
+  align-items: center;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+}
+
+.model-check:hover {
+  border-color: var(--row-hover-border, #c6d8f0);
+  background: var(--row-hover-bg, linear-gradient(180deg, #f6f9fe 0%, #e7effb 100%));
+}
+
+.model-check input {
+  margin: 0;
+}
+
+.model-check .model-hint {
+  grid-column: 2;
+  white-space: nowrap;
+}
+
+/* A list with no models says why instead, and what to do about it. */
+.models-none {
+  padding: 3px 5px;
+}
+
+.models-none p {
+  margin: 0 0 6px;
+}
+
+.models-none p:last-child {
+  margin-bottom: 0;
+}
+
+.models-none p + p {
+  color: var(--text-dim, #555);
+}
+
+.titlebar-like {
+  background: var(--titlebar-bg);
+}
+
+.dialog-message {
+  margin: 2px 0 4px;
+  line-height: 1.5;
+}
+
+.contact-form,
+.group-form,
+.project-form,
+.feedback-form,
+.manager-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* "Assign to manager...": a choice for each of the project's managers, and one for none, with what each oversees. */
+.assign-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 340px;
+  max-width: 100%;
+}
+
+.assign-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dialog label.assign-choice {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 5px 7px;
+  border: 1px solid var(--pane-border);
+  border-radius: 3px;
+}
+
+.dialog label.assign-choice:has(input:checked) {
+  border-color: var(--focus-border, #6f97d3);
+}
+
+.assign-choice input {
+  margin: 2px 0 0;
+}
+
+.assign-choice > span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* "Assign conversations...": the project's conversations, listed as Delete contacts lists them, each with where it is
+   under its name. */
+.assign-names label.choice {
+  padding: 2px 0;
+}
+
+.assign-names label.choice > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.assign-every {
+  font-weight: bold;
+}
+
+/* A compact extension of the existing multi-conversation picker, shared by both looks. */
+.dialog:has(.handover-form) {
+  --dialog-width: 440px;
+}
+
+.dialog .contact-form.handover-form {
+  width: 100%;
+  max-width: 100%;
+  gap: 8px;
+}
+
+.handover-models {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 85px;
+  gap: 8px;
+}
+
+.handover-models:has(label[hidden]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.handover-workers {
+  max-height: min(220px, 30vh);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.handover-workers label.choice {
+  align-items: flex-start;
+  padding: 5px 0;
+}
+
+.handover-workers input {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.dialog .handover-summary {
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--xp-face);
+}
+
+.dialog:has(.handover-form) .buttons {
+  flex-wrap: wrap;
+}
+
+.dialog:has(.handover-form) .buttons .btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* "Send Feedback": the message has room for a few sentences, and can be given more. */
+.feedback-form textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+/* What a report says about the system can be long: a browser's whole name, in the preview. */
+.feedback-form .hint {
+  overflow-wrap: anywhere;
+}
+
+/* "Connect to GitHub": the one-time code GitHub wants typed into its page, and how that is going. */
+.connect-form,
+.connect-step,
+.connect-code {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.connect-form p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.connect-code {
+  gap: 4px;
+}
+
+.connect-code output {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border: 1px solid var(--pane-border);
+  background: var(--pane);
+  font: bold 18px var(--font-mono);
+  letter-spacing: 1px;
+  user-select: all;
+  cursor: text;
+}
+
+.connect-form .error {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  user-select: text;
+  cursor: text;
+}
+
+.connect-form .error .link {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+/* "Software Update": the new version's download as it goes, then Restart once it is ready. */
+.update-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.update-form p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.update-headline {
+  font-weight: bold;
+  color: var(--text-strong, #10244a);
+}
+
+.update-detail {
+  color: var(--text-dim, #555);
+}
+
+.update-detail .link {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.update-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  color: var(--text-mid, #444);
+}
+
+/* An XP progress bar: the busy line's green blocks, filling up. With no value they keep going by. */
+.update-progress progress {
+  --slide: 30px;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 13px;
+  padding: 1px;
+  border: 1px solid var(--pane-border);
+  border-radius: 3px;
+  background: var(--pane);
+}
+
+.update-progress progress::-webkit-progress-bar {
+  background: transparent;
+}
+
+.update-progress progress::-webkit-progress-value {
+  background: repeating-linear-gradient(90deg, #36b436 0 6px, transparent 6px 8px);
+  transition: width 0.4s ease-out;
+}
+
+.update-progress progress:indeterminate {
+  background:
+    repeating-linear-gradient(90deg, #36b436 0 6px, transparent 6px 8px) 0 0 / var(--slide) 100% no-repeat content-box,
+    var(--pane);
+  animation: update-slide 1.4s linear infinite;
+}
+
+@keyframes update-slide {
+  from {
+    background-position-x: calc(var(--slide) * -1), 0;
+  }
+
+  to {
+    background-position-x: calc(100% + var(--slide)), 0;
+  }
+}
+
+/* "Clone GitHub repo": the user's repositories, to pick one from. */
+.repo-list {
+  height: 132px;
+  overflow-y: auto;
+  border: 1px solid var(--xp-menu-border);
+  background: var(--pane);
+}
+
+.repo-note {
+  padding: 8px;
+  color: var(--text-dim, #555);
+  line-height: 1.4;
+}
+
+.repo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  padding: 4px 7px;
+  border: 0;
+  border-bottom: 1px solid var(--hairline, #edf1f7);
+  background: none;
+  text-align: left;
+}
+
+.repo:hover {
+  background: var(--row-hover-bg, linear-gradient(180deg, #f6f9fe 0%, #e7effb 100%));
+}
+
+.repo.selected {
+  background: var(--row-selected-bg, linear-gradient(180deg, #e3eefc 0%, #c9dcf6 100%));
+}
+
+.repo-name {
+  font-weight: bold;
+  color: var(--heading);
+  overflow-wrap: anywhere;
+}
+
+.repo-tag {
+  margin-left: 5px;
+  font-weight: normal;
+  color: var(--text-faint, #777);
+}
+
+.repo-description {
+  color: var(--text-dim, #555);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.about {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.about p {
+  margin: 0 0 6px;
+  line-height: 1.45;
+}
+
+.shortcuts {
+  border-collapse: collapse;
+}
+
+.shortcuts td {
+  padding: 3px 10px 3px 0;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 4px;
+  border: 1px solid var(--control-border, #a5a291);
+  border-radius: 3px;
+  background: var(--btn-bg, linear-gradient(180deg, #fff, #e9e7dc));
+  font: 11px var(--font-ui);
+  text-align: center;
+}

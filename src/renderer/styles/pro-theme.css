@@ -1,0 +1,314 @@
+/* Design tokens of the professional look: slate by day and ink at night, with the window blue of
+   the messenger as its one colour, and the system's own type.
+   Settings > Look picks it (see lib/look.js); pro.css draws the windows in it.
+   It gives every role of theme.css a colour of its own, by day and at night, so that nothing of
+   Luna shows through. test/theme.test.js fails for a role it leaves out. */
+:root[data-look='professional'] {
+  color-scheme: light;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-title: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-chat: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, Menlo, Monaco, Consolas, monospace;
+
+  --text: #1a2130;
+  --text-strong: #0d1320;
+  --text-soft: #364055;
+  --text-mid: #475268;
+  --text-dim: #5f6b82;
+  --text-faint: #949eb2;
+  --muted: #6b778e;
+  --link: #1f63d6;
+  --heading: #121a2a;
+  --accent: #2a6ae0;
+  --code-text: #222b3b;
+  /* code in the colours of its language: see lib/syntax.js */
+  --code-comment: #6f737c;
+  --code-keyword: #a626a4;
+  --code-tag: #c9372c;
+  --code-literal: #0077a8;
+  --code-string: #387a37;
+  --code-number: #986801;
+  --code-name: #3367d6;
+  --code-type: #9a6a00;
+  --icon-ink: #56627a;
+
+  /* the window: its bars, and what is in it */
+  --frame: #f2f4f8;
+  --frame-dark: #d3d9e4;
+  --frame-inactive: #f2f4f8;
+  --frame-inactive-border: #d3d9e4;
+  --titlebar-bg: #f2f4f8;
+  --titlebar-inactive-bg: #f2f4f8;
+  --titlebar-text: #1a2130;
+  --titlebar-inactive-text: #949eb2;
+  --titlebar-shadow: transparent;
+  --wc-bg: transparent;
+  --body-bg: #fbfcfd;
+  --band-bg: #f5f7fa;
+  --pane: #fbfcfd;
+  --pane-hover: #f1f4f8;
+  --pane-border: #dfe4ec;
+  --pane-border-soft: #e7ebf1;
+  --hairline: #e8ecf2;
+  --hover-bg: #e9edf3;
+  --hover-border: transparent;
+  --press-bg: #dfe5ee;
+  --press-border: transparent;
+  --focus-border: #2a6ae0;
+  --select: #2a6ae0;
+  --select-soft: #e5eefc;
+  --select-soft-border: #c4d6f6;
+  --chosen-bg: #e5eefc;
+  --row-hover-bg: #e9edf3;
+  --row-hover-border: transparent;
+  --row-selected-bg: #dfe8f8;
+
+  /* bars, heads and cards */
+  --menubar-bg: #f2f4f8;
+  --toolbar-bg: #f2f4f8;
+  --bar-bg: #f2f4f8;
+  --bar-border: #e1e6ee;
+  --head-bg: #f2f4f8;
+  --me-bg: #f2f4f8;
+  --tab-bg: #f2f4f8;
+  --field-bg: #ffffff;
+  --field-hover-bg: #eef1f6;
+  --card-bg: #ffffff;
+  --card-border: #dbe1eb;
+  --toast-bg: #ffffff;
+  --ad-bg: #f2f4f8;
+  --drop-bg: rgba(251, 252, 253, 0.9);
+  --backdrop: rgba(12, 20, 36, 0.22);
+  --gloss: transparent;
+  --code-bg: #eef1f6;
+  --chip-bg: #eef1f6;
+
+  /* dialogs, buttons and menus */
+  --xp-face: #fbfcfd;
+  --xp-border: #cfd6e2;
+  --xp-menu-border: #d9dfe9;
+  --btn-default-ring: 0 0 transparent;
+  --answered: #949eb2;
+  --badge-bg: #2a6ae0;
+  --banner-bg: #f2f4f8;
+  --banner-border: #e1e6ee;
+  --banner-dot: #2a6ae0;
+  --menu-bg: #ffffff;
+  --btn-bg: #ffffff;
+  --btn-press-bg: #eef1f6;
+  --control-bg: #ffffff;
+  --control-hover-bg: #f2f4f8;
+  --control-border: #d3dae5;
+  --dp-bg: #e9edf3;
+  --send-bg: #2a6ae0;
+  --send-hover-bg: #2360cf;
+  --send-press-bg: #1d54b8;
+  --combo-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%235f6b82' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  /* scrollbars: pro.css draws them slim, with no arrows */
+  --scroll-track: transparent;
+  --scroll-track-h: transparent;
+  --scroll-corner: transparent;
+  --scroll-edge: transparent;
+  --scroll-outline: transparent;
+  --scroll-thumb: #cdd4df;
+  --scroll-thumb-h: #cdd4df;
+  --scroll-button: transparent;
+  --scroll-button-hover: transparent;
+  --scroll-button-press: transparent;
+  --scroll-up: none;
+  --scroll-down: none;
+  --scroll-left: none;
+  --scroll-right: none;
+
+  /* the Terminal tab, in the ink of the night by day too */
+  --terminal-bg: #10141b;
+  --terminal-text: #dfe5ef;
+  --terminal-black: #1f2836;
+  --terminal-dim: #6b778e;
+  --terminal-select: #2f6fe4;
+  --terminal-match: #6b5418;
+  --terminal-match-ring: #efc15a;
+
+  --online: #2f9a3e;
+  --busy: #d93f3f;
+  --away: #d99a12;
+  --offline: #9aa3b3;
+
+  /* what something means: a problem, a warning, a go-ahead */
+  --danger: #c8322f;
+  --danger-bg: #fdf1f1;
+  --danger-border: #f3c7c6;
+  --recording-bg: #fbe0df;
+  --warn: #9a6206;
+  --warn-bg: #fdf8ec;
+  --warn-border: #f0d58e;
+  --running-bg: #fdf8ec;
+  --running-hover-bg: #fbefcd;
+  --orange: #b5480f;
+  --orange-bg: #fdf4ec;
+  --orange-border: #f4cfa9;
+  --ok: #227a35;
+  --ok-bg: #eff8f0;
+  --ok-border: #bfe3c6;
+  --violet: #5d3fc4;
+  --violet-bg: #f3f0fd;
+  --violet-border: #d6cdf6;
+
+  --invite-top: #f5f7fa;
+  --invite-bg: #f5f7fa;
+  --invite-border: #e1e6ee;
+}
+
+/* ---- at night ---------------------------------------------------------------------------------
+   The same roles in blue-black ink, as the windows are told through the colour scheme they are
+   shown in (see theme.css). */
+@media (prefers-color-scheme: dark) {
+  :root[data-look='professional'] {
+    color-scheme: dark;
+
+    --text: #dfe5ef;
+    --text-strong: #f3f6fb;
+    --text-soft: #c6cedc;
+    --text-mid: #b0b9ca;
+    --text-dim: #8f9ab0;
+    --text-faint: #667189;
+    --muted: #7e899f;
+    --link: #79a7f7;
+    --heading: #eef2f8;
+    --accent: #5b93f5;
+    --code-text: #d9e0eb;
+    /* code in the colours of its language: see lib/syntax.js */
+    --code-comment: #7f848e;
+    --code-keyword: #c678dd;
+    --code-tag: #e06c75;
+    --code-literal: #56b6c2;
+    --code-string: #98c379;
+    --code-number: #d19a66;
+    --code-name: #61afef;
+    --code-type: #e5c07b;
+    --icon-ink: #a2acbf;
+
+    --frame: #141922;
+    --frame-dark: #273041;
+    --frame-inactive: #141922;
+    --frame-inactive-border: #273041;
+    --titlebar-bg: #141922;
+    --titlebar-inactive-bg: #141922;
+    --titlebar-text: #dfe5ef;
+    --titlebar-inactive-text: #667189;
+    --titlebar-shadow: transparent;
+    --wc-bg: transparent;
+    --body-bg: #10141b;
+    --band-bg: #141922;
+    --pane: #10141b;
+    --pane-hover: #18202c;
+    --pane-border: #263042;
+    --pane-border-soft: #212a3a;
+    --hairline: #1f2836;
+    --hover-bg: #1c2432;
+    --hover-border: transparent;
+    --press-bg: #232d3e;
+    --press-border: transparent;
+    --focus-border: #5b93f5;
+    --select: #2f6fe4;
+    --select-soft: #1a2a48;
+    --select-soft-border: #2b4677;
+    --chosen-bg: #1a2a48;
+    --row-hover-bg: #1a212d;
+    --row-hover-border: transparent;
+    --row-selected-bg: #1c2a44;
+
+    --menubar-bg: #141922;
+    --toolbar-bg: #141922;
+    --bar-bg: #141922;
+    --bar-border: #222b3a;
+    --head-bg: #141922;
+    --me-bg: #141922;
+    --tab-bg: #141922;
+    --field-bg: #161c26;
+    --field-hover-bg: #1c2432;
+    --card-bg: #161c26;
+    --card-border: #2a3446;
+    --toast-bg: #161c26;
+    --ad-bg: #141922;
+    --drop-bg: rgba(16, 20, 27, 0.9);
+    --backdrop: rgba(0, 0, 0, 0.5);
+    --gloss: transparent;
+    --code-bg: #19202b;
+    --chip-bg: #19202b;
+
+    --xp-face: #141922;
+    --xp-border: #2d3749;
+    --xp-menu-border: #2a3446;
+    --btn-default-ring: 0 0 transparent;
+    --answered: #667189;
+    --badge-bg: #2f6fe4;
+    --banner-bg: #141922;
+    --banner-border: #222b3a;
+    --banner-dot: #5b93f5;
+    --menu-bg: #181f2a;
+    --btn-bg: #1c2432;
+    --btn-press-bg: #232d3e;
+    --control-bg: #181f2a;
+    --control-hover-bg: #1f2836;
+    --control-border: #2d3749;
+    --dp-bg: #1c2432;
+    --send-bg: #2f6fe4;
+    --send-hover-bg: #3b7bef;
+    --send-press-bg: #295fc4;
+    --combo-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238f9ab0' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+    --scroll-track: transparent;
+    --scroll-track-h: transparent;
+    --scroll-corner: transparent;
+    --scroll-edge: transparent;
+    --scroll-outline: transparent;
+    --scroll-thumb: #2f394b;
+    --scroll-thumb-h: #2f394b;
+    --scroll-button: transparent;
+    --scroll-button-hover: transparent;
+    --scroll-button-press: transparent;
+    --scroll-up: none;
+    --scroll-down: none;
+    --scroll-left: none;
+    --scroll-right: none;
+
+    --terminal-bg: #10141b;
+    --terminal-text: #dfe5ef;
+    --terminal-black: #1f2836;
+    --terminal-dim: #6b778e;
+    --terminal-select: #2f6fe4;
+    --terminal-match: #6b5418;
+    --terminal-match-ring: #efc15a;
+
+    --online: #49b85a;
+    --busy: #ec5f5f;
+    --away: #e6ab35;
+    --offline: #5f6a7f;
+
+    --danger: #f27b78;
+    --danger-bg: #2a1719;
+    --danger-border: #5a2a2e;
+    --recording-bg: #3a1c20;
+    --warn: #efc15a;
+    --warn-bg: #272213;
+    --warn-border: #574718;
+    --running-bg: #272213;
+    --running-hover-bg: #312a14;
+    --orange: #f59b55;
+    --orange-bg: #2a1c12;
+    --orange-border: #5a3718;
+    --ok: #5fd07a;
+    --ok-bg: #11251a;
+    --ok-border: #214a31;
+    --violet: #ab98f8;
+    --violet-bg: #1e1b36;
+    --violet-border: #3c3570;
+
+    --invite-top: #161c26;
+    --invite-bg: #161c26;
+    --invite-border: #252f40;
+  }
+}

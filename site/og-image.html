@@ -1,0 +1,79 @@
+<!doctype html>
+<!-- The card shown when the page is shared. `npm run og-image` photographs it into og-image.png, and
+     at GitHub's size into docs/social-preview.png: it fills whatever page it is in. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>buddylist link preview</title>
+    <style>
+      body {
+        display: flex;
+        align-items: center;
+        gap: 40px;
+        box-sizing: border-box;
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        padding: 0 0 0 64px;
+        overflow: hidden;
+        color: #f3f6fb;
+        font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+        background:
+          radial-gradient(ellipse 60% 70% at 85% 10%, rgba(47, 111, 228, 0.35), transparent 70%),
+          linear-gradient(160deg, #10151f 0%, #0b0e14 100%);
+      }
+
+      .words {
+        flex: none;
+        width: 480px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      h1 {
+        margin: 34px 0 18px;
+        font-size: 56px;
+        font-weight: 700;
+        line-height: 1.04;
+        letter-spacing: -0.035em;
+      }
+
+      p {
+        margin: 0;
+        color: #aeb8c9;
+        font-size: 21px;
+        line-height: 1.45;
+      }
+
+      /* The app as the demo draws it, running off the card's edge. */
+      .shot {
+        flex: none;
+        width: 720px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+      }
+
+      .shot img {
+        display: block;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="words">
+      <div class="brand"><img src="../build/icon-128.png" alt="" width="48" height="48" />buddylist</div>
+      <h1>Run every coding agent side by side.</h1>
+      <p>Claude Code, Codex, Gemini, OpenCode and Hermes, each in its own worktree, in one desktop app.</p>
+    </div>
+    <div class="shot"><img src="../docs/screenshot.png" alt="" /></div>
+  </body>
+</html>

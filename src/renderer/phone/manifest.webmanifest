@@ -1,0 +1,15 @@
+{
+  "name": "buddylist",
+  "short_name": "buddylist",
+  "description": "Your coding agents, from your phone.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fbfcfd",
+  "theme_color": "#f2f4f8",
+  "icons": [
+    { "src": "/src/renderer/phone/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/src/renderer/phone/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

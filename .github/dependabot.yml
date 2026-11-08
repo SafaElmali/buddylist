@@ -1,0 +1,12 @@
+# The Agent SDK brings the Claude Code binary the app ships, so a bump of it is
+# a newer Claude for everyone, from the next release on.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    allow:
+      - dependency-name: '@anthropic-ai/claude-agent-sdk'
+    commit-message:
+      prefix: chore

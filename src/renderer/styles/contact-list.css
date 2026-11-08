@@ -1,0 +1,866 @@
+/* The list of your contacts, wherever it is drawn: in its own window, and beside a
+   conversation. Its sections, its rows, the tags that say how a pull request stands, and
+   the card that hovering a contact brings up. */
+
+/* ---- the rows over it: a new contact, history, search and spending (nav.js) ------------------ */
+.cl-nav {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--pane-border-soft);
+}
+
+.cl-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border: 0;
+  background: none;
+  color: var(--link);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.cl-nav-row:hover .cl-nav-label {
+  text-decoration: underline;
+}
+
+.cl-nav-icon {
+  flex: none;
+  display: inline-flex;
+}
+
+.cl-nav-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cl-nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- the list ---------------------------------------------------------------------------- */
+.cl-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0 8px;
+  background: var(--pane);
+  outline: none;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  font-weight: bold;
+  color: var(--text-strong, #1c2f55);
+}
+
+.group-header:hover {
+  text-decoration: underline;
+}
+
+.group-arrow {
+  width: 9px;
+  height: 9px;
+  transition: transform 0.12s ease;
+}
+
+.group.collapsed .group-arrow {
+  transform: rotate(-90deg);
+}
+
+.group-members {
+  overflow: hidden;
+}
+
+.group.collapsed .group-members {
+  display: none;
+}
+
+/* A row: a contact, or a conversation that the search found (.hit). */
+.contact,
+.hit {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 21px;
+  margin: 0 4px 0 14px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.contact:hover,
+.hit:hover {
+  border-color: var(--row-hover-border, #c6d8f0);
+  background: var(--row-hover-bg, linear-gradient(180deg, #f6f9fe 0%, #e7effb 100%));
+}
+
+.contact.selected,
+.hit.selected {
+  border-color: var(--select-soft-border);
+  background: var(--row-selected-bg, linear-gradient(180deg, #e3eefc 0%, #c9dcf6 100%));
+}
+
+.cl-list:focus .contact.selected,
+.cl-list:focus .hit.selected {
+  border-color: var(--focus-border, #6f97d3);
+}
+
+.contact .buddy {
+  flex: none;
+}
+
+.contact .name,
+.hit .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A contact's name and what follows it share the row (see .contact .pm). Neither takes more than it needs. */
+.contact .name {
+  flex: 7 1 0;
+  min-width: 0;
+  max-width: max-content;
+}
+
+.hit .name {
+  flex: none;
+  max-width: 70%;
+}
+
+/* A pinned contact or project: a pin before its name, inside it, so that a name cut short keeps it. */
+.pin-mark {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 3px;
+  vertical-align: -1px;
+}
+
+.pin-mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* A name being typed over, where it was (see ContactList#rename). As tall as the row lets it be. */
+.contact-rename {
+  flex: 1 1 auto;
+  min-width: 60px;
+  min-height: 0;
+  height: 17px;
+  padding: 0 3px;
+}
+
+.contact .pm,
+.hit .pm {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-faint, #7a7a7a);
+}
+
+/* Where the name and what follows it need more than the row has, the name keeps 70% of it. What the contact
+   is doing, and the project of one that is not under its project's name, are worth as much as the name: the
+   two go half and half. Either one that needs less leaves the rest to the other, so nothing is cut short
+   while the row still has room. */
+.contact .pm {
+  flex: 3 1 0;
+  max-width: max-content;
+}
+
+.contact .pm:is(.doing, .where) {
+  flex-grow: 7;
+}
+
+.contact .pm.doing {
+  color: var(--warn, #8a5b00);
+  font-style: italic;
+}
+
+/* An archived contact is as grey as one whose folder is gone. */
+.contact.offline .name,
+.contact.archived .name,
+.hit.archived .name {
+  color: var(--muted);
+}
+
+/* A hit's magnifier takes the room of a buddy, so the names line up. */
+.hit-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+
+.hit-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* The line from the conversation is what you are looking for, so the name makes room for it. */
+.hit .name {
+  max-width: 45%;
+}
+
+/* "(archived)" is never cut short: the name before it gives way instead. */
+.hit-tag {
+  flex: none;
+  color: var(--muted);
+}
+
+.hit.archived .name {
+  max-width: 30%;
+}
+
+/* What you searched for, marked as the message history marks it. */
+.hit mark {
+  background: #ffe58a;
+  color: #000;
+}
+
+/* The + of a section, for another contact in it. Its glyph ends where the text and the tags of the rows
+   under it do. */
+.contact-add {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: none;
+}
+
+.contact-add:hover {
+  border-color: var(--control-border, #8fb0dc);
+  background: var(--control-hover-bg, linear-gradient(180deg, #ffffff 0%, #dce9fb 100%));
+}
+
+.contact-add svg {
+  width: 9px;
+  height: 9px;
+}
+
+/* What can be done with a contact, together at the end of its name's line however many lines the row has: its
+   pull request's tags and what comes after them, the + of a project's manager, for another contact under it, and
+   how many are under it. It takes no height of its own, so the name's line is as tall as the name, and what is
+   in it stands centred on that line. It goes into the row's edge by the room its buttons leave round their
+   glyphs: those end where every row's text does, as a project's + does on its line. */
+.contact {
+  position: relative;
+  margin-left: 4px;
+  padding-left: 22px;
+}
+
+/* Under a project manager, a level in: each manager, with the conversations it oversees under it, is drawn as a
+   manager is, and set in so that its disclosure is under the project manager's buddy (see startedUnder). */
+.contact.led {
+  margin-left: 22px;
+}
+
+/* A disclosure gutter, like a section's, leaves every buddy aligned even on rows without children. */
+.contact-fold {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 19px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--text-dim, #5a6a82);
+  cursor: pointer;
+}
+
+.contact-fold:hover {
+  background: var(--control-hover-bg, linear-gradient(180deg, #ffffff 0%, #dce9fb 100%));
+}
+
+.contact-fold:focus-visible {
+  outline: 1px solid var(--focus-border, #6f97d3);
+  outline-offset: -1px;
+}
+
+.contact.folded > .contact-fold .group-arrow {
+  transform: rotate(-90deg);
+}
+
+.contact-actions {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  height: 0;
+  margin-left: auto;
+  margin-right: -3px;
+  background: inherit;
+}
+
+/* Tags and words have no room of their own round them. */
+.contact-actions > :is(.pr-tags, .pr-next):last-child {
+  margin-right: 3px;
+}
+
+/* The ⋯ of the row the pointer is on, and of the one selected: its right-click menu. It comes up right before
+   the rest, over the end of the name, on the row's own colour, so nothing in the row moves when it shows. A
+   square, whatever the height of the row. */
+.contact-more {
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: inherit;
+  translate: 0 -50%;
+}
+
+.contact:is(:hover, .selected) .contact-more {
+  display: inline-flex;
+}
+
+/* A row with a second line is about twice as tall as the ⋯ at its top. The row's colour runs from its top to
+   its bottom, so the ⋯ paints it as tall as that, and shows no edge. */
+.contact.in-company .contact-more:not(:hover) {
+  background-size: 100% 200%;
+}
+
+.contact-more:hover {
+  border-color: var(--control-border, #8fb0dc);
+  background: var(--control-hover-bg, linear-gradient(180deg, #ffffff 0%, #dce9fb 100%));
+}
+
+.contact-more svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* A conversation dragged to go under a manager, and the manager's row or the project's line it would go to. */
+.contact.dragging {
+  opacity: 0.5;
+}
+
+.contact.drop-target,
+.group-header.drop-target {
+  outline: 2px solid var(--focus-border, #6f97d3);
+  outline-offset: -2px;
+  border-radius: 3px;
+}
+
+/* ---- how a contact's pull request stands, in tags at the end of its row ------------------------ */
+/* One button for all of a row's tags: a click opens the pull request on GitHub. On a tag that acts in the
+   conversation it does that instead: the checks' tag shows them beside it, and Conflict asks for a fix.
+   They end where every row's text does, right after the name when it is cut short, and are never cut
+   short themselves: the name gives way. The row's ⋯ comes up right before them (see .contact-actions). */
+.pr-tags {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.pr-tag {
+  --tag-text: var(--text-mid, #3d5578);
+  --tag-top: var(--chip-bg, #f8fbff);
+  --tag-bottom: var(--chip-bg, #e2ecf9);
+  --tag-border: var(--bar-border, #a9c0e2);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 15px;
+  padding: 0 5px 0 4px;
+  border: 1px solid var(--tag-border);
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--tag-top) 0%, var(--tag-bottom) 100%);
+  color: var(--tag-text);
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 13px;
+}
+
+.pr-tag svg {
+  flex: none;
+  width: 9px;
+  height: 9px;
+}
+
+/* What a click would do is outlined: a tag that acts in the conversation on its own, or the tags that open GitHub. */
+.pr-tags:hover:not(:has([data-action]:hover)) .pr-tag:not([data-action]),
+.pr-tag[data-action]:hover {
+  border-color: var(--tag-text);
+}
+
+/* How big a pull request still to be merged is, before its tags: the lines it adds, and removes. */
+.pr-size {
+  color: var(--text-faint, #7a7a7a);
+  font-size: 10px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.pr-added {
+  color: var(--ok, #1e6b28);
+}
+
+.pr-removed {
+  color: var(--danger, #b3261e);
+}
+
+.pr-tag[data-kind='merged'] {
+  --tag-text: var(--violet, #6a3cb5);
+  --tag-top: var(--violet-bg, #fbf8ff);
+  --tag-bottom: var(--violet-bg, #ebe0fc);
+  --tag-border: var(--violet-border, #bba0e6);
+}
+
+.pr-tag[data-kind='conflict'] {
+  --tag-text: var(--orange, #a84b00);
+  --tag-top: var(--orange-bg, #fffaf2);
+  --tag-bottom: var(--orange-bg, #ffe3c2);
+  --tag-border: var(--orange-border, #eba65a);
+}
+
+.pr-tag[data-kind='failing'] {
+  --tag-text: var(--danger, #bd1f27);
+  --tag-top: var(--danger-bg, #fff7f6);
+  --tag-bottom: var(--danger-bg, #ffd9d5);
+  --tag-border: var(--danger-border, #ec8f88);
+}
+
+.pr-tag[data-kind='running'] {
+  --tag-text: var(--warn, #7f5d00);
+  --tag-top: var(--warn-bg, #fffdf3);
+  --tag-bottom: var(--warn-bg, #fbedb3);
+  --tag-border: var(--warn-border, #dcbd52);
+}
+
+.pr-tag[data-kind='passed'] {
+  --tag-text: var(--ok, #1f7228);
+  --tag-top: var(--ok-bg, #f6fff4);
+  --tag-bottom: var(--ok-bg, #d6f2cf);
+  --tag-border: var(--ok-border, #89c97f);
+}
+
+.pr-tag[data-kind='closed'] {
+  --tag-text: var(--text-dim, #666);
+  --tag-top: var(--chip-bg, #fafafa);
+  --tag-bottom: var(--chip-bg, #e9e9e9);
+  --tag-border: var(--bar-border, #c2c2c2);
+}
+
+/* After a Merged or Closed tag, the things to do with the contact: Continue on a new branch,
+   Archive it, or Delete it. They do something, so they are buttons and not tags: squarer, set
+   a little apart from the tags, and blue as the + is when pointed at. */
+.pr-next {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  margin-left: 2px;
+}
+
+.pr-next-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 1px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border: 1px solid var(--control-border, #8fb0dc);
+  border-radius: 3px;
+  background: var(--control-hover-bg, linear-gradient(180deg, #ffffff 0%, #dce9fb 100%));
+  color: var(--accent, #1b4fae);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 13px;
+  cursor: pointer;
+}
+
+/* Its glyph stands closer to the edge than a letter would. */
+.pr-next-btn[data-next='continue'] {
+  padding-right: 3px;
+}
+
+.pr-next-btn svg {
+  flex: none;
+  width: 8px;
+  height: 8px;
+}
+
+/* Archive and Delete are their words, until the list is too narrow for them (below). */
+.pr-next-btn:is([data-next='archive'], [data-next='delete']) svg {
+  display: none;
+}
+
+.pr-next-btn:hover:not(:disabled) {
+  border-color: var(--accent, #1b4fae);
+  background: var(--row-selected-bg, linear-gradient(180deg, #ffffff 0%, #c9dcf7 100%));
+}
+
+/* Putting it away, or deleting it, is quieter than going on with it. */
+.pr-next-btn:is([data-next='archive'], [data-next='delete']) {
+  border-color: var(--bar-border, #c2c2c2);
+  background: var(--control-bg, linear-gradient(180deg, #ffffff 0%, #ececec 100%));
+  color: var(--text-dim, #555);
+}
+
+.pr-next-btn[data-next='archive']:hover {
+  border-color: var(--text-dim, #666);
+  background: var(--control-hover-bg, linear-gradient(180deg, #ffffff 0%, #dedede 100%));
+}
+
+/* Deleting turns red once pointed at, as Delete contact in its menu is. */
+.pr-next-btn[data-next='delete']:hover {
+  border-color: var(--danger-border, #f0c9c5);
+  background: var(--danger-bg, #fff5f4);
+  color: var(--danger, #b3261e);
+}
+
+.pr-next-btn:disabled {
+  border-color: var(--bar-border, #c2c2c2);
+  background: var(--chip-bg, #f1f1f1);
+  color: var(--text-faint, #8a8a8a);
+  cursor: default;
+}
+
+/* A contact list about as narrow as it starts has no room for all three words beside a tag and
+   still the name: Continue, Archive and Delete show their glyphs. Pointing at them says the rest.
+   The list beside a conversation has none of them, and its window is never this narrow. */
+@media (max-width: 359px) {
+  .pr-next-btn .pr-next-label {
+    display: none;
+  }
+
+  .pr-next-btn[data-next='continue'] {
+    padding-right: 5px;
+  }
+
+  .pr-next-btn:is([data-next='archive'], [data-next='delete']) svg {
+    display: block;
+    width: 9px;
+    height: 9px;
+  }
+}
+
+/* Narrower still, leave out a pull request's size before its tags. Beside a conversation too (chat.css). */
+@media (max-width: 319px) {
+  .pr-size {
+    display: none;
+  }
+}
+
+/* A conversation with guests: who they are goes on a second line, under the name, after what it is busy
+   with (see `below` in contactRow). The name has the first line to itself then, and what it is doing the
+   width of the second. */
+.contact.in-company {
+  flex-wrap: wrap;
+  row-gap: 0;
+  height: auto;
+  padding-bottom: 2px;
+}
+
+.contact .company {
+  flex: 0 1 100%;
+  min-width: 0;
+  /* Past the buddy and the gap after it. */
+  margin-left: 21px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-dim, #5a6a82);
+  font-size: 11px;
+}
+
+/* Its slant would lean into the dot after it. */
+.contact .company .pm {
+  margin-right: 2px;
+}
+
+.empty-note {
+  padding: 2px 0 4px 34px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ---- what you have not seen yet, and the conversation the list is beside ----------------------- */
+/* How much is unread sits on the buddy's shoulder, out of the row's way: its name, note and tags
+   are where they would be without it. */
+.contact.unread {
+  position: relative;
+}
+
+.contact.unread .name {
+  font-weight: bold;
+}
+
+.unread-count {
+  position: absolute;
+  top: 0;
+  left: 31px;
+  box-sizing: border-box;
+  min-width: 12px;
+  height: 11px;
+  padding: 0 2px;
+  /* A ring of the list's own colour, in either theme, sets it off from the buddy. */
+  border: 1px solid var(--pane);
+  border-radius: 6px;
+  background: #d9643a;
+  color: #fff;
+  font: bold 8px/9px var(--font-ui);
+  text-align: center;
+}
+
+.contact.current {
+  border-color: var(--select-soft-border);
+  background: var(--select-soft);
+}
+
+/* ---- the conversations an agent started, and the chat tabs opened, under the one they came from - */
+/* Set in by a buddy's width, with a line in that room joining each to the row above it: down the
+   middle of the buddy above, and across to its own at the height of its first line. `--nest-at` is
+   where its own line goes down: a row two levels in has it under the buddy of the one it is under. */
+.contact.nested {
+  --nest-line: 29px;
+  --nest-elbow: 10px;
+  --nest-at: var(--nest-line);
+  position: relative;
+  padding-left: calc(var(--nest-at) + 9px);
+}
+
+.contact.nested::before,
+.contact.nested::after {
+  content: '';
+  position: absolute;
+  left: var(--nest-line);
+  border: 0 solid var(--pane-border);
+  pointer-events: none;
+}
+
+.contact.nested::before {
+  top: 0;
+  bottom: 0;
+  border-left-width: 1px;
+}
+
+.contact.nested-last::before {
+  bottom: auto;
+  height: var(--nest-elbow);
+}
+
+.contact.nested::after {
+  top: var(--nest-elbow);
+  width: 6px;
+  border-top-width: 1px;
+}
+
+.contact.nested .unread-count {
+  left: calc(var(--nest-at) + 18px);
+}
+
+/* A chat tab of a row that is under another, a level further in (see startedUnder). Its own line is an
+   elbow under that row's buddy, which goes on down while more of its tabs follow, and the line of the
+   level above goes on past it while more rows follow on that level. */
+.contact.deep {
+  --nest-at: calc(var(--nest-line) + 16px);
+}
+
+.contact.deep::before {
+  bottom: 0;
+  box-sizing: border-box;
+  width: calc(var(--nest-at) - var(--nest-line) + 1px);
+  height: auto;
+  border-left-width: 0;
+  border-right-width: 1px;
+}
+
+.contact.deep.nested-last::before {
+  border-right-width: 0;
+}
+
+.contact.deep.nest-through::before {
+  border-left-width: 1px;
+}
+
+.contact.deep::after {
+  top: 0;
+  left: var(--nest-at);
+  height: var(--nest-elbow);
+  border-top-width: 0;
+  border-left-width: 1px;
+  border-bottom-width: 1px;
+}
+
+/* How many are under it, at the end of the row (see .contact-actions). A click on it folds them away,
+   and then it stands out as a button that was pressed, until they are back. */
+.started-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 17px;
+  padding: 0 2px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: none;
+  color: var(--text-faint, #7a7a7a);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.started-count:hover,
+.contact.folded .started-count {
+  border-color: var(--control-border, #8fb0dc);
+  background: var(--control-hover-bg, linear-gradient(180deg, #ffffff 0%, #dce9fb 100%));
+}
+
+.started-count svg {
+  width: 9px;
+  height: 9px;
+}
+
+/* ---- the card that hovering a contact brings up --------------------------------------------- */
+.contact-card {
+  position: fixed;
+  z-index: 50; /* over the list, under menus and dialogs */
+  width: min(250px, calc(100vw - 16px));
+  /* The gap between the row and the card, as part of the card: see #place in card.js. */
+  padding: 4px 0;
+  /* Not in the mouse's way: the rows underneath stay reachable. */
+  pointer-events: none;
+}
+
+/* Unless it has a link to click, such as the branch's pull request. Then the mouse can move onto it. */
+.contact-card.has-link {
+  pointer-events: auto;
+}
+
+.cc-box {
+  overflow: hidden;
+  border: 1px solid var(--card-border, #6f8fcf);
+  border-radius: 6px;
+  background: var(--card-bg, linear-gradient(180deg, #ffffff 0%, #f4f8fe 100%));
+  box-shadow:
+    0 3px 10px rgba(0, 25, 70, 0.32),
+    inset 0 1px 0 var(--gloss, #fff);
+  animation: popup-in 0.12s ease-out;
+}
+
+.cc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  background: var(--head-bg, linear-gradient(180deg, #ffffff 0%, #eef4fc 50%, #d9e6f7 100%));
+  border-bottom: 1px solid var(--pane-border-soft);
+}
+
+.cc-who {
+  min-width: 0;
+  flex: 1;
+}
+
+.cc-name {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--text-strong, #10244a);
+}
+
+.cc-name-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cc-status {
+  flex: none;
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--text-mid, #3d4f6a);
+}
+
+/* The whole path where the row had room for its start only; a very deep one stops at three lines. */
+.cc-folder {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--text-mid, #3d4f6a);
+  overflow-wrap: anywhere;
+}
+
+/* Everyone it is with, where the row had room for the first few only, and who started it. */
+.cc-company,
+.cc-started {
+  margin-top: 1px;
+  color: var(--text-dim, #5a6a82);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.cc-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 9px 8px;
+}
+
+/* A long branch name wraps instead of being cut off. */
+.cc-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.cc-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 0.5px;
+}
+
+.cc-icon svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: pack:"
+    />
+    <title>Quick send</title>
+    <link rel="stylesheet" href="styles/theme.css" />
+    <link rel="stylesheet" href="styles/pro-theme.css" />
+    <link rel="stylesheet" href="styles/palettes.css" />
+    <link rel="stylesheet" href="styles/base.css" />
+    <link rel="stylesheet" href="styles/frame.css" />
+    <link rel="stylesheet" href="styles/pro.css" />
+    <link rel="stylesheet" href="styles/quick-send.css" />
+    <script type="module" src="quick-send/main.js" blocking="render"></script>
+  </head>
+  <body>
+    <div class="window quick-send-window">
+      <div class="titlebar"></div>
+      <main class="window-body quick-send-body">
+        <div class="quick-send-recipient">
+          <strong id="recipient">Loading contact…</strong>
+          <div id="project"></div>
+        </div>
+        <label for="message">Message</label>
+        <textarea class="input" id="message" spellcheck="true" aria-describedby="hint error" disabled></textarea>
+        <p id="error" role="alert" hidden></p>
+        <div class="quick-send-actions">
+          <button class="btn" id="open-chat" type="button" disabled>Open conversation</button>
+          <button class="btn default" id="send" type="button" disabled>Send</button>
+        </div>
+        <div id="hint">Enter to send · Shift+Enter for a new line · Esc to dismiss</div>
+      </main>
+    </div>
+  </body>
+</html>

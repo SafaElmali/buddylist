@@ -1,0 +1,81 @@
+{
+  "emoticons": [],
+  "winks": [
+    {
+      "file": "bouncy_ball.webp",
+      "duration": 7250,
+      "audio": "bouncy_ball.m4a"
+    },
+    {
+      "file": "bow.webp",
+      "duration": 11330,
+      "audio": "bow.m4a"
+    },
+    {
+      "file": "crying.webp",
+      "duration": 8250,
+      "audio": "crying.m4a"
+    },
+    {
+      "file": "dancer.webp",
+      "duration": 14900,
+      "audio": "dancer.m4a"
+    },
+    {
+      "file": "dancing_pig.webp",
+      "duration": 11250,
+      "audio": "dancing_pig.m4a"
+    },
+    {
+      "file": "frog.webp",
+      "duration": 9750,
+      "audio": "frog.m4a"
+    },
+    {
+      "file": "guitar_smash.webp",
+      "duration": 6750,
+      "audio": "guitar_smash.m4a"
+    },
+    {
+      "file": "heart.webp",
+      "duration": 6190,
+      "audio": "heart.m4a"
+    },
+    {
+      "file": "kiss.webp",
+      "duration": 6750,
+      "audio": "kiss.m4a"
+    },
+    {
+      "file": "knock.webp",
+      "duration": 2420,
+      "audio": "knock.m4a"
+    },
+    {
+      "file": "laughing_girl.webp",
+      "duration": 9080,
+      "audio": "laughing_girl.m4a"
+    },
+    {
+      "file": "lightbulb.webp",
+      "duration": 7660,
+      "audio": "lightbulb.m4a"
+    },
+    {
+      "file": "silly_face.webp",
+      "duration": 7730,
+      "audio": "silly_face.m4a"
+    },
+    {
+      "file": "ufo.webp",
+      "duration": 9170,
+      "audio": "ufo.m4a"
+    },
+    {
+      "file": "water_balloon.webp",
+      "duration": 7660,
+      "audio": "water_balloon.m4a"
+    }
+  ],
+  "pictures": []
+}

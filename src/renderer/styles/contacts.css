@@ -1,0 +1,376 @@
+/* The contact list window. */
+
+/* ---- you: picture, name, status, personal message ------------------------------------------ */
+.cl-header {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px 9px 9px;
+  background: var(
+    --me-bg,
+    radial-gradient(ellipse 120% 70% at 105% -20%, rgba(255, 255, 255, 0.95) 0 38%, transparent 39%),
+    radial-gradient(ellipse 90% 60% at 110% -10%, rgba(173, 205, 243, 0.55) 0 55%, transparent 56%),
+    linear-gradient(180deg, #ffffff 0%, #eef4fc 50%, #d9e6f7 100%)
+  );
+  border-bottom: 1px solid var(--pane-border-soft);
+}
+
+.cl-header .dp {
+  cursor: pointer;
+}
+
+.me {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.me-name {
+  align-self: flex-start;
+  max-width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 3px;
+  margin-left: -3px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: none;
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--text-strong, #10244a);
+  text-align: left;
+}
+
+.me-name:hover,
+.me-name.open {
+  border-color: var(--hover-border);
+  background: var(--hover-bg);
+}
+
+.me-name .name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.me-status {
+  flex: none;
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--text-mid, #3d4f6a);
+}
+
+.me-name .caret {
+  font-size: 9px;
+  font-weight: normal;
+  color: var(--text-mid, #3d5578);
+}
+
+.me-pm {
+  width: 100%;
+  margin-left: -3px;
+  padding: 1px 3px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--text-mid, #3d4f6a);
+  font-size: 11px;
+  user-select: text;
+}
+
+.me-pm-view {
+  min-height: 19px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+
+.me-pm-view.empty {
+  color: var(--text-faint, #6f7f96);
+}
+
+.me-pm-view img.emoticon {
+  width: 16px;
+  height: 16px;
+  vertical-align: -4px;
+}
+
+.me-pm::placeholder {
+  color: var(--text-faint, #6f7f96);
+}
+
+.me-pm:hover {
+  border-color: var(--hover-border);
+  background: var(--field-hover-bg, rgba(255, 255, 255, 0.7));
+}
+
+.me-pm:focus {
+  outline: none;
+  border-color: var(--pane-border);
+  background: var(--pane);
+}
+
+.demo-badge {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  padding: 0 5px;
+  border-radius: 7px;
+  background: #d9643a;
+  color: #fff;
+  font-size: 9px;
+  font-weight: bold;
+}
+
+/* ---- "You have (3) pull requests to review", on a line of its own under your picture -------- */
+.cl-header {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.me-reviews {
+  flex: 0 0 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 1px;
+  border: 0;
+  background: none;
+  color: var(--text-strong, #1c2f55);
+  text-align: left;
+  cursor: pointer;
+}
+
+.me-reviews:hover .me-reviews-text {
+  text-decoration: underline;
+}
+
+/* Nothing waiting: the "(0)" stays, only quieter. */
+.me-reviews.none {
+  color: var(--text-dim, #5b6b85);
+}
+
+.me-reviews.none b {
+  font-weight: normal;
+}
+
+.me-reviews-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.me-reviews-icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.me-reviews-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---- search + add contact ---------------------------------------------------------------- */
+.cl-search {
+  flex: none;
+  display: flex;
+  gap: 4px;
+  padding: 5px 7px;
+  background: var(--bar-bg, linear-gradient(180deg, #e9f0fa 0%, #dde8f7 100%));
+  border-bottom: 1px solid var(--pane-border-soft);
+}
+
+.cl-search .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.icon-btn {
+  width: 25px;
+  height: 22px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+}
+
+.icon-btn:hover {
+  border-color: var(--hover-border);
+  background: var(--hover-bg);
+}
+
+.icon-btn:active {
+  background: var(--press-bg);
+}
+
+/* The contact list's own menu, next to the button that adds a contact. */
+#list-menu svg {
+  display: block;
+}
+
+/* Which project the list is narrowed down to, while it is. And that a newer version is out. */
+.cl-filter,
+.cl-update {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 9px;
+  background: var(--warn-bg, #fffbe1);
+  border-bottom: 1px solid var(--warn-border, #e3d9a0);
+  color: var(--warn, #5a4a00);
+}
+
+.cl-filter-text,
+.cl-update-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cl-filter .link,
+.cl-update .link {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+/* ---- "New update available": a card like the corner pop-up, once a new version is ready ---- */
+.cl-ready {
+  flex: none;
+  margin: 6px 7px;
+  overflow: hidden;
+  border: 1px solid var(--card-border, #6f8fcf);
+  border-radius: 7px;
+  background: var(
+    --toast-bg,
+    radial-gradient(ellipse 90% 60% at 100% 100%, rgba(170, 200, 240, 0.55), transparent 70%),
+    linear-gradient(180deg, #ffffff 0%, #f4f8fe 50%, #dde8f8 100%)
+  );
+  box-shadow:
+    0 2px 7px rgba(0, 25, 70, 0.24),
+    inset 0 1px 0 var(--gloss, #fff);
+  animation: cl-ready-in 0.38s cubic-bezier(0.18, 0.9, 0.22, 1);
+}
+
+@keyframes cl-ready-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cl-ready {
+    animation: none;
+  }
+}
+
+.cl-ready-head {
+  height: 21px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 4px 0 8px;
+  border-bottom: 1px solid var(--bar-border, #c9d8ee);
+  background: var(--tab-bg, linear-gradient(180deg, #fbfdff 0%, #e3edfa 100%));
+}
+
+.cl-ready-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-strong, #10244a);
+  font-weight: bold;
+}
+
+.cl-ready-close {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  color: var(--text-dim, #5a6a82);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.cl-ready-close:hover {
+  border-color: #b8432a;
+  background: linear-gradient(180deg, #f08a6c, #d9502c);
+  color: #fff;
+}
+
+.cl-ready-text {
+  margin: 7px 9px 0;
+  color: var(--text-soft);
+  line-height: 1.35;
+}
+
+.cl-ready-text .link {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.cl-ready-buttons {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 9px 9px;
+}
+
+/* ---- footer "ad" area -------------------------------------------------------------------- */
+.cl-footer {
+  flex: none;
+  padding: 6px 7px 7px;
+  background: var(--bar-bg, linear-gradient(180deg, #dde8f7 0%, #cfdff3 100%));
+  border-top: 1px solid var(--pane-border-soft);
+}
+
+.cl-ad {
+  min-height: 52px;
+  padding: 7px 9px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--bar-border, #a9c0e2);
+  background: var(--ad-bg, linear-gradient(180deg, #ffffff 0%, #fffaf0 100%));
+  color: var(--text-mid, #3a3a3a);
+  transition: opacity 0.25s ease;
+}
+
+.cl-ad.fading {
+  opacity: 0;
+}
+
+.cl-ad b {
+  color: var(--text-strong, #10244a);
+}
+
+.cl-ad .tip-icon {
+  flex: none;
+  width: 28px;
+  height: 28px;
+}

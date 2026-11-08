@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: pack:; media-src 'self'"
+    />
+    <title>buddylist</title>
+    <link rel="stylesheet" href="styles/theme.css" />
+    <link rel="stylesheet" href="styles/pro-theme.css" />
+    <link rel="stylesheet" href="styles/palettes.css" />
+    <link rel="stylesheet" href="styles/base.css" />
+    <link rel="stylesheet" href="styles/frame.css" />
+    <link rel="stylesheet" href="styles/contact-list.css" />
+    <link rel="stylesheet" href="styles/contacts.css" />
+    <link rel="stylesheet" href="styles/settings.css" />
+    <link rel="stylesheet" href="styles/pro.css" />
+    <!-- Nothing is drawn until the script has said which look the window is in. -->
+    <script type="module" src="contacts/main.js" blocking="render"></script>
+  </head>
+  <body>
+    <div class="window">
+      <header class="titlebar"></header>
+      <nav class="menubar"></nav>
+      <div class="window-body">
+        <section class="cl-header">
+          <div id="my-picture"></div>
+          <div class="me">
+            <button class="me-name" id="status-button" type="button" title="Change your status">
+              <span class="name" id="my-name"></span>
+              <span class="me-status" id="my-status"></span>
+              <span class="caret">▾</span>
+            </button>
+            <div class="me-pm me-pm-view" id="my-pm-view" tabindex="0" title="Change your personal message"></div>
+            <input
+              class="me-pm"
+              id="my-pm"
+              maxlength="120"
+              placeholder="<Type a personal message>"
+              spellcheck="false"
+              hidden
+            />
+          </div>
+          <span class="demo-badge" id="demo-badge" hidden>DEMO</span>
+          <button class="me-reviews" id="reviews" type="button" hidden>
+            <span class="me-reviews-icon" id="reviews-icon"></span>
+            <span class="me-reviews-text" id="reviews-text"></span>
+          </button>
+        </section>
+
+        <div class="cl-update" id="update" hidden>
+          <span class="cl-update-text">Version <b id="update-version"></b> is available</span>
+          <button class="link" id="update-whats-new" type="button">What's new</button>
+          <button class="link" id="update-how" type="button">Update...</button>
+        </div>
+
+        <nav class="cl-nav" id="nav" aria-label="Quick links"></nav>
+
+        <div class="cl-search">
+          <input class="input" id="search" placeholder="Find a contact or a conversation..." spellcheck="false" />
+          <button class="icon-btn" id="add-contact" type="button" title="Add a contact"></button>
+          <button
+            class="icon-btn"
+            id="list-menu"
+            type="button"
+            title="Group, filter and sort the list, or add a project"
+            aria-haspopup="menu"
+          ></button>
+        </div>
+
+        <div class="cl-filter" id="list-filter" hidden>
+          <span class="cl-filter-text">Only <b id="list-filter-project"></b></span>
+          <button class="link" id="list-filter-clear" type="button">Show all</button>
+        </div>
+
+        <main class="cl-list" id="contact-list" tabindex="0" aria-label="Contacts"></main>
+
+        <section class="cl-ready" id="update-ready" aria-label="New update available" hidden>
+          <div class="cl-ready-head">
+            <span class="cl-ready-title">New update available</span>
+            <button class="cl-ready-close" id="update-dismiss" type="button" aria-label="Dismiss" title="Not now">
+              ✕
+            </button>
+          </div>
+          <p class="cl-ready-text">
+            buddylist <b id="update-ready-version"></b> is ready. <span id="update-ready-next"></span>
+            <button class="link" id="update-changes" type="button">See changes</button>
+          </p>
+          <div class="cl-ready-buttons">
+            <button class="btn" id="update-when-idle" type="button">When idle</button>
+            <button class="btn default" id="update-restart" type="button">Restart</button>
+          </div>
+        </section>
+
+        <footer class="cl-footer">
+          <div class="cl-ad" id="tip" title="Click for the next tip"></div>
+        </footer>
+      </div>
+    </div>
+  </body>
+</html>

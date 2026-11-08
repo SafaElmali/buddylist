@@ -1,0 +1,219 @@
+/* Our own window frame: Luna title bar, controls, border and menu bar. */
+body {
+  background: var(--frame);
+}
+
+.window {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--frame);
+  border: 1px solid var(--frame-dark);
+}
+
+.window.inactive {
+  background: var(--frame-inactive);
+  border-color: var(--frame-inactive-border);
+}
+
+.window.maximized {
+  border: 0;
+}
+
+/* A Mac window is see-through outside the frame (see windows/common.js), and its corners are
+   the frame's own: round at the top, square at the bottom. */
+.own-corners body {
+  background: transparent;
+}
+
+.own-corners .window {
+  border-radius: 8px 8px 0 0;
+}
+
+.own-corners .titlebar {
+  border-radius: 7px 7px 0 0;
+}
+
+.own-corners .window.maximized,
+.own-corners .window.maximized .titlebar {
+  border-radius: 0;
+}
+
+/* ---- title bar ------------------------------------------------------------------------- */
+.titlebar {
+  -webkit-app-region: drag;
+  flex: none;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 4px 0 6px;
+  color: var(--titlebar-text);
+  font: bold 13px var(--font-title);
+  text-shadow: 1px 1px 0 var(--titlebar-shadow);
+  background: var(--titlebar-bg);
+}
+
+.window.inactive .titlebar {
+  color: var(--titlebar-inactive-text);
+  text-shadow: none;
+  background: var(--titlebar-inactive-bg);
+}
+
+.titlebar-icon {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.35));
+}
+
+.titlebar-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  letter-spacing: 0.1px;
+}
+
+.titlebar-controls {
+  display: flex;
+  gap: 2px;
+}
+
+.wc {
+  -webkit-app-region: no-drag;
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid #fff;
+  border-radius: 3px;
+  background: var(--wc-bg);
+  box-shadow:
+    inset -1px -1px 1px rgba(0, 0, 50, 0.35),
+    0 0 0 0.5px rgba(0, 0, 60, 0.35);
+}
+
+.wc svg {
+  width: 13px;
+  height: 13px;
+  filter: drop-shadow(0 0 0.5px rgba(0, 0, 60, 0.5));
+}
+
+.wc:hover {
+  filter: brightness(1.15);
+}
+
+.wc:active {
+  filter: brightness(0.88);
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 50, 0.5);
+}
+
+.wc-close {
+  background: radial-gradient(circle at 85% 88%, #b8320f 0%, #d24a24 35%, #e57352 68%, #f6c1ae 100%);
+}
+
+.window.inactive .wc {
+  opacity: 0.72;
+}
+
+/* Before the window's buttons: a gear that opens Settings, and a pin that keeps the window on top.
+   Each is drawn like one of the window's buttons when pointed at, and the pin stays pressed in while
+   the window is kept on top. */
+.titlebar-tools {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  margin-right: 2px;
+}
+
+.titlebar-tool {
+  -webkit-app-region: no-drag;
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  opacity: 0.7;
+}
+
+.titlebar-tool svg {
+  width: 13px;
+  height: 13px;
+  filter: drop-shadow(0 0 0.5px rgba(0, 0, 60, 0.5));
+}
+
+.titlebar-tool:hover {
+  border-color: rgba(255, 255, 255, 0.7);
+  opacity: 1;
+}
+
+.titlebar-pin[aria-pressed='true'] {
+  border-color: #fff;
+  background: var(--wc-bg);
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 50, 0.5);
+  opacity: 1;
+}
+
+.window.inactive .titlebar-tool {
+  opacity: 0.5;
+}
+
+.window.inactive .titlebar-pin[aria-pressed='true'] {
+  opacity: 0.72;
+}
+
+/* ---- the area inside the blue border ------------------------------------------------------ */
+.window-body {
+  flex: 1;
+  min-height: 0;
+  margin: 0 3px 3px;
+  display: flex;
+  flex-direction: column;
+  background: var(--body-bg);
+}
+
+.window.maximized .window-body,
+.window.maximized .menubar {
+  margin: 0;
+}
+
+/* ---- menu bar ------------------------------------------------------------------------------ */
+/* On a Mac the menus are in its own menu bar, at the top of the screen (see lib/frame.js). Elsewhere the
+   messenger has its classic menu bar, and the professional look one ☰ instead (see pro.css). */
+.native-menus .menubar,
+.titlebar-menu {
+  display: none;
+}
+
+/* Sits inside the blue border like the body below it, so the frame runs unbroken down both sides. */
+.menubar {
+  flex: none;
+  display: flex;
+  height: 20px;
+  margin: 0 3px;
+  padding: 0 2px;
+  background: var(--menubar-bg, linear-gradient(180deg, #f9fbfe 0%, #edf3fb 100%));
+  border-bottom: 1px solid var(--bar-border, #c9d8ee);
+}
+
+.menubar-item {
+  padding: 0 7px;
+  border: 0;
+  background: none;
+  font-size: 11px;
+  line-height: 20px;
+}
+
+.menubar-item:hover,
+.menubar-item.open {
+  background: var(--select);
+  color: #fff;
+}

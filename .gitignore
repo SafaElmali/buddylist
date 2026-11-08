@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.wrangler/
+.DS_Store
+*.log
+
+# Keep extra local sounds private; the three classic MSN notifications are bundled.
+src/renderer/sounds/*
+!src/renderer/sounds/type.wav
+!src/renderer/sounds/nudge.wav
+!src/renderer/sounds/online.wav

@@ -1,0 +1,7008 @@
+/* The landing page, in the app's professional look: the system's type, slate and ink, the
+   windows drawn as the app draws them (.look-pro), and the 2005 messenger kept for where the
+   page shows it off. Colors are set explicitly, no dark variant. Everything that moves stands
+   still under prefers-reduced-motion (see the end). */
+:root {
+  color-scheme: light;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-title: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, Menlo, Monaco, Consolas, monospace;
+  /* The messenger's own, for what is still drawn as it was in 2005: see .xp-type. */
+  --xp-ui: Tahoma, 'Segoe UI', Geneva, Verdana, sans-serif;
+  --xp-title: 'Trebuchet MS', Tahoma, sans-serif;
+
+  --text: #1a2130;
+  --text-soft: #475268;
+  --muted: #6b778e;
+  --heading: #0d1320;
+  --link: #1f63d6;
+  --line: #e3e7ee;
+  --accent: #2a6ae0;
+
+  --frame: #0b5ae6;
+  --frame-dark: #0831d9;
+  --pane-border: #7f9db9;
+  --pane-border-soft: #b8cbe6;
+  --xp-face: #ece9d8;
+  --focus: #f8b330;
+  --body-bg: #f6f8fb;
+  --band-bg: #ffffff;
+
+  --luna-bar: linear-gradient(
+    180deg,
+    #0a5ce0 0%,
+    #3d8df8 4%,
+    #2b80f8 8%,
+    #116ef5 13%,
+    #0461ea 20%,
+    #005ae5 32%,
+    #0057e4 54%,
+    #0059e9 66%,
+    #0463f3 80%,
+    #0560f0 88%,
+    #024fd9 94%,
+    #013fb7 100%
+  );
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  background: #fff;
+  color: var(--text);
+  font: 16px/1.6 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--link);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+
+button {
+  font: inherit;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.wrap {
+  position: relative;
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.wrap.narrow {
+  max-width: 800px;
+}
+
+[id] {
+  scroll-margin-top: 66px;
+}
+
+/* What the page draws as the 2005 messenger: its type and Luna's colours, for everything inside. */
+.xp-type {
+  --font-ui: var(--xp-ui);
+  --font-title: var(--xp-title);
+  --text: #1a2233;
+  --text-soft: #2b3a55;
+  --muted: #6e6e6e;
+  --heading: #1b3f7a;
+  --link: #0645ad;
+  --body-bg: linear-gradient(180deg, #f4f8fe 0%, #e3ecf9 45%, #d4e2f5 100%);
+  --band-bg: linear-gradient(180deg, #ffffff 0%, #eef4fc 55%, #dbe7f7 100%);
+}
+
+/* ---- top bar: the professional look's, in ink ------------------------------------------- */
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 48px;
+  padding: 0 16px;
+  background: rgba(11, 14, 20, 0.92);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+  transition: box-shadow 0.3s;
+}
+
+.bar.scrolled {
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+}
+
+.bar a {
+  color: #fff;
+  text-decoration: none;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.brand img {
+  transition: transform 0.5s var(--ease-spring);
+}
+
+.brand:hover img {
+  transform: rotate(-10deg) scale(1.12);
+}
+
+.bar nav {
+  display: flex;
+  gap: 4px;
+  font-size: 13.5px;
+}
+
+.bar nav a {
+  color: #b0b9ca;
+}
+
+.bar nav a {
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  white-space: nowrap;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+
+.bar nav a:hover,
+.bar nav a.here,
+.bar-icons a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+/* The code on GitHub, buddylist on X and a cup of coffee for whoever makes it, kept at every width. */
+.bar-icons {
+  display: flex;
+  gap: 2px;
+}
+
+.bar-icons a {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+
+/* What an icon opens, as soon as it is pointed at, in a dark note under it.
+   It hangs over the bar's edge, so it sits above the scroll progress line drawn there. */
+.bar-icons a::after {
+  content: attr(aria-label);
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 6px);
+  left: 50%;
+  padding: 3px 8px 4px;
+  border-radius: 6px;
+  background: #1a2130;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font:
+    11.5px/14px -apple-system,
+    BlinkMacSystemFont,
+    'Inter',
+    'Segoe UI',
+    system-ui,
+    sans-serif;
+  text-shadow: none;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, -4px);
+  visibility: hidden;
+  pointer-events: none;
+  /* It fades out first, then stops being there. */
+  transition:
+    opacity 0.18s var(--ease-out),
+    transform 0.18s var(--ease-out),
+    visibility 0s 0.18s;
+}
+
+.bar-icons a:hover::after,
+.bar-icons a:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+/* Only where there is a pointer: a phone would want a first tap to show the note. */
+@media (hover: none) {
+  .bar-icons a::after {
+    display: none;
+  }
+}
+
+.bar-icons svg {
+  width: 18px;
+  height: 18px;
+}
+
+.github-mark,
+.x-mark {
+  fill: currentColor;
+}
+
+.coffee-cup {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* How far down the page you are, where a browser can tie an animation to the scrollbar. */
+.bar-progress {
+  display: none;
+}
+
+@supports (animation-timeline: scroll()) {
+  .bar-progress {
+    position: absolute;
+    left: 0;
+    bottom: -4px;
+    display: block;
+    width: 100%;
+    height: 3px;
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+    background: #5b93f5;
+    animation: progress linear both;
+    animation-timeline: scroll(root);
+  }
+}
+
+@keyframes progress {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Narrower than the brand, every link on one line, the icons and Download, the bar keeps all but the links. */
+@media (max-width: 1069px) {
+  .bar nav {
+    display: none;
+  }
+}
+
+/* On a phone, the brand, the icons and Download fit only a little closer together. */
+@media (max-width: 379px) {
+  .bar {
+    gap: 8px;
+    padding: 0 12px;
+  }
+}
+
+/* Narrower than those three, it keeps the brand and Download. */
+@media (max-width: 359px) {
+  .bar-icons {
+    display: none;
+  }
+}
+
+/* ---- buttons ---------------------------------------------------------------------------- */
+/* the blue button: the professional look's one colour */
+.go {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 22px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 24px rgba(42, 106, 224, 0.3);
+  color: #fff;
+  font: 600 16px var(--font-title);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 0.2s var(--ease-out),
+    box-shadow 0.2s;
+}
+
+.go:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 12px 28px rgba(42, 106, 224, 0.38);
+}
+
+.go:active {
+  transform: translateY(1px);
+}
+
+.go-arrow {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.25s var(--ease-out);
+}
+
+.go:hover .go-arrow {
+  transform: translateY(2px);
+}
+
+.go.small,
+.go.tiny {
+  padding: 9px 18px;
+  border-radius: 9px;
+  font-size: 15px;
+}
+
+.go.tiny {
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.go.small .go-arrow,
+.go.tiny .go-arrow {
+  width: 16px;
+  height: 16px;
+}
+
+.go.tiny .go-arrow {
+  width: 14px;
+  height: 14px;
+}
+
+/* the quieter second choice: an outline */
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 20px;
+  border: 1px solid #c9d1de;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  font: 600 16px var(--font-title);
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+
+.ghost:hover {
+  border-color: #9fb3d6;
+}
+
+.ghost svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+/* a small button, for the small things */
+.key,
+.xp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 3px 12px;
+  border: 1px solid #d3d9e4;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  font: 500 13px var(--font-ui);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.key,
+button.xp-btn {
+  cursor: pointer;
+}
+
+.key:hover,
+button.xp-btn:hover {
+  border-color: #9fb3d6;
+}
+
+.key:active,
+button.xp-btn:active {
+  background: #f2f4f8;
+}
+
+.xp-btn.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.key svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- the outro's sky, clouds and hills, and the hero's in the messenger look ---------------- */
+.hero,
+.outro {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.outro {
+  text-align: center;
+  color: #fff;
+  background: linear-gradient(180deg, #123f9c 0%, #1f5cc4 30%, #4f93e4 68%, #9fccf3 100%);
+}
+
+.sky {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sun {
+  position: absolute;
+  top: -260px;
+  right: -180px;
+  width: 760px;
+  height: 760px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.5) 0, rgba(255, 255, 255, 0.16) 32%, transparent 62%);
+}
+
+.cloud {
+  position: absolute;
+  left: -420px;
+  width: 300px;
+  height: 127px;
+  opacity: 0.5;
+  animation: drift linear infinite;
+  will-change: transform;
+}
+
+/* Each cloud starts part of the way across, so the sky is never empty. */
+.c1 {
+  top: 5%;
+  animation-duration: 120s;
+  animation-delay: -22s;
+}
+
+.c2 {
+  top: 30%;
+  width: 190px;
+  height: 80px;
+  opacity: 0.36;
+  animation-duration: 170s;
+  animation-delay: -128s;
+}
+
+.c3 {
+  top: 50%;
+  width: 400px;
+  height: 169px;
+  opacity: 0.4;
+  animation-duration: 210s;
+  animation-delay: -60s;
+}
+
+.c4 {
+  top: 17%;
+  width: 150px;
+  height: 63px;
+  opacity: 0.42;
+  animation-duration: 140s;
+  animation-delay: -100s;
+}
+
+@keyframes drift {
+  to {
+    transform: translateX(calc(100vw + 840px));
+  }
+}
+
+.hill {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.hill.h1 {
+  left: -14%;
+  bottom: -250px;
+  width: 88%;
+  height: 460px;
+  background: radial-gradient(ellipse at 50% 0, #93d85a 0, #62b03c 46%, #3f8a28 100%);
+  box-shadow: inset 0 14px 30px rgba(255, 255, 255, 0.18);
+}
+
+.hill.h2 {
+  right: -20%;
+  bottom: -300px;
+  width: 84%;
+  height: 480px;
+  background: radial-gradient(ellipse at 50% 0, #7cc24a 0, #4f9a32 52%, #387d24 100%);
+}
+
+.hero .cloud {
+  opacity: 0.3;
+}
+
+.hero .hill.h1 {
+  bottom: -360px;
+}
+
+.hero .hill.h2 {
+  bottom: -410px;
+}
+
+/* The hills sink a little as the page scrolls away, where a browser can do that. */
+@supports (animation-timeline: scroll()) {
+  .hero .hill,
+  .hero .sun {
+    animation: sink linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 1000px;
+  }
+
+  .hero .sun {
+    animation-name: set;
+  }
+}
+
+@keyframes sink {
+  to {
+    transform: translateY(90px);
+  }
+}
+
+@keyframes set {
+  to {
+    transform: translateY(220px);
+  }
+}
+
+/* ---- the hero: the app in its professional look, with a switch to the messenger ---------------- */
+.hero {
+  padding: 64px 0 56px;
+  background:
+    radial-gradient(800px 500px at 85% 20%, rgba(42, 106, 224, 0.12), transparent 70%),
+    linear-gradient(180deg, #f6f8fb 0%, #eceff5 100%);
+  color: #1a2130;
+  font-family: var(--font-title);
+}
+
+/* The sky is the messenger's, and shows behind it alone. */
+.hero .sky {
+  opacity: 0;
+  transition: opacity 0.4s var(--ease-out);
+}
+
+.hero-split {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 48px;
+  align-items: center;
+  max-width: 1360px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  margin-bottom: 20px;
+  padding: 5px 12px 5px 5px;
+  border: 1px solid #d3d9e4;
+  border-radius: 999px;
+  background: #fff;
+  color: #364055;
+  font-size: 13px;
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+
+.pill:hover {
+  border-color: #9fb3d6;
+}
+
+.pill b {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e3ecfd;
+  color: #1f63d6;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill svg {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.25s var(--ease-out);
+}
+
+.pill:hover svg {
+  transform: translateX(3px);
+}
+
+.hero h1 {
+  margin: 0 0 16px;
+  color: #0d1320;
+  font: 700 clamp(36px, 4.4vw, 58px) / 1.05 var(--font-title);
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.hero .lede {
+  margin: 0;
+  color: #475268;
+  font-size: 18px;
+  line-height: 1.55;
+  text-shadow: none;
+}
+
+.hero .cta {
+  justify-content: flex-start;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.hero-meta {
+  margin: 16px 0 0;
+  color: #6b778e;
+  font-size: 13px;
+}
+
+.hero-stage {
+  position: relative;
+}
+
+.hero-switch {
+  margin: 0 0 14px 26%;
+}
+
+.hero-switch span {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid #d3d9e4;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(20, 30, 60, 0.06);
+}
+
+.hero-switch button {
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: #5f6b82;
+  font: 600 13.5px var(--font-title);
+  cursor: pointer;
+}
+
+.hero-switch button[aria-pressed='true'] {
+  background: #1a2130;
+  color: #fff;
+}
+
+.hero-switch i {
+  font-style: normal;
+  font-weight: 500;
+  opacity: 0.6;
+}
+
+.hero-shot {
+  position: relative;
+  height: 470px;
+  margin: 0;
+}
+
+.hero-shot img {
+  position: absolute;
+  height: auto;
+  border: 1px solid #d3d9e4;
+  border-radius: 12px;
+}
+
+.shot-chat {
+  top: 0;
+  right: -80px;
+  width: 92%;
+  box-shadow: 0 30px 80px rgba(20, 30, 60, 0.22);
+}
+
+.shot-list {
+  top: 60px;
+  left: 0;
+  width: 30%;
+  box-shadow: 0 24px 60px rgba(20, 30, 60, 0.28);
+}
+
+.hero-note {
+  margin: 4px 0 0 26%;
+  color: #6b778e;
+  font-size: 13px;
+}
+
+/* Switched to the messenger: the 2005 desktop behind it, its type, and the page's own Luna buttons. */
+.hero.messenger {
+  --font-ui: var(--xp-ui);
+  --font-title: var(--xp-title);
+  color: #fff;
+  background: linear-gradient(180deg, #123f9c, #1f5cc4);
+}
+
+.hero.messenger .sky {
+  opacity: 1;
+}
+
+.hero.messenger h1 {
+  color: #fff;
+  font-family: var(--font-title);
+  letter-spacing: -1px;
+  text-shadow:
+    0 2px 0 rgba(8, 36, 110, 0.6),
+    0 6px 20px rgba(0, 25, 80, 0.4);
+}
+
+.hero.messenger .lede,
+.hero.messenger .hero-meta,
+.hero.messenger .hero-note {
+  color: #eaf2ff;
+  text-shadow: 0 1px 2px rgba(0, 25, 80, 0.6);
+}
+
+.hero.messenger .pill {
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.hero.messenger .pill b {
+  background: linear-gradient(180deg, #ffc558, #f08a1c);
+  color: #fff;
+}
+
+.hero.messenger .go {
+  border: 1px solid #1c651b;
+  background: linear-gradient(180deg, #8fe57e 0%, #4fb844 46%, #2f902e 54%, #3ea93a 100%);
+  font: italic bold 17px var(--font-title);
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.hero.messenger .ghost {
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.hero.messenger .hero-shot img {
+  border-color: #0831d9;
+  border-radius: 8px 8px 3px 3px;
+}
+
+/* ---- four things it does, under the hero ------------------------------------------------- */
+.points {
+  padding: 40px 0 56px;
+  border-top: 1px solid #e3e7ee;
+  background: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+}
+
+.points ul {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 28px;
+  margin-top: 0;
+  margin-bottom: 0;
+  list-style: none;
+}
+
+.points b {
+  display: block;
+  margin-bottom: 6px;
+  color: #0d1320;
+  font-size: 15.5px;
+  font-weight: 600;
+}
+
+.points span {
+  color: #5f6b82;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (max-width: 899px) {
+  .hero {
+    padding-top: 36px;
+    text-align: center;
+  }
+
+  .hero-split {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+
+  .hero .lede {
+    font-size: 16px;
+  }
+
+  .hero .cta {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero .go,
+  .hero .ghost {
+    justify-content: center;
+  }
+
+  .hero-switch,
+  .hero-note {
+    margin-left: 0;
+  }
+
+  .hero-shot {
+    height: 340px;
+  }
+
+  .shot-chat {
+    right: -70%;
+    width: 150%;
+  }
+
+  .shot-list {
+    top: 30px;
+    width: 48%;
+  }
+
+  .points ul {
+    grid-template-columns: 1fr 1fr;
+    gap: 22px;
+  }
+}
+
+@media (max-width: 599px) {
+  .points ul {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+}
+
+.lede {
+  max-width: 58ch;
+  margin: 0 auto 28px;
+  font-size: clamp(16px, 1.7vw, 19px);
+  text-shadow: 0 1px 2px rgba(0, 25, 80, 0.6);
+  text-wrap: pretty;
+}
+
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+/* ---- toasts: the app's own way of saying someone is there ------------------------------- */
+.toast,
+.mini-toast {
+  width: 232px;
+  border: 1px solid #3c5fa8;
+  border-radius: 6px 6px 3px 3px;
+  background: linear-gradient(180deg, #fafcff 0%, #e6eefb 100%);
+  box-shadow: 3px 8px 24px rgba(0, 20, 70, 0.4);
+  color: #000;
+  font: 12px/1.4 var(--font-ui);
+  text-align: left;
+  text-shadow: none;
+}
+
+.toast-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  border-bottom: 1px solid #c3d3ec;
+  color: #2b3a55;
+}
+
+.toast-bar span {
+  flex: 1;
+}
+
+.toast-bar i {
+  color: #5a6c8c;
+  font-size: 9px;
+  font-style: normal;
+}
+
+.toast-body {
+  display: flex;
+  gap: 10px;
+  padding: 10px 10px 4px;
+}
+
+.toast-body p {
+  margin: 0;
+}
+
+.toast-opt {
+  display: block;
+  padding: 0 10px 7px;
+  color: var(--link);
+  text-align: right;
+}
+
+.emoticon {
+  width: 19px;
+  height: 19px;
+  vertical-align: -4px;
+}
+
+/* a framed display picture */
+.dp {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 2px;
+  border: 1px solid var(--pane-border);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(20, 60, 130, 0.25);
+}
+
+@keyframes float {
+  50% {
+    translate: 0 -12px;
+  }
+}
+
+/* ---- the monitor ---------------------------------------------------------------------- */
+.monitor {
+  position: relative;
+  max-width: 1060px;
+  margin: 40px auto 0;
+  padding: 12px 12px 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: #151a23;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 80px rgba(20, 60, 160, 0.35);
+  color: #a1a1a6;
+  animation: monitor-in 1.1s var(--ease-out) both;
+}
+
+@keyframes monitor-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.97);
+  }
+}
+
+.screen {
+  overflow: hidden;
+  border-radius: 9px;
+  background: #0b0e14;
+}
+
+.screen img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.screen iframe {
+  display: block;
+  width: 100%;
+  height: 640px;
+  border: 0;
+}
+
+.monitor figcaption {
+  position: relative;
+  padding: 12px 24px 14px;
+  font-size: 13px;
+  text-wrap: balance;
+}
+
+.monitor-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* One line while the demo shows itself around, another once it is the visitor's. */
+.demo-live:not(.demo-touring) span.when-touring,
+.demo-live.demo-touring span.when-yours {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .monitor {
+    padding: 8px 8px 0;
+    border-radius: 14px;
+  }
+
+  .monitor figcaption {
+    padding-inline: 12px;
+  }
+}
+
+/* A nudge: the shake the app gives a window. */
+.nudged {
+  animation: nudge 0.5s linear;
+}
+
+@keyframes nudge {
+  10%,
+  50%,
+  90% {
+    transform: translate(-8px, 3px);
+  }
+  30%,
+  70% {
+    transform: translate(8px, -3px);
+  }
+  20%,
+  60% {
+    transform: translate(-5px, -2px);
+  }
+  40%,
+  80% {
+    transform: translate(5px, 2px);
+  }
+}
+
+/* ---- content bands ------------------------------------------------------------------------ */
+.band {
+  position: relative;
+  padding: 104px 0;
+}
+
+.band.soft,
+.band.luna {
+  border-block: 1px solid var(--line);
+  background: var(--body-bg);
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--accent);
+  font: 600 12.5px var(--font-title);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* the dot of someone who is online */
+.eyebrow::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2fa84f;
+  box-shadow: 0 0 0 3px rgba(47, 168, 79, 0.15);
+}
+
+.band h1,
+.band h2,
+.outro h2 {
+  margin: 0 0 14px;
+  color: var(--heading);
+  font: 700 clamp(28px, 4vw, 46px) / 1.1 var(--font-title);
+  letter-spacing: -0.03em;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.intro {
+  max-width: 62ch;
+  margin: 0 auto;
+  color: var(--text-soft);
+  font-size: 17px;
+  text-align: center;
+  text-wrap: pretty;
+}
+
+/* Under a part of the page: the guide that says the rest. */
+.guide-link {
+  margin: 36px 0 0;
+  color: var(--text-soft);
+  font-size: 15px;
+  text-align: center;
+}
+
+.show-text > .guide-link {
+  margin-top: 18px;
+  text-align: left;
+}
+
+.night .guide-link {
+  color: #b0b9ca;
+}
+
+.night .guide-link a {
+  color: #79a7f7;
+}
+
+/* ---- arriving as you scroll --------------------------------------------------------------- */
+/* Only with scripts: without them nothing is hidden. --i is an element's turn among its siblings. */
+.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.8s var(--ease-out),
+    transform 0.8s var(--ease-out);
+  transition-delay: calc(var(--i, 0) * 80ms);
+}
+
+.js .stage[data-reveal] {
+  transform: translateY(28px) scale(0.96);
+}
+
+.js [data-reveal].in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---- five agents ------------------------------------------------------------------------ */
+.agents {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 32px;
+  align-items: center;
+  margin-top: 52px;
+  padding: 26px 30px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(20, 30, 60, 0.06);
+}
+
+.agents h3,
+.show-text > h3 {
+  margin: 0 0 8px;
+  color: var(--heading);
+  font: 700 clamp(22px, 2.6vw, 30px) / 1.15 var(--font-title);
+  letter-spacing: -0.02em;
+}
+
+.agents h3 {
+  font-size: 22px;
+}
+
+.agents p,
+.show-text > p {
+  margin: 0;
+  color: var(--text-soft);
+  text-wrap: pretty;
+}
+
+.agent-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-cards li {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 14px 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  font-size: 12px;
+  text-align: center;
+  transition:
+    transform 0.3s var(--ease-spring),
+    box-shadow 0.3s;
+}
+
+.agent-cards li:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px rgba(20, 30, 60, 0.1);
+}
+
+.agent-cards .dp {
+  width: 52px;
+  height: 52px;
+  margin-bottom: 6px;
+}
+
+.agent-cards b {
+  color: var(--heading);
+  font: 600 15px var(--font-title);
+}
+
+.agent-cards span {
+  color: var(--muted);
+}
+
+@media (max-width: 899px) {
+  .agents {
+    grid-template-columns: 1fr;
+    padding: 22px 18px;
+  }
+}
+
+/* Narrow: three cards over two, the two centred under them. */
+@media (max-width: 639px) {
+  .agent-cards {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .agent-cards li {
+    grid-column: span 2;
+  }
+
+  .agent-cards li:nth-child(4) {
+    grid-column: 2 / span 2;
+  }
+}
+
+/* ---- a feature and the window that shows it ------------------------------------------------ */
+.show {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+  gap: 56px;
+  align-items: center;
+  margin-top: 112px;
+}
+
+.show.flip .show-text {
+  order: 2;
+}
+
+.show-text .eyebrow {
+  justify-content: flex-start;
+}
+
+.subs {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.sub {
+  position: relative;
+  padding: 14px 16px 14px 52px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  transition:
+    transform 0.3s var(--ease-out),
+    border-color 0.3s,
+    box-shadow 0.3s;
+}
+
+.sub:hover {
+  transform: translateX(3px);
+  border-color: #c4d0e2;
+  box-shadow: 0 6px 18px rgba(20, 30, 60, 0.08);
+}
+
+.sub-icon {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #eef3fd;
+  /* the app's line icons draw in the colour of the text */
+  color: var(--accent);
+}
+
+.sub-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sub h3 {
+  margin: 0 0 3px;
+  color: var(--heading);
+  font: 600 16px var(--font-title);
+}
+
+.sub p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.sub .key {
+  margin-top: 10px;
+}
+
+@media (max-width: 899px) {
+  .show {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    margin-top: 80px;
+  }
+
+  .show.flip .show-text {
+    order: 0;
+  }
+}
+
+/* The stage: a soft panel for a window to stand on, by day, and in ink on the night band. */
+.stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 30px 26px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse 70% 60% at 70% 10%, rgba(42, 106, 224, 0.1), transparent 70%),
+    linear-gradient(160deg, #f4f6fa 0%, #e6ebf3 100%);
+}
+
+@media (max-width: 479px) {
+  .stage {
+    padding: 16px 10px;
+    border-radius: 14px;
+  }
+}
+
+/* ---- a window of the app, drawn small ----------------------------------------------------- */
+.win {
+  width: 100%;
+  min-width: 0;
+  max-width: 500px;
+  padding: 0 3px 3px;
+  border: 1px solid var(--frame-dark);
+  border-radius: 8px 8px 0 0;
+  background: var(--frame);
+  box-shadow: 3px 8px 26px rgba(0, 20, 60, 0.45);
+  color: #000;
+  font: 12.5px/1.45 var(--font-ui);
+  text-align: left;
+}
+
+.win-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin: 0 -3px;
+  padding: 0 4px 0 7px;
+  border-radius: 7px 7px 0 0;
+  background: var(--luna-bar);
+  color: #fff;
+  font: bold 13px var(--font-title);
+  text-shadow: 1px 1px 0 #0a1f7a;
+}
+
+.win-title > svg {
+  flex: none;
+}
+
+.win-title span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.win-ctl {
+  display: flex;
+  gap: 2px;
+}
+
+.win-ctl b {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #fff;
+  border-radius: 3px;
+  background: radial-gradient(circle at 85% 88%, #1d47c8 0%, #3a78ee 50%, #8db6ff 100%);
+}
+
+.win-ctl .x {
+  background: radial-gradient(circle at 85% 88%, #b8300f 0%, #d9502c 45%, #f0a48c 100%);
+}
+
+.win-ctl svg {
+  width: 12px;
+  height: 12px;
+}
+
+.win-menu {
+  display: flex;
+  gap: 14px;
+  padding: 3px 9px;
+  background: linear-gradient(180deg, #fff 0%, #f0f5fd 100%);
+  border-bottom: 1px solid #d5e0f2;
+  font-size: 12px;
+}
+
+.faint {
+  color: var(--muted);
+}
+
+.bud {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+/* the contact list */
+.win-list {
+  max-width: 330px;
+}
+
+.me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 6px;
+  background: var(--band-bg);
+}
+
+.me-text {
+  display: grid;
+  min-width: 0;
+}
+
+.me-text i {
+  color: var(--muted);
+  font-style: normal;
+}
+
+.reviews {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 8px;
+  background: #dbe7f7;
+  font-size: 12px;
+}
+
+.reviews svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* New contact, History, Search and Spending, over the list */
+.nav-rows {
+  display: grid;
+  gap: 1px;
+  padding: 5px 10px 6px;
+  border-top: 1px solid #c9d9f0;
+  background: var(--body-bg);
+  color: var(--link);
+  font-size: 12px;
+}
+
+.nav-rows span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.nav-rows svg {
+  width: 15px;
+  height: 15px;
+}
+
+.find {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  background: var(--body-bg);
+}
+
+.find span {
+  flex: 1;
+  overflow: hidden;
+  padding: 3px 7px;
+  border: 1px solid var(--pane-border);
+  background: #fff;
+  color: #8a94a6;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.find i {
+  display: grid;
+}
+
+.find svg {
+  width: 17px;
+  height: 17px;
+}
+
+.buddies {
+  min-height: 232px;
+  padding: 5px 4px 8px;
+  background: #fff;
+}
+
+.grp {
+  display: flex;
+  gap: 5px;
+  padding: 4px 6px 1px;
+  color: #1b3f7a;
+  font-weight: bold;
+}
+
+.grp i {
+  color: #2a5fb4;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  margin: 1px 0;
+  padding: 2px 6px 2px 16px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  white-space: nowrap;
+  transition:
+    background 0.4s,
+    border-color 0.4s;
+}
+
+.row b {
+  overflow: hidden;
+  font-weight: normal;
+  text-overflow: ellipsis;
+}
+
+/* a contact pinned to the top of its project */
+.row .pin svg {
+  width: 11px;
+  height: 11px;
+  margin-right: 3px;
+  vertical-align: -1px;
+}
+
+.row.off b {
+  color: #8a8a8a;
+}
+
+.row .line {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
+/* the row something has just happened to */
+.row.hot {
+  border-color: #8eb2e3;
+  background: #d6e5f9;
+}
+
+/* the + at the end of a project's line, for another contact on it */
+.grp .plus {
+  display: grid;
+  margin: 0 6px 0 auto;
+}
+
+.plus svg {
+  width: 11px;
+  height: 11px;
+}
+
+.tags {
+  display: inline-flex;
+  gap: 3px;
+}
+
+/* a pull request tag, coloured as in the app */
+.tag {
+  --tag-text: #3d5578;
+  --tag-top: #f8fbff;
+  --tag-bottom: #e2ecf9;
+  --tag-border: #a9c0e2;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 15px;
+  padding: 0 5px 0 4px;
+  border: 1px solid var(--tag-border);
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--tag-top) 0%, var(--tag-bottom) 100%);
+  color: var(--tag-text);
+  font: bold 10px/13px var(--font-ui);
+  animation: pop 0.5s var(--ease-spring);
+}
+
+.tag svg {
+  flex: none;
+  width: 9px;
+  height: 9px;
+}
+
+.tag[data-kind='merged'] {
+  --tag-text: #6a3cb5;
+  --tag-top: #fbf8ff;
+  --tag-bottom: #ebe0fc;
+  --tag-border: #bba0e6;
+}
+
+.tag[data-kind='conflict'] {
+  --tag-text: #a84b00;
+  --tag-top: #fffaf2;
+  --tag-bottom: #ffe3c2;
+  --tag-border: #eba65a;
+}
+
+.tag[data-kind='failing'] {
+  --tag-text: #bd1f27;
+  --tag-top: #fff7f6;
+  --tag-bottom: #ffd9d5;
+  --tag-border: #ec8f88;
+}
+
+.tag[data-kind='running'] {
+  --tag-text: #7f5d00;
+  --tag-top: #fffdf3;
+  --tag-bottom: #fbedb3;
+  --tag-border: #dcbd52;
+}
+
+/* Continue, Archive and Delete, next to a pull request that is merged or closed. In a list this
+   narrow, the app draws Archive and Delete as a box and a bin, quieter than going on. */
+.tag-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 15px;
+  padding: 0 6px;
+  border: 1px solid #a9c0e2;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #fff 0%, #e4edf9 100%);
+  color: #1b3f7a;
+  font: bold 10px/13px var(--font-ui);
+}
+
+.tag-btn.quiet {
+  padding: 0 4px;
+  border-color: #c2c2c2;
+  background: linear-gradient(180deg, #fff 0%, #ececec 100%);
+  color: #555;
+}
+
+.tag-btn svg {
+  width: 8px;
+  height: 8px;
+}
+
+.tag[data-kind='running'] svg {
+  animation: spin 2.4s linear infinite;
+}
+
+.tag[data-kind='passed'] {
+  --tag-text: #1f7228;
+  --tag-top: #f6fff4;
+  --tag-bottom: #d6f2cf;
+  --tag-border: #89c97f;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mini-toast {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: 212px;
+  opacity: 0;
+  transform: translateY(120%);
+  transition:
+    transform 0.6s var(--ease-spring),
+    opacity 0.4s;
+}
+
+.mini-toast.on {
+  opacity: 1;
+  transform: none;
+}
+
+.mini-toast .dp {
+  width: 36px;
+  height: 36px;
+}
+
+.mini-toast .toast-body {
+  padding-bottom: 10px;
+}
+
+/* a conversation */
+.tools {
+  display: flex;
+  gap: 2px;
+  padding: 5px 6px 4px;
+  overflow: hidden;
+  background: var(--band-bg);
+  border-bottom: 1px solid var(--pane-border-soft);
+}
+
+.tools span {
+  display: grid;
+  justify-items: center;
+  flex: none;
+  min-width: 52px;
+  padding: 0 3px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.tools svg {
+  width: 26px;
+  height: 26px;
+}
+
+/* The stretch between the toolbar's two ends: the pull request and the side pane are at the other one. */
+.tools .gap {
+  flex: 1;
+}
+
+/* A button whose ▼ lists the other things it can do */
+.tools .more {
+  position: relative;
+  padding-right: 14px;
+}
+
+.tools .more::after {
+  content: '\25BC';
+  position: absolute;
+  top: 9px;
+  right: 1px;
+  font-size: 7px;
+}
+
+.to {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  overflow: hidden;
+  border: solid #e3ecf9;
+  border-width: 6px 6px 0;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--pane-border-soft);
+  white-space: nowrap;
+}
+
+.log {
+  height: 236px;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: hidden auto;
+  border: 6px solid #e3ecf9;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--pane-border);
+  scrollbar-width: none;
+}
+
+.log::-webkit-scrollbar {
+  display: none;
+}
+
+.msg {
+  margin-bottom: 5px;
+}
+
+/* A scene with scripts shows its lines one at a time. */
+.js [data-log] .msg:not(.on) {
+  display: none;
+}
+
+.msg.on {
+  animation: msg-in 0.4s var(--ease-out);
+}
+
+@keyframes msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.who {
+  color: var(--muted);
+}
+
+.msg p {
+  margin: 0 0 0 14px;
+}
+
+.msg code,
+.invite-what {
+  padding: 0 3px;
+  border-radius: 2px;
+  background: #eef2f8;
+  color: #1e3f73;
+}
+
+.msg u,
+.invite u {
+  color: var(--link);
+  white-space: nowrap;
+}
+
+.msg.act,
+.msg.done {
+  align-items: center;
+  gap: 6px;
+  color: #3d5578;
+}
+
+.msg.act.on,
+.msg.done.on,
+.pane-chat .msg.act {
+  display: flex;
+}
+
+.msg.act > svg,
+.msg.done > svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.msg.done {
+  color: var(--muted);
+}
+
+/* Replies to send with a click, under a reply that asked you something: a card as wide as they are */
+.msg.suggestions {
+  width: fit-content;
+  max-width: calc(100% - 11px);
+  margin-left: 11px;
+  padding: 5px 8px 7px;
+  border: 1px solid #b8cbe6;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f8fd 100%);
+}
+
+.msg.suggestions .head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.msg.suggestions .head svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.msg.suggestions .replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.msg.suggestions .replies span {
+  padding: 1px 9px 2px;
+  border: 1px solid #b8cbe6;
+  border-radius: 10px;
+  background: #fff;
+  color: #1b3f7a;
+  font-size: 11px;
+}
+
+/* The agent's to-do list under the newest line, as the app draws it: a ring to do, half of one
+   under way, a tick in one done. Under it, the step under way and how long it has taken. */
+.todo-list {
+  margin: 2px 0 6px;
+  animation: msg-in 0.4s var(--ease-out);
+}
+
+.todo-card {
+  margin: 0;
+  padding: 5px 10px 6px;
+  border: 1px solid #b8cbe6;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f8fd 100%);
+  list-style: none;
+}
+
+.todo-card li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+  color: #1b3f7a;
+}
+
+.todo-card svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  color: #7a7a7a;
+}
+
+.todo-card circle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-dasharray: 2.4 2.2;
+}
+
+.todo-card path {
+  display: none;
+}
+
+.todo-card .in_progress {
+  color: #10244a;
+  font-weight: bold;
+}
+
+.todo-card .in_progress svg {
+  color: #316ac5;
+}
+
+.todo-card .in_progress circle {
+  stroke-dasharray: none;
+}
+
+.todo-card .in_progress .half {
+  display: inline;
+  fill: currentColor;
+}
+
+.todo-card .completed {
+  color: #7a7a7a;
+}
+
+.todo-card .completed svg {
+  color: #2f9a2a;
+}
+
+.todo-card .completed circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+.todo-card .completed .tick {
+  display: inline;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.todo-doing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0 2px;
+  color: #5a6a82;
+}
+
+.todo-doing .spin {
+  width: 10px;
+  height: 10px;
+}
+
+.todo-time {
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.at {
+  color: var(--link);
+  font-weight: bold;
+}
+
+.invite {
+  margin: 7px 0;
+  padding: 8px 10px;
+  border: 1px solid #b8cbe6;
+  border-radius: 6px;
+  background: #f5f8fd;
+  box-shadow: 0 0 0 3px #e9f0fb;
+}
+
+.invite-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #1b3f7a;
+}
+
+.invite-head svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.invite-what {
+  margin: 6px 0 6px 22px;
+  padding: 3px 8px;
+  border: 1px solid #d5e0f2;
+  background: #fff;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.invite-ask,
+.invite-done {
+  margin-left: 22px;
+}
+
+.invite-ask u {
+  border-radius: 2px;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.invite-ask u.press {
+  background: #316ac5;
+  color: #fff;
+}
+
+.invite-done {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  color: #1f7228;
+}
+
+.invite-done svg {
+  width: 13px;
+  height: 13px;
+}
+
+.invite.accepted .invite-ask {
+  display: none;
+}
+
+.invite.accepted .invite-done {
+  display: flex;
+}
+
+.compose {
+  padding: 0 6px 6px;
+  background: #e3ecf9;
+}
+
+.compose-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 4px 5px;
+  font-size: 12px;
+}
+
+.compose-bar span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.compose-bar svg,
+.compose-bar img {
+  width: 17px;
+  height: 17px;
+}
+
+.compose-bar span > i {
+  font-style: normal;
+}
+
+/* the font colour, the emoticons, the quick messages and the winks each open a list */
+.compose-bar :is(.font, .emo, .quick, .wink-button)::after {
+  content: '\25BC';
+  margin-left: -2px;
+  font-size: 7px;
+}
+
+/* the model and the permission mode, each a badge that opens its menu */
+.compose-bar .badges {
+  gap: 4px;
+  margin-left: auto;
+}
+
+.compose-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  gap: 6px;
+}
+
+.input {
+  min-height: 44px;
+  padding: 5px 8px;
+  border: 1px solid var(--pane-border);
+  background: #fff;
+}
+
+.caret {
+  display: inline-block;
+  width: 1px;
+  height: 14px;
+  margin-left: 1px;
+  background: #000;
+  vertical-align: -2px;
+  animation: blink 1s steps(2) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.send {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--pane-border);
+  border-radius: 4px;
+  background: linear-gradient(180deg, #fff 0%, #e4eefb 100%);
+  color: #8a94a6;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.send.ready {
+  color: #000;
+}
+
+.send.press {
+  background: linear-gradient(180deg, #d4e2f6 0%, #e9f0fb 100%);
+}
+
+.status {
+  height: 21px;
+  background: #e3ecf9;
+  padding: 2px 9px;
+  overflow: hidden;
+  border-top: 1px solid var(--pane-border-soft);
+  color: #444;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- group chats: several agents in one conversation ------------------------------------- */
+.band.group-band {
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+  background: var(--body-bg);
+}
+
+.stage-group {
+  max-width: 1000px;
+  margin: 52px auto 0;
+  padding: 34px 30px;
+}
+
+.win-group {
+  max-width: 900px;
+}
+
+.group-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 214px;
+  background: #e3ecf9;
+}
+
+.group-main {
+  min-width: 0;
+}
+
+.group-main .to {
+  border-right-width: 0;
+}
+
+.group-main .log {
+  height: 304px;
+  border-right-width: 0;
+}
+
+/* the line that says who picks the effort levels, as the app writes it when that is turned on */
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 7px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed #d5e0f2;
+  color: #5a6b85;
+  font-size: 11.5px;
+}
+
+.note svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  margin-top: 2px;
+}
+
+/* the names that @ offers, over the message box */
+.compose {
+  position: relative;
+}
+
+.mention-pop {
+  position: absolute;
+  left: 14px;
+  bottom: 54px;
+  z-index: 2;
+  display: grid;
+  min-width: 150px;
+  padding: 2px;
+  border: 1px solid #aca899;
+  background: #fff;
+  box-shadow: 2px 2px 3px rgba(0, 0, 0, 0.25);
+  font-size: 12px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+  pointer-events: none;
+}
+
+.mention-pop.open {
+  opacity: 1;
+  transform: none;
+}
+
+.mention-pop span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 18px 3px 6px;
+}
+
+.mention-pop .bud {
+  width: 14px;
+  height: 14px;
+}
+
+.mention-pop .hot {
+  background: #316ac5;
+  color: #fff;
+}
+
+.mention-pop .press {
+  background: #1d4f9f;
+}
+
+.people {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 8px 8px 8px 9px;
+}
+
+.person {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 5px 8px;
+  align-items: center;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 11.5px;
+  transition:
+    background 0.3s,
+    border-color 0.3s,
+    box-shadow 0.3s;
+}
+
+/* whose turn it is */
+.person.working {
+  border-color: #8eb2e3;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(61, 141, 248, 0.14);
+}
+
+.person .dp {
+  width: 44px;
+  height: 44px;
+  padding: 1px;
+}
+
+.person.working .dp {
+  animation: bob 1.1s ease-in-out infinite;
+}
+
+@keyframes bob {
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+.person b {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.person b .bud {
+  width: 13px;
+  height: 13px;
+}
+
+.person .chips {
+  grid-column: 1 / -1;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chip {
+  display: inline-block;
+  padding: 0 7px 1px;
+  border: 1px solid #a9c0e2;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #f8fbff 0%, #e2ecf9 100%);
+  color: #2b3a55;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+/* a level the agents picked */
+.chip.picked {
+  border-color: #eba65a;
+  background: linear-gradient(180deg, #fffaf2 0%, #ffe3c2 100%);
+  color: #8a3d00;
+  font-weight: bold;
+  animation: pop 0.5s var(--ease-spring);
+}
+
+/* The list as the app draws it (.roster): each agent's picture and name with its pause and ✕ at
+   the end of that line, and under them one line of what it answers with: model, effort and mode.
+   :where() keeps these as light as .person, so the phone's rules further down still win. */
+:where(.roster) .person {
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 5px 7px;
+}
+
+:where(.roster) .person .dp {
+  width: 32px;
+  height: 32px;
+}
+
+.roster .person b {
+  margin-bottom: 0;
+}
+
+/* Over the list, the side pane's Agents tab: the app keeps a group's agents there. */
+.roster-tabs {
+  grid-column: 1 / -1;
+  margin: -8px -8px 0 -9px;
+  padding-top: 5px;
+}
+
+.roster-tabs .low-tab.on {
+  cursor: default;
+  background: #e3ecf9;
+  border-bottom-color: #e3ecf9;
+}
+
+/* Room for both in every row, so the pause buttons line up whether there is a ✕ or not. */
+.acts {
+  display: flex;
+  gap: 2px;
+  min-width: 34px;
+  color: #5a6a82;
+}
+
+.acts i {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.acts svg {
+  width: 9px;
+  height: 9px;
+}
+
+/* the mode that takes edits without asking */
+.chip.accepts {
+  border-color: #c4b2ef;
+  background: #f5f0ff;
+  color: #5b3fa8;
+}
+
+/* Under the list: how they reply, both ways side by side with the chosen one pressed in, and what it does. */
+.people-turns {
+  display: grid;
+  gap: 5px;
+  padding: 8px 6px 0;
+  border-top: 1px solid #c9d8ee;
+  color: #3d4f6a;
+  font-size: 11.5px;
+}
+
+.turns-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.turns-toggle span {
+  flex: 1 1 auto;
+  padding: 0 7px 1px;
+  border: 1px solid #b8cbe6;
+  border-radius: 9px;
+  background: #fff;
+  font-size: 10.5px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.turns-toggle .on {
+  border-color: #7fa2d6;
+  background: linear-gradient(180deg, #d4e2f6 0%, #e9f0fb 100%);
+  color: #1b2638;
+  font-weight: bold;
+}
+
+.turns-hint {
+  color: #5a6a82;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+/* who answers what you send */
+.routes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 44px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.routes li {
+  padding: 18px 20px 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+/* what was said, as a balloon */
+.route-say {
+  position: relative;
+  display: block;
+  padding: 7px 12px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #eef1f6;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-say b {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.routes h3 {
+  margin: 14px 0 4px;
+  color: var(--heading);
+  font: 600 17px var(--font-title);
+}
+
+.routes p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+/* letting the agents decide: what they say, and the menu that turns it on */
+.decide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 36px;
+  align-items: center;
+  margin-top: 40px;
+  padding: 30px 34px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.decide .eyebrow {
+  justify-content: flex-start;
+}
+
+.decide h3 {
+  margin: 0 0 8px;
+  color: var(--heading);
+  font: 700 clamp(22px, 2.6vw, 30px) / 1.15 var(--font-title);
+  letter-spacing: -0.02em;
+}
+
+.decide-text > p:not(.eyebrow) {
+  margin: 0;
+  color: var(--text-soft);
+  text-wrap: pretty;
+}
+
+.decide-line {
+  margin-top: 18px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfcfd;
+  font: 13px/1.5 var(--font-ui);
+}
+
+.decide-line .who b {
+  color: var(--heading);
+  font-weight: 600;
+}
+
+.decide-line .who i {
+  display: none;
+}
+
+.decide-line p {
+  margin: 2px 0 0;
+}
+
+.decide-line .at {
+  color: var(--link);
+  font-weight: 600;
+}
+
+.decide-menus {
+  min-width: 0;
+  padding-bottom: 96px;
+}
+
+/* a menu as the app draws one, with the entry pointed at and the one it opens beside it */
+.app-menu {
+  display: inline-grid;
+  padding: 4px;
+  border: 1px solid #dfe4ec;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(20, 30, 60, 0.14);
+  color: var(--text);
+  font: 13px/1.3 var(--font-ui);
+}
+
+.app-menu span {
+  position: relative;
+  padding: 5px 26px 5px 26px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.app-menu .title {
+  padding-left: 10px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.app-menu .checked::before {
+  content: '\2713';
+  position: absolute;
+  left: 9px;
+}
+
+.app-menu .opens::after {
+  content: '\203A';
+  position: absolute;
+  right: 10px;
+}
+
+.app-menu .hot {
+  background: var(--accent);
+  color: #fff;
+}
+
+.app-menu i {
+  height: 1px;
+  margin: 4px 6px;
+  background: #e8ecf2;
+}
+
+/* the menu an entry opens, at its side */
+.app-menu .opens .app-menu {
+  position: absolute;
+  top: -5px;
+  left: calc(100% - 2px);
+  color: var(--text);
+}
+
+@media (max-width: 1059px) {
+  .decide {
+    grid-template-columns: 1fr;
+  }
+
+  .routes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .route-say {
+    display: inline-block;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 699px) {
+  .group-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .group-main .log {
+    height: 280px;
+    border-right-width: 6px;
+  }
+
+  .group-main .to {
+    border-right-width: 6px;
+  }
+
+  .people {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .person {
+    grid-template-columns: 28px minmax(0, 1fr);
+    padding: 4px;
+  }
+
+  .person .dp {
+    width: 28px;
+    height: 28px;
+  }
+
+  .person .chips,
+  .person b + .chip,
+  .acts {
+    display: none;
+  }
+
+  /* How they reply goes under the three names, across them. */
+  .people-turns {
+    grid-column: 1 / -1;
+  }
+
+  /* The menu it opens goes under it, where a phone has room. */
+  .decide-menus {
+    padding-bottom: 0;
+  }
+
+  .app-menu .opens .app-menu {
+    position: static;
+    display: grid;
+    margin: 6px -24px -4px 12px;
+  }
+
+  .app-menu .opens {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 479px) {
+  .stage-group {
+    padding: 14px 8px;
+  }
+
+  /* A phone has room for the names, not the pictures. */
+  .person {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .person .dp {
+    display: none;
+  }
+
+  .decide {
+    padding: 22px 18px;
+  }
+
+  /* Five buttons are what a phone has room for. */
+  .tools span:nth-child(n + 5) {
+    display: none;
+  }
+
+  /* and the message box's buttons, without the badges at their end */
+  .compose-bar .badges {
+    display: none;
+  }
+}
+
+/* ---- a project's manager: its conversation, with the Team tab beside it -------------------- */
+.win-manager .msg.act {
+  display: flex;
+}
+
+.team {
+  gap: 3px;
+  font-size: 12px;
+}
+
+/* "3 on api · 1 working" */
+.team-head {
+  padding: 2px 3px 0;
+  color: #1b3f7a;
+}
+
+.team-sec {
+  margin-top: 5px;
+  padding: 0 3px;
+  color: #1b3f7a;
+  font-weight: bold;
+}
+
+/* a conversation it oversees: its buddy, its name and when it was last at work, and under them what it
+   is doing, or its branch and its pull request's tags */
+.team-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1px 6px;
+  padding: 3px 5px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.team-row b {
+  overflow: hidden;
+  font-weight: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-row .when,
+.team-line {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.team-line {
+  grid-column: 2 / -1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.team-line > svg {
+  flex: none;
+  width: 11px;
+  height: 11px;
+}
+
+.team-line .tag {
+  margin-left: auto;
+}
+
+/* The one that needs you stands out, and idle ones are quieter. */
+.team-row.needs {
+  border-color: #eba65a;
+  background: #fff7ea;
+}
+
+.team-row.needs .when {
+  color: #a84b00;
+  font-weight: bold;
+}
+
+.team-row.idle b {
+  color: #5a6a82;
+}
+
+@media (max-width: 699px) {
+  .people.team {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- beside the conversation: the professional look at night ------------------------------ */
+.band.night {
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 0, rgba(47, 111, 228, 0.22), transparent 70%),
+    linear-gradient(180deg, #0b0e14 0%, #10151f 100%);
+  color: #b0b9ca;
+}
+
+.stars {
+  display: none;
+}
+
+.night .eyebrow {
+  color: #79a7f7;
+}
+
+.night h2 {
+  color: #f3f6fb;
+}
+
+.night .intro {
+  color: #b0b9ca;
+}
+
+.beside {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.5fr);
+  gap: 36px;
+  align-items: center;
+  margin-top: 56px;
+}
+
+.pane-cards {
+  display: grid;
+  gap: 12px;
+}
+
+.night .sub {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+}
+
+.night .sub:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: none;
+}
+
+.night .sub-icon {
+  background: rgba(91, 147, 245, 0.14);
+  color: #79a7f7;
+}
+
+.night .sub h3 {
+  color: #f3f6fb;
+}
+
+/* the one whose tab is showing */
+.night .sub.active {
+  border-color: rgba(91, 147, 245, 0.6);
+  background: rgba(91, 147, 245, 0.08);
+  box-shadow: 0 0 0 1px rgba(91, 147, 245, 0.6);
+}
+
+.night .sub p {
+  color: #b0b9ca;
+}
+
+.stage.dark {
+  display: block;
+  padding: 26px 22px;
+  border-color: rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(ellipse 60% 40% at 80% 0, rgba(47, 111, 228, 0.25), transparent 70%),
+    linear-gradient(160deg, #121722 0%, #0d1119 100%);
+}
+
+.win-pane {
+  max-width: none;
+}
+
+.pane-body {
+  display: grid;
+  grid-template-columns: minmax(0, 0.62fr) minmax(0, 1.4fr);
+  background: #e3ecf9;
+}
+
+.pane-chat {
+  margin: 6px 0 6px 6px;
+  padding: 8px 9px;
+  border: 1px solid var(--pane-border);
+  background: #fff;
+  font-size: 12px;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 6px;
+}
+
+/* the two halves: what to look at above, what runs in the folder below */
+.half {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 0 4px;
+  border-bottom: 1px solid #919b9c;
+}
+
+.tabs button,
+.low-tab {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: -1px;
+  padding: 3px 9px 4px;
+  border: 1px solid #919b9c;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, #fff 0%, #ebe9dd 100%);
+  color: #000;
+  font: 12px var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tabs button svg,
+.low-tab svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.tabs button[aria-selected='true'],
+.low-tab.on {
+  padding-top: 5px;
+  border-top: 3px solid #e68b2c;
+  border-bottom-color: #fff;
+  background: #fff;
+}
+
+.tab-plus {
+  padding: 0 8px 3px;
+  color: #3d5578;
+  font-style: normal;
+  font-weight: bold;
+}
+
+.panel {
+  height: 262px;
+  overflow: hidden;
+  border: 1px solid #919b9c;
+  border-top: 0;
+  background: #fff;
+  animation: msg-in 0.35s var(--ease-out);
+}
+
+/* below: Setup, Run and the terminals, folded away with the arrow */
+.fold {
+  align-self: center;
+  padding: 0 6px 2px 2px;
+  color: #3d5578;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.below .panel {
+  height: 128px;
+  animation: none;
+  transition: box-shadow 0.3s;
+}
+
+.below .term {
+  height: 100%;
+  min-height: 0;
+  padding-block: 6px;
+}
+
+/* the half the visitor is shown */
+.below.lit .panel {
+  box-shadow: 0 0 0 2px #f8b330;
+}
+
+.plan {
+  padding: 14px 16px 6px;
+}
+
+.plan-h {
+  display: block;
+  margin-bottom: 4px;
+  color: #1b3f7a;
+  font: bold 16px var(--font-title);
+}
+
+.plan ol {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.plan li {
+  margin-top: 5px;
+}
+
+.plan-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 12px;
+  padding: 10px 12px;
+  border: 1px solid #b8cbe6;
+  border-radius: 6px;
+  background: #f5f8fd;
+}
+
+.plan-ask span:first-child {
+  flex-basis: 100%;
+  color: #1b3f7a;
+  font-weight: bold;
+}
+
+.panel-terminal {
+  background: #0f1728;
+}
+
+/* a web page, as the Browser tab shows it */
+.panel-browser:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+}
+
+.addr {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  border-bottom: 1px solid #d5e0f2;
+  background: var(--band-bg);
+}
+
+.addr i {
+  display: grid;
+}
+
+.addr svg {
+  width: 14px;
+  height: 14px;
+}
+
+.url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 1px 8px 2px;
+  border: 1px solid var(--pane-border);
+  background: #fff;
+  color: #333;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.webpage {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  background: linear-gradient(135deg, #f5f3ff 0%, #e7f2ff 100%);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.signin {
+  display: grid;
+  gap: 7px;
+  width: min(220px, 86%);
+  padding: 16px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(40, 30, 90, 0.15);
+  font-size: 11.5px;
+}
+
+.signin b {
+  color: #1e1b4b;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.field {
+  padding: 5px 9px;
+  border: 1px solid #d4d4e8;
+  border-radius: 6px;
+  color: #555;
+}
+
+.site-go {
+  padding: 5px;
+  border-radius: 6px;
+  background: #4f46e5;
+  color: #fff;
+  font-weight: 600;
+  text-align: center;
+}
+
+.site-err {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 11px;
+}
+
+/* the Session tab: where the contact works, and with what */
+.panel-session:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: #f5f8fd;
+}
+
+.session-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px;
+  border: 1px solid #c4d5ee;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #fff 0%, #f4f8fe 100%);
+}
+
+.session-head {
+  padding: 1px 4px 3px;
+  color: #1b3f7a;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 3px 4px;
+}
+
+.session-row svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.session-main {
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* where it is, after what it is: the first to give way when the pane is narrow */
+.session-aside {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-tag {
+  flex: none;
+  margin-left: auto;
+  padding: 0 6px;
+  border: 1px solid #c4d5ee;
+  border-radius: 8px;
+  color: #3d5578;
+  font-size: 10.5px;
+  line-height: 15px;
+}
+
+/* a card that is one line and opens something: Context, MCP servers */
+.session-link {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.session-link .session-head {
+  padding: 0;
+}
+
+.session-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-value.attention {
+  color: #c4361b;
+}
+
+.session-more {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* the subagents a contact has at work, and the ones that are back */
+.helper {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid #eef2f8;
+  font-size: 12px;
+}
+
+.helper > svg {
+  width: 14px;
+  height: 14px;
+}
+
+.helper .kind {
+  padding: 0 6px 1px;
+  border: 1px solid #c4d5ee;
+  border-radius: 8px;
+  background: #f5f8fd;
+  color: #3d5578;
+  font-size: 10.5px;
+}
+
+.helper .doing {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spin {
+  width: 13px;
+  height: 13px;
+  border: 2px solid #c4d5ee;
+  border-top-color: #316ac5;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+.term {
+  height: 100%;
+  min-height: 298px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: hidden;
+  color: #d6e2f5;
+  font: 11.5px/1.55 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.term .pr {
+  color: #7fb4ff;
+}
+
+.term .ok {
+  color: #9fe28f;
+}
+
+.term .dim {
+  color: #8192ad;
+}
+
+.term .block {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  background: #d6e2f5;
+  vertical-align: -2px;
+  animation: blink 1s steps(2) infinite;
+}
+
+.chg-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-bottom: 1px solid #d5e0f2;
+  background: var(--band-bg);
+}
+
+/* The line at the top, as in the app: what changed where, its lines, how far through you are and
+   the ⋯ that says how the changes are shown. The summary gives way on a narrow screen. */
+.chg-head b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chg-head em {
+  flex: none;
+  font: bold 11px var(--font-mono);
+}
+
+.chg-head span {
+  flex: 1;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.chg-more {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 18px;
+  margin-left: auto;
+  border: 1px solid #c4d5ee;
+  border-radius: 3px;
+  background: #fff;
+}
+
+.chg-more svg {
+  width: 12px;
+  height: 12px;
+}
+
+.chg-file {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border-bottom: 1px solid #eef2f8;
+}
+
+.chg-file.open {
+  background: #eef4fc;
+}
+
+.chg-file i {
+  color: #2a5fb4;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.chg-file code {
+  flex: 1;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* the file's name, then the folder it is in */
+.chg-file code b {
+  color: var(--text);
+}
+
+.chg-file em {
+  font: bold 11px var(--font-mono);
+}
+
+/* a file marked as looked at, as on GitHub: a box to tick */
+.viewed {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #3d5578;
+  font-size: 10.5px;
+}
+
+.viewed::before {
+  content: '';
+  display: grid;
+  place-items: center;
+  width: 10px;
+  height: 10px;
+  border: 1px solid #8fa6c8;
+  border-radius: 2px;
+  background: #fff;
+  color: #fff;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.viewed.on::before {
+  content: '\2713';
+  border-color: #3f8f3a;
+  background: #4ea648;
+}
+
+/* the buttons inside a tab are the app's small ones */
+.thread .xp-btn,
+.helper .xp-btn {
+  min-height: 20px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+/* a reviewer's thread from GitHub, under the line it is about */
+.thread {
+  margin: 6px 10px;
+  padding: 6px 9px 7px;
+  border: 1px solid #e3d3a5;
+  border-radius: 6px;
+  background: #fffbea;
+  font-size: 11.5px;
+}
+
+.thread-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.thread-head svg {
+  width: 13px;
+  height: 13px;
+}
+
+.thread-head span {
+  color: var(--muted);
+}
+
+.thread p {
+  margin: 2px 0 6px;
+}
+
+.thread-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.st {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  color: #fff;
+  font: bold 10px var(--font-ui);
+}
+
+.st.m {
+  background: #c98a00;
+}
+
+.st.a {
+  background: #2f9a22;
+}
+
+em.add {
+  color: #1f7228;
+}
+
+em.del {
+  color: #bd1f27;
+}
+
+/* Each line is its own block, so the line breaks between them in the markup are not lines too. */
+.diff {
+  margin: 0;
+  overflow: hidden;
+  border-bottom: 1px solid #d5e0f2;
+  font: 11px/1.6 var(--font-mono);
+  white-space: normal;
+}
+
+.diff span {
+  display: block;
+  overflow: hidden;
+  padding: 0 10px;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+
+/* Unchanged lines git left out, one click from showing, with the function the change is in. */
+.diff .gap {
+  background: #f1edff;
+  color: #6a3cb5;
+}
+
+.diff .gap em {
+  margin-left: 2ch;
+  font-style: normal;
+  opacity: 0.75;
+}
+
+/* Each line's number in its file, a removed line's in the old one. */
+.diff i {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 3ch;
+  padding-right: 1ch;
+  font-style: normal;
+  text-align: right;
+  opacity: 0.55;
+}
+
+/* The words that changed in a line, and in the one it took the place of. */
+.diff mark {
+  border-radius: 2px;
+  color: inherit;
+}
+
+.diff .del mark {
+  background: #ffc1bc;
+}
+
+.diff .add mark {
+  background: #a9efb9;
+}
+
+.diff .add {
+  background: #e6ffec;
+}
+
+.diff .del {
+  background: #ffebe9;
+}
+
+@media (max-width: 899px) {
+  .beside {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 599px) {
+  .stage.dark {
+    padding: 14px 8px;
+  }
+
+  .pane-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pane-chat {
+    display: none;
+  }
+
+  .tabs button {
+    padding-inline: 6px;
+  }
+}
+
+/* ---- on your phone: the cards, and the phone app's own screens on a stage ------------------- */
+.pocket {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 48px;
+  align-items: center;
+  margin-top: 56px;
+}
+
+.pocket .subs {
+  margin-top: 0;
+}
+
+.sub-icon .bell {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Two phones side by side, the second set lower, cut off by the stage's bottom edge. */
+.stage.phones {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  place-items: start stretch;
+  aspect-ratio: 8 / 7;
+  padding: 36px 30px 0;
+}
+
+.phone {
+  display: block;
+  padding: 6px;
+  border-radius: 38px;
+  background: #0d1320;
+  box-shadow: 0 22px 48px rgba(20, 30, 60, 0.2);
+}
+
+.phone img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 32px;
+}
+
+.phone.front {
+  margin-top: 56px;
+}
+
+@media (max-width: 899px) {
+  .pocket {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .stage.phones {
+    justify-self: center;
+    width: 100%;
+    max-width: 560px;
+  }
+}
+
+@media (max-width: 599px) {
+  .stage.phones {
+    gap: 10px;
+    padding: 18px 12px 0;
+  }
+
+  .phone {
+    padding: 4px;
+    border-radius: 24px;
+  }
+
+  .phone img {
+    border-radius: 20px;
+  }
+
+  .phone.front {
+    margin-top: 32px;
+  }
+}
+
+/* ---- feature tiles ------------------------------------------------------------------------ */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 48px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tiles li {
+  position: relative;
+  padding: 22px 22px 20px;
+  overflow: hidden;
+  border: 1px solid var(--pane-border-soft);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff 0%, #f3f8ff 100%);
+  box-shadow: 0 2px 6px rgba(20, 60, 130, 0.08);
+}
+
+/* Once a tile has arrived, it answers the mouse at once. */
+.tiles li:not([data-reveal]) {
+  transition:
+    transform 0.3s var(--ease-out),
+    box-shadow 0.3s,
+    border-color 0.3s;
+}
+
+.tiles li:hover {
+  transform: translateY(-4px);
+  border-color: #96b4dd;
+  box-shadow: 0 16px 34px rgba(20, 60, 130, 0.18);
+}
+
+/* a light that follows the mouse across the tile */
+.tiles li::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 0%), rgba(61, 141, 248, 0.16), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.tiles li:hover::before {
+  opacity: 1;
+}
+
+.tile-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--pane-border-soft);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff 0%, #e3eefc 100%);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 2px 5px rgba(20, 60, 130, 0.14);
+  transition: transform 0.4s var(--ease-spring);
+}
+
+.tiles li:hover .tile-icon {
+  transform: scale(1.1) rotate(-6deg);
+}
+
+.tile-icon svg,
+.tile-icon img {
+  width: 28px;
+  height: 28px;
+}
+
+.tiles h3 {
+  margin: 14px 0 4px;
+  color: var(--heading);
+  font: bold 17px var(--font-title);
+}
+
+.tiles p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+@media (max-width: 999px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* One to a row, a tile has its icon beside its words. */
+@media (max-width: 599px) {
+  .tiles {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .tiles li {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 0 14px;
+    padding: 16px;
+  }
+
+  .tile-icon {
+    grid-row: span 2;
+    width: 40px;
+    height: 40px;
+  }
+
+  .tile-icon svg,
+  .tile-icon img {
+    width: 24px;
+    height: 24px;
+  }
+
+  .tiles h3 {
+    margin: 0 0 2px;
+  }
+}
+
+/* ---- a window of the page's own, as the app draws a dialog: the ways compared, the downloads, feedback */
+.sheet {
+  max-width: 940px;
+  margin: 40px auto 0;
+  overflow: hidden;
+  border: 1px solid #d3d9e4;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(30, 45, 80, 0.12);
+}
+
+/* its title, after the window's three buttons */
+.sheet-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 42px;
+  padding: 0 16px;
+  border-bottom: 1px solid #e8ecf2;
+  background: #f2f4f8;
+  color: var(--heading);
+  font: 600 13.5px var(--font-title);
+}
+
+.sheet-title::before {
+  content: '';
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-right: 40px;
+  border-radius: 50%;
+  background: #ff5f57;
+  box-shadow:
+    20px 0 #febc2e,
+    40px 0 #28c840;
+}
+
+/* The old way on the left, in a terminal; the new one on the right, in buddylist. */
+.mapping {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  font-size: 14.5px;
+  text-align: left;
+}
+
+.mapping th {
+  padding: 8px 14px;
+  border-bottom: 1px solid #e8ecf2;
+  background: #fbfcfd;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.mapping th:first-child {
+  border-bottom-color: #000;
+  background: #1b2333;
+  color: #8b98b0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.mapping th + th {
+  padding-left: 34px;
+}
+
+.mapping td {
+  padding: 12px 14px;
+  border-top: 1px solid #eef1f6;
+  vertical-align: top;
+  transition: background 0.2s;
+}
+
+.mapping td:first-child {
+  width: 40%;
+  border-top-color: rgba(255, 255, 255, 0.06);
+  background: #0f1624;
+  color: #b4c0d6;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.mapping td:first-child code {
+  color: #7ee787;
+  font-size: 1em;
+}
+
+.mapping td:last-child {
+  position: relative;
+  padding-left: 34px;
+  color: var(--text-soft);
+}
+
+.mapping td:last-child b {
+  color: var(--heading);
+}
+
+/* an arrow from the old way to the new one */
+.mapping td:last-child::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 18px;
+  width: 9px;
+  height: 9px;
+  border: solid var(--accent);
+  border-width: 2px 2px 0 0;
+  transform: rotate(45deg);
+  transition: transform 0.25s var(--ease-out);
+}
+
+.mapping tbody tr:hover td {
+  background: #f6f8fb;
+}
+
+.mapping tbody tr:hover td:first-child {
+  background: #172136;
+}
+
+.mapping tbody tr:hover td:last-child::before {
+  transform: translateX(4px) rotate(45deg);
+}
+
+@media (max-width: 639px) {
+  .mapping thead {
+    position: absolute;
+    clip-path: inset(50%);
+  }
+
+  .mapping tr,
+  .mapping td {
+    display: block;
+  }
+
+  /* a line of the terminal over its answer */
+  .mapping td:first-child {
+    width: auto;
+    padding: 9px 14px;
+  }
+
+  .mapping td:last-child {
+    padding-top: 10px;
+    padding-bottom: 14px;
+    border-top: 0;
+  }
+
+  .mapping td:last-child::before {
+    top: 16px;
+  }
+}
+
+/* ---- setup ---------------------------------------------------------------------------- */
+.download-picker {
+  padding: 28px;
+  background: #fff;
+}
+
+.download-picker > h3 {
+  margin: 0 0 20px;
+  color: var(--heading);
+  font: 700 22px/1.3 var(--font-title);
+  letter-spacing: -0.01em;
+}
+
+.download-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.download-card {
+  min-width: 0;
+  padding: 20px 16px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.download-card.is-current {
+  border-color: #b9cdf3;
+  background: #f5f8fe;
+}
+
+.download-card-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 64px;
+}
+
+.download-card h4 {
+  margin: 0;
+  color: var(--heading);
+  font: 600 22px/1.2 var(--font-title);
+}
+
+.download-current {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #e3ecfd;
+  color: #1f63d6;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.download-architecture {
+  margin: 12px 0 20px;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.download-button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: normal;
+}
+
+.download-button svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.is-current .download-button {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.is-current .download-button:hover {
+  background: #2360cf;
+}
+
+.download-button:active {
+  transform: translateY(1px);
+}
+
+.download-format {
+  min-height: 32px;
+  margin: 8px 0 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.download-format a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  text-underline-offset: 3px;
+}
+
+.download-picker-foot {
+  margin: 16px 0 0;
+  color: var(--text-soft);
+  font-size: 13px;
+  text-align: center;
+}
+
+.download-picker-foot a {
+  display: inline-block;
+  padding: 4px;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 759px) {
+  .download-picker {
+    padding: 24px 16px 16px;
+  }
+
+  .download-options {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .download-card {
+    padding: 16px;
+  }
+
+  .download-card-head {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    min-height: 0;
+  }
+
+  .download-architecture {
+    margin: 8px 0 16px;
+  }
+
+  .download-format {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 479px) {
+  .download-picker-foot a {
+    display: block;
+    width: fit-content;
+    margin: 0 auto;
+  }
+}
+
+/* ---- questions: two columns, each opening in place, the rest in the docs ---------------- */
+/* Two columns of their own, so an answer that opens only pushes down the questions under it. */
+.faq-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 56px;
+  margin-top: 44px;
+}
+
+#faq details {
+  border-bottom: 1px solid var(--line);
+}
+
+summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 15px 2px;
+  color: var(--heading);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  transition: color 0.2s;
+}
+
+summary:hover {
+  color: var(--accent);
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+/* a plus that turns into a minus */
+summary::after {
+  content: '';
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-left: auto;
+  background:
+    linear-gradient(currentColor, currentColor) center / 12px 2px no-repeat,
+    linear-gradient(currentColor, currentColor) center / 2px 12px no-repeat;
+  color: var(--muted);
+  transition: transform 0.25s var(--ease-out);
+}
+
+details[open] summary::after {
+  background: linear-gradient(currentColor, currentColor) center / 12px 2px no-repeat;
+  transform: rotate(180deg);
+}
+
+details p {
+  margin: 0;
+  padding: 0 30px 18px 2px;
+  color: var(--text-soft);
+  font-size: 15px;
+}
+
+/* An answer opens and closes smoothly, where a browser can animate to its own height. */
+@supports (interpolate-size: allow-keywords) {
+  #faq details {
+    interpolate-size: allow-keywords;
+  }
+
+  #faq details::details-content {
+    height: 0;
+    overflow: hidden;
+    transition:
+      height 0.35s var(--ease-out),
+      content-visibility 0.35s allow-discrete;
+  }
+
+  #faq details[open]::details-content {
+    height: auto;
+  }
+}
+
+@media (max-width: 859px) {
+  .faq-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- the way out: the professional look at night ------------------------------------------ */
+.outro {
+  padding: 96px 0 110px;
+  background:
+    radial-gradient(ellipse 60% 70% at 50% 0, rgba(47, 111, 228, 0.25), transparent 70%),
+    linear-gradient(180deg, #10151f 0%, #0b0e14 100%);
+}
+
+.outro h2 {
+  color: #f3f6fb;
+  font-size: clamp(30px, 4.6vw, 52px);
+}
+
+.outro .lede {
+  color: #b0b9ca;
+  text-shadow: none;
+}
+
+.outro .ghost {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: #f3f6fb;
+}
+
+.outro .ghost:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.outro-buddies {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.outro-buddies .dp {
+  width: 52px;
+  height: 52px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: #151a23;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  animation: float 4s ease-in-out infinite;
+}
+
+.outro-buddies .dp:nth-child(2) {
+  animation-delay: -1s;
+}
+
+.outro-buddies .dp:nth-child(3) {
+  animation-delay: -2s;
+}
+
+.outro-buddies .dp:nth-child(4) {
+  animation-delay: -3s;
+}
+
+.outro-buddies .dp:nth-child(5) {
+  animation-delay: -0.5s;
+}
+
+/* ---- feedback: a dialog with a form in it ------------------------------------------------- */
+.sheet.feedback {
+  max-width: 560px;
+}
+
+/* One column no wider than the form: Safari on a phone draws the file input wider than the form is. */
+.feedback-form {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  margin: 0;
+  padding: 22px 24px 18px;
+  background: #fff;
+  color: var(--text);
+  font: 14px/1.45 var(--font-ui);
+}
+
+.feedback-form fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.feedback-form legend {
+  margin-bottom: 6px;
+  padding: 0;
+  color: var(--heading);
+  font-weight: 600;
+}
+
+.feedback-form .pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.feedback-form .pick input {
+  margin: 0;
+}
+
+.feedback-form .field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+
+.feedback-form textarea,
+.feedback-form input[type='email'] {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d3d9e4;
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.feedback-form textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.feedback-form input[type='file'] {
+  max-width: 100%;
+  font: inherit;
+}
+
+.feedback-form small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* People never see this field. Bots fill it in. */
+.trap {
+  position: absolute;
+  left: -9999px;
+}
+
+.feedback-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.feedback-note {
+  flex: 1;
+  margin: 0;
+}
+
+.feedback-form.failed .feedback-note {
+  color: #b3261e;
+}
+
+.feedback-form.sent .feedback-note {
+  color: #1f6a16;
+}
+
+.feedback-foot .xp-btn {
+  justify-content: center;
+  min-width: 78px;
+}
+
+.feedback-foot .xp-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 479px) {
+  .feedback-form {
+    padding: 16px 14px 14px;
+  }
+}
+
+/* With the form: a cup of coffee for whoever makes buddylist. */
+.coffee {
+  margin: 22px 0 0;
+  color: var(--text-soft);
+  text-align: center;
+}
+
+/* On a wide screen the words stand beside the form, and the coffee under them. */
+@media (min-width: 960px) {
+  .feedback-wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 560px);
+    gap: 64px;
+    align-items: center;
+  }
+
+  .feedback-text .eyebrow {
+    justify-content: flex-start;
+  }
+
+  .feedback-text h2,
+  .feedback-text .intro,
+  .feedback-text .coffee {
+    text-align: left;
+  }
+
+  .feedback-text .intro {
+    margin: 0;
+  }
+
+  .sheet.feedback {
+    margin: 0;
+  }
+}
+
+/* ---- the changelog: a card for each version, newest first, and every version to jump to ------ */
+.band.changelog {
+  min-height: calc(100vh - 48px);
+  padding: 64px 0 88px;
+}
+
+/* The versions on the left, the cards in the middle and as much room on the right, so the cards
+   stay under the title. Narrower, the room on the right goes; on a phone, the versions are a row. */
+.changelog-layout {
+  display: grid;
+  grid-template-areas:
+    'nav list .'
+    'nav more .';
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 168px minmax(0, 752px) 168px;
+  justify-content: center;
+  align-items: start;
+  gap: 0 32px;
+  margin-top: 32px;
+  padding: 0 24px;
+}
+
+/* Every version, a link each, like the headings beside a guide. It stays put while the page scrolls. */
+.changelog-versions {
+  position: sticky;
+  top: 64px;
+  grid-area: nav;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.changelog-versions-head {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font: bold 12px var(--font-title);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.changelog-versions ol {
+  margin: 0;
+  padding: 0 0 0 10px;
+  border-left: 2px solid #c9d9f0;
+  list-style: none;
+}
+
+.changelog-versions li + li {
+  margin-top: 4px;
+}
+
+.changelog-versions a {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+
+.changelog-versions a:hover {
+  color: var(--link);
+  text-decoration: underline;
+}
+
+.changelog-versions a[aria-current] {
+  color: var(--link);
+  font-weight: bold;
+}
+
+.changelog-versions time {
+  color: var(--muted);
+}
+
+.changelog-list {
+  grid-area: list;
+}
+
+/* Expand all and Collapse all, once changelog.js has shown them. */
+.changelog-tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.changelog-tools button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  cursor: pointer;
+}
+
+.changelog-tools button:hover {
+  text-decoration: underline;
+}
+
+.release {
+  border: 1px solid var(--pane-border-soft);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.release + .release {
+  margin-top: 12px;
+}
+
+/* A version's line: which, when and how many changes, with the questions' plus on its right, and
+   under it the names of its changes while it is closed. The whole of it opens the card. */
+.release-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 16px;
+  padding: 14px 18px;
+  border-radius: 7px;
+  color: var(--text);
+  font-weight: normal;
+}
+
+.release-head:hover {
+  color: var(--text);
+}
+
+.release-fold:not([open]) > .release-head:hover {
+  background: #f8fafd;
+}
+
+.release-head::after {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+.release-fold[open] > .release-head {
+  border-bottom: 1px solid var(--line);
+  border-radius: 7px 7px 0 0;
+}
+
+.release-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.release-line > :not(h2)::before {
+  content: '·';
+  margin-right: 10px;
+}
+
+.release h2 {
+  margin: 0;
+  color: var(--heading);
+  font: bold 20px/1.3 var(--font-title);
+  letter-spacing: 0;
+  text-align: left;
+}
+
+.release-head:hover h2 {
+  color: var(--accent);
+}
+
+.release-names {
+  grid-column: 1 / -1;
+  columns: 2 260px;
+  column-gap: 28px;
+  margin-top: 8px;
+  color: var(--text-soft);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.release-names > span {
+  position: relative;
+  display: block;
+  padding-left: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  break-inside: avoid;
+}
+
+.release-names > span::before {
+  content: '';
+  position: absolute;
+  top: 0.68em;
+  left: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #9fbbe6;
+}
+
+.release-fold[open] .release-names {
+  display: none;
+}
+
+/* What is new in a version: its changes as rows, and anything else as site/changelog.md has it. */
+.release-notes {
+  padding: 4px 18px 16px;
+  color: var(--text-soft);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.release-notes p,
+.release-notes ul,
+.release-notes ol {
+  margin: 10px 0;
+  padding: 0;
+}
+
+.release-notes ul,
+.release-notes ol {
+  padding-left: 20px;
+}
+
+.release-notes > :last-child {
+  margin-bottom: 0;
+}
+
+.release-notes h3,
+.release-notes h4 {
+  margin: 16px 0 6px;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.release-notes strong {
+  color: var(--text);
+}
+
+.release-notes .changes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.change {
+  padding: 12px 0;
+}
+
+.change + .change {
+  border-top: 1px solid var(--line);
+}
+
+.change:last-child {
+  padding-bottom: 0;
+}
+
+.change-title {
+  display: block;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.release-notes .change-text {
+  margin: 2px 0 0;
+}
+
+/* The rest of a change, under More after its first sentence. */
+.change-fold > summary {
+  display: block;
+  padding: 0;
+  color: inherit;
+  font-weight: normal;
+}
+
+.change-fold > summary:hover {
+  color: inherit;
+}
+
+.release-notes .change-fold > summary::after {
+  content: 'More';
+  width: auto;
+  height: auto;
+  margin-left: 6px;
+  background: none;
+  color: var(--link);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: none;
+}
+
+.release-notes .change-fold[open] > summary::after {
+  content: 'Less';
+  background: none;
+  transform: none;
+}
+
+.release-notes .change-fold > summary:hover::after {
+  text-decoration: underline;
+}
+
+.release-notes .change-fold > .change-text {
+  margin: 6px 0 0;
+}
+
+.release-notes .change-fixes {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+
+.change-fixes li + li {
+  margin-top: 4px;
+}
+
+.change-fixes li::marker {
+  color: #9fbbe6;
+}
+
+/* Before any version is out: the yellow of the app's own notices. */
+.changelog-note {
+  grid-area: list;
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid #e3d9a0;
+  border-radius: 8px;
+  background: #fffbe1;
+  color: #5a4a00;
+}
+
+.changelog-more {
+  grid-area: more;
+  margin: 28px 0 0;
+  text-align: center;
+}
+
+@media (max-width: 1179px) {
+  .changelog-layout {
+    grid-template-areas:
+      'nav list'
+      'nav more';
+    grid-template-columns: 150px minmax(0, 1fr);
+    max-width: 1000px;
+    margin-inline: auto;
+  }
+}
+
+/* On a phone, the versions are a row to swipe through over the cards. */
+@media (max-width: 799px) {
+  .changelog-layout {
+    grid-template-areas: 'nav' 'list' 'more';
+    grid-template-rows: auto;
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 24px;
+    padding: 0 12px;
+  }
+
+  .changelog-versions {
+    position: static;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-height: none;
+    margin: 0 -12px 12px 0;
+    overflow: visible;
+  }
+
+  .changelog-versions-head {
+    flex: none;
+    margin: 0;
+  }
+
+  .changelog-versions ol {
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+    padding: 2px 12px 6px 0;
+    overflow-x: auto;
+    border-left: 0;
+    scrollbar-width: none;
+  }
+
+  .changelog-versions li + li {
+    margin-top: 0;
+  }
+
+  .changelog-versions a {
+    padding: 3px 10px;
+    border: 1px solid var(--pane-border-soft);
+    border-radius: 999px;
+    background: #fff;
+    white-space: nowrap;
+  }
+
+  .changelog-versions time {
+    display: none;
+  }
+
+  .release-head {
+    padding: 12px 14px;
+  }
+
+  .release-notes {
+    padding: 2px 14px 14px;
+  }
+}
+
+/* ---- the sponsor page: a letter, the ways to give, and the sponsors as a contact list ------- */
+.band.sponsor {
+  padding: 64px 0 88px;
+}
+
+.sponsor-letter {
+  margin: 28px 0 0;
+  padding: 18px 22px;
+  border: 1px solid var(--pane-border-soft);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-soft);
+  font-size: 15.5px;
+}
+
+.sponsor-letter p {
+  margin: 0 0 12px;
+}
+
+.sponsor-letter > :last-child {
+  margin-bottom: 0;
+}
+
+.sponsor-sign {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.sponsor-sign::before {
+  content: '— ';
+}
+
+/* Three ways to give, side by side, each ending in its button. */
+.tiles.give {
+  margin-top: 28px;
+}
+
+.give li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.give .xp-btn {
+  margin-top: auto;
+  font-size: 13px;
+}
+
+.give p {
+  margin-bottom: 16px;
+}
+
+/* The tiles' own breakpoint would leave the third alone on a row. */
+@media (max-width: 999px) {
+  .tiles.give {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 639px) {
+  .tiles.give {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* One to a row, a tile has its icon beside its words and its button under them. */
+@media (max-width: 599px) {
+  .give li {
+    display: grid;
+  }
+
+  .give p {
+    margin-bottom: 12px;
+  }
+
+  .give .xp-btn {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+.sponsor-part {
+  margin-top: 64px;
+  text-align: center;
+}
+
+.band .sponsor-part h2 {
+  font-size: clamp(24px, 3vw, 32px);
+}
+
+.sponsor-part > p {
+  max-width: 60ch;
+  margin: 0 auto 14px;
+  color: var(--text-soft);
+  text-wrap: pretty;
+}
+
+.perks {
+  display: grid;
+  gap: 8px;
+  width: fit-content;
+  margin: 18px auto 20px;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.perks li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.perks svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.sponsor-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px 22px;
+  margin-top: 24px;
+}
+
+/* No arrow to make room for: it isn't a download. */
+.sponsor-cta .go {
+  padding-inline: 20px;
+}
+
+.sponsor-list {
+  max-width: 420px;
+  margin: 24px auto 0;
+}
+
+.sponsor-list .buddies {
+  min-height: 0;
+  padding-bottom: 10px;
+}
+
+/* ---- the docs: a guide on a sheet of paper, with Explorer's task pane on its left ------------ */
+.docs {
+  min-height: calc(100vh - 48px);
+  border-bottom: 1px solid #c9d9f0;
+  background: linear-gradient(180deg, #f4f8fe 0%, #e3ecf9 100%);
+}
+
+.docs-layout {
+  display: grid;
+  grid-template-areas: 'nav doc toc';
+  grid-template-columns: 220px minmax(0, 1fr) 200px;
+  align-items: start;
+  gap: 32px;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 40px 24px 88px;
+}
+
+/* Every guide, under headings like the boxes of XP's task pane. It stays put while the page scrolls. */
+.docs-nav {
+  position: sticky;
+  top: 64px;
+  display: grid;
+  grid-area: nav;
+  gap: 12px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+.docs-group-head {
+  margin: 0;
+  padding: 5px 10px;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(90deg, #fff 0%, #c6d3f7 100%);
+  color: #215dc6;
+  font-weight: bold;
+}
+
+.docs-group ul {
+  margin: 0;
+  padding: 6px 10px 8px;
+  border: 1px solid #fff;
+  border-top: 0;
+  background: #d6dff7;
+  list-style: none;
+}
+
+.docs-group li + li {
+  margin-top: 4px;
+}
+
+.docs-group a {
+  color: #215dc6;
+  text-decoration: none;
+}
+
+.docs-group a:hover {
+  color: #428eff;
+  text-decoration: underline;
+}
+
+.docs-group a[aria-current='page'] {
+  color: var(--text);
+  font-weight: bold;
+}
+
+/* Only on a phone, where the list is under the guide. */
+.docs-jump {
+  display: none;
+  grid-area: jump;
+  font-size: 14px;
+}
+
+.doc {
+  grid-area: doc;
+  padding: 28px 36px 32px;
+  border: 1px solid var(--pane-border-soft);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-soft);
+  font-size: 15.5px;
+  overflow-wrap: break-word;
+}
+
+.doc > :first-child {
+  margin-top: 0;
+}
+
+.doc h1 {
+  margin: 0 0 16px;
+  color: var(--heading);
+  font: bold clamp(26px, 3.4vw, 36px) / 1.15 var(--font-title);
+  letter-spacing: -0.4px;
+}
+
+.doc h2 {
+  margin: 36px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #dbe6f5;
+  color: var(--heading);
+  font: bold 22px/1.3 var(--font-title);
+}
+
+.doc h3,
+.doc h4 {
+  margin: 26px 0 8px;
+  color: var(--text);
+  font: bold 17px/1.35 var(--font-title);
+}
+
+.doc h4 {
+  font-size: 15.5px;
+}
+
+/* A heading links to itself, so its address can be copied. */
+.doc :is(h2, h3, h4) a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.doc :is(h2, h3, h4) a:hover {
+  text-decoration: underline;
+}
+
+.doc p,
+.doc ul,
+.doc ol,
+.doc pre,
+.doc table,
+.doc blockquote {
+  margin: 12px 0;
+}
+
+.doc ul,
+.doc ol {
+  padding-left: 22px;
+}
+
+.doc li + li {
+  margin-top: 6px;
+}
+
+.doc strong {
+  color: var(--text);
+}
+
+.doc code {
+  padding: 1px 4px;
+  border: 1px solid #dde6f3;
+  border-radius: 3px;
+  background: #f3f7fd;
+}
+
+.doc pre {
+  padding: 12px 14px;
+  overflow-x: auto;
+  border: 1px solid var(--pane-border-soft);
+  border-radius: 6px;
+  background: #f6f9fe;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.doc pre code {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: inherit;
+}
+
+/* A wide table scrolls on its own instead of widening the page. */
+.doc table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 14.5px;
+}
+
+.doc th,
+.doc td {
+  padding: 6px 10px;
+  border: 1px solid #c9d9f0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.doc th {
+  background: #eef4fc;
+  color: var(--text);
+}
+
+.doc blockquote {
+  padding: 2px 14px;
+  border-left: 3px solid #9fbbe6;
+  color: var(--muted);
+}
+
+.doc-foot {
+  margin-top: 36px;
+  padding-top: 18px;
+  border-top: 1px solid #dbe6f5;
+}
+
+.doc-pager {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.doc-pager a {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 14px;
+  border: 1px solid var(--pane-border-soft);
+  border-radius: 6px;
+  color: var(--link);
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.doc-pager a:hover {
+  border-color: #7f9db9;
+  background: #f3f7fd;
+}
+
+.doc-pager span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: normal;
+}
+
+/* The last guide has no next one, and Next stays on the right. */
+.doc-next {
+  margin-left: auto;
+  text-align: right;
+}
+
+.doc-source {
+  margin: 16px 0 0;
+  font-size: 13px;
+}
+
+/* What is on the page, beside it, while it scrolls. */
+.doc-toc {
+  position: sticky;
+  top: 64px;
+  grid-area: toc;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.doc-toc-head {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font: bold 12px var(--font-title);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.doc-toc ul {
+  margin: 0;
+  padding: 0 0 0 10px;
+  border-left: 2px solid #c9d9f0;
+  list-style: none;
+}
+
+.doc-toc li + li {
+  margin-top: 6px;
+}
+
+.doc-toc .toc-3 {
+  padding-left: 12px;
+}
+
+.doc-toc a {
+  color: var(--text-soft);
+  text-decoration: none;
+}
+
+.doc-toc a:hover {
+  color: var(--link);
+  text-decoration: underline;
+}
+
+/* Narrower, the headings go, and the guide keeps the room. */
+@media (max-width: 1179px) {
+  .docs-layout {
+    grid-template-areas: 'nav doc';
+    grid-template-columns: 210px minmax(0, 1fr);
+  }
+
+  .doc-toc {
+    display: none;
+  }
+}
+
+/* On a phone, the guide first and every guide under it. */
+@media (max-width: 799px) {
+  .docs-layout {
+    grid-template-areas: 'jump' 'doc' 'nav';
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    padding: 18px 12px 64px;
+  }
+
+  .docs-nav {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .docs-jump {
+    display: block;
+  }
+
+  .doc {
+    padding: 20px 18px 24px;
+  }
+}
+
+/* ---- back to the top: a round button in the corner ------------------------------------- */
+/* Sticky at the end of <main>, so it rides the window's corner and stops above the taskbar.
+   Its margins add up to no height, so the page is as long as without it. */
+.to-top {
+  position: sticky;
+  bottom: 16px;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -60px 16px 16px auto;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  background: #1a2130;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  transition:
+    opacity 0.25s,
+    transform 0.25s var(--ease-out),
+    visibility 0.25s,
+    filter 0.2s;
+}
+
+.to-top:hover {
+  filter: brightness(1.12);
+}
+
+.to-top:active {
+  filter: brightness(0.92);
+}
+
+.to-top svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* With scripts it waits until the first screen is behind you. */
+.js .to-top:not(.shown) {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+/* ---- footer: the name, the ways around, and the small print -------------------------------- */
+.foot {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: #0b0e14;
+  color: #8f9ab0;
+  font-size: 12.5px;
+}
+
+/* Edge to edge, as far in as the top bar's brand and Download, so the page is framed the same top and bottom. */
+.foot-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 22px 16px 8px;
+}
+
+.foot-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f3f6fb;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.foot-row nav {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 18px;
+  min-width: 0;
+}
+
+.foot-row nav a {
+  color: #b0b9ca;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.foot-row nav a:hover {
+  color: #fff;
+}
+
+.fine {
+  margin: 0;
+  padding: 8px 16px 22px;
+  color: #667189;
+  font-size: 12px;
+}
+
+@media (max-width: 639px) {
+  .foot-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .foot-row nav {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 379px) {
+  .foot-row,
+  .fine {
+    padding-inline: 12px;
+  }
+}
+
+/* ---- for anyone who would rather things stood still --------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .js [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* A conversation that doesn't play shows all of itself. */
+  .log,
+  .group-main .log {
+    height: auto;
+  }
+}
+
+/* The same without scripts. */
+html:not(.js) .log {
+  height: auto;
+}
+
+/* ---- the 30-second tour: the promo film, black like the film itself ---------------------------- */
+.tour {
+  position: relative;
+  padding: 96px 0 88px;
+  background: radial-gradient(ellipse 60% 50% at 50% 35%, rgba(47, 111, 228, 0.28), transparent 70%), #000;
+  color: #a1a1a6;
+}
+
+.tour .eyebrow {
+  color: #9fc2ff;
+}
+
+.tour h2 {
+  margin: 0 0 12px;
+  color: #f5f5f7;
+  font:
+    700 clamp(30px, 4.4vw, 52px) / 1.08 -apple-system,
+    BlinkMacSystemFont,
+    'Inter',
+    'Segoe UI',
+    system-ui,
+    sans-serif;
+  letter-spacing: -0.03em;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.tour .intro {
+  color: #a1a1a6;
+}
+
+.film {
+  position: relative;
+  max-width: 1100px;
+  margin: 40px auto 0;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #000;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 30px 80px rgba(20, 60, 160, 0.35);
+}
+
+.film video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+
+.js .film video {
+  cursor: pointer;
+}
+
+.film-play,
+.film-sound {
+  position: absolute;
+  border: 0;
+  cursor: pointer;
+}
+
+.film-play {
+  left: 50%;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  margin: -44px 0 0 -44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.film-play svg {
+  width: 34px;
+  height: 34px;
+  margin-left: 5px;
+  fill: #000;
+}
+
+.film-sound {
+  right: 16px;
+  bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px 9px 12px;
+  border-radius: 999px;
+  background: rgba(28, 28, 30, 0.72);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font:
+    600 14px/1 -apple-system,
+    BlinkMacSystemFont,
+    'Inter',
+    'Segoe UI',
+    system-ui,
+    sans-serif;
+}
+
+.film-sound svg {
+  width: 18px;
+  height: 18px;
+  fill: #fff;
+}
+
+.film-sound .waves {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.film-sound[aria-pressed='false'] .waves {
+  opacity: 0.35;
+}
+
+.film-play[hidden],
+.film-sound[hidden] {
+  display: none;
+}
+
+.film-note {
+  margin: 18px 0 0;
+  color: #86868b;
+  font-size: 15px;
+  text-align: center;
+}
+
+.film-note a {
+  color: #9fc2ff;
+}
+
+/* Over the film on a wide screen: the film, or the live demo in its place. */
+.tour-switch {
+  margin: 28px 0 0;
+  text-align: center;
+}
+
+@media (max-width: 959px) {
+  .tour {
+    padding-top: 64px;
+  }
+}
+
+/* ---- a choice of two, as one row of keys: the demo's look, the professional look's time of day -- */
+.look-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #d3d9e4;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.look-switch .key {
+  min-height: 26px;
+  padding: 3px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+}
+
+.look-switch .key[aria-pressed='true'] {
+  background: #1a2130;
+  color: #fff;
+}
+
+/* on the black of the tour */
+.tour .look-switch,
+.monitor .look-switch {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tour .look-switch .key {
+  color: #b0b9ca;
+}
+
+.tour .look-switch .key[aria-pressed='true'] {
+  background: #f3f6fb;
+  color: #0d1320;
+}
+
+/* ---- two looks: the same window, professional on the left of the line, the messenger on its right */
+.band.looks {
+  border-block: 1px solid var(--line);
+  background: var(--body-bg);
+}
+
+.compare {
+  --split: 50%;
+
+  position: relative;
+  display: grid;
+  max-width: 1000px;
+  margin: 44px auto 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(30, 45, 80, 0.14);
+}
+
+.js .compare {
+  cursor: ew-resize;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.compare-pane {
+  grid-area: 1 / 1;
+  display: grid;
+  place-items: center;
+  padding: 34px 30px;
+}
+
+.compare-pane.messenger {
+  display: none;
+  clip-path: inset(0 0 0 var(--split));
+  background:
+    radial-gradient(ellipse 120% 150px at 30% calc(100% + 60px), #7cc24a 0 60%, #4f9a32 61% 74%, transparent 75%),
+    radial-gradient(ellipse 50% 18% at 18% 16%, rgba(255, 255, 255, 0.55), transparent 70%),
+    linear-gradient(180deg, #2a69cf 0%, #5c9be6 60%, #9cc9f2 100%);
+}
+
+.compare-pane.professional {
+  background:
+    radial-gradient(ellipse 70% 60% at 70% 15%, rgba(47, 111, 228, 0.35), transparent 70%),
+    linear-gradient(160deg, #0b0f16 0%, #182131 100%);
+}
+
+.compare-pane.professional.day {
+  background:
+    radial-gradient(ellipse 70% 60% at 70% 15%, rgba(47, 111, 228, 0.14), transparent 70%),
+    linear-gradient(160deg, #eef2f8 0%, #dbe2ec 100%);
+}
+
+.compare .msg.act {
+  display: flex;
+}
+
+.compare-line,
+.compare-tag.messenger,
+.compare-range,
+.looks-keys {
+  display: none;
+}
+
+.js .compare-pane.messenger {
+  display: grid;
+}
+
+.js .compare-line,
+.js .compare-tag.messenger,
+.js .compare-range,
+.js .looks-keys {
+  display: block;
+}
+
+.compare-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--split);
+  width: 2px;
+  margin-left: -1px;
+  background: #fff;
+  box-shadow: 0 0 14px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+/* the handle, with an arrow each way */
+.compare-line i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.compare-line i::before {
+  content: '\2039\00a0\203A';
+  color: var(--accent);
+  font: 600 20px/1 var(--font-title);
+}
+
+.compare:focus-within .compare-line i {
+  box-shadow:
+    0 0 0 3px var(--focus),
+    0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.compare-tag {
+  position: absolute;
+  top: 14px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font: 600 12px var(--font-title);
+  pointer-events: none;
+}
+
+.compare-tag.professional {
+  left: 14px;
+  background: rgba(15, 20, 30, 0.82);
+  color: #f3f6fb;
+}
+
+.compare-tag.messenger {
+  right: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1b3f7a;
+  font-family: var(--xp-title);
+}
+
+/* Arrow keys move the line; the pointer drags it, so the slider itself needs no clicks. */
+.compare-range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.looks-keys {
+  margin: 22px 0 0;
+  text-align: center;
+}
+
+@media (max-width: 479px) {
+  .compare-pane {
+    padding: 16px 10px;
+  }
+}
+
+/* ---- a conversation window, as the comparison of looks draws it --------------------------------- */
+/* "Claude says:" in the messenger; a name and a time in the professional look */
+.who b {
+  font-weight: normal;
+}
+
+.who i {
+  font-style: normal;
+}
+
+.who time,
+.win-title .pro-menu {
+  display: none;
+}
+
+.title-of {
+  font-style: normal;
+}
+
+/* ---- the professional look --------------------------------------------------------------------- */
+/* A window drawn in the app's professional look (src/renderer/styles/pro.css): the same markup
+   without the 2005 costume, in the system's type, with the line icons the page's PRO_ICONS token writes into it. Night by default, and .day for the day; the colours are those of pro-theme.css. */
+.look-pro {
+  --p-frame: #141922;
+  --p-body: #10141b;
+  --p-field: #161c27;
+  --p-border: #263042;
+  --p-hair: #1f2836;
+  --p-chip: #1c2432;
+  --p-text: #dfe5ef;
+  --p-strong: #f3f6fb;
+  --p-mid: #b0b9ca;
+  --p-dim: #8f9ab0;
+  --p-faint: #667189;
+  --p-link: #79a7f7;
+  --p-accent: #5b93f5;
+  --p-icon: #a2acbf;
+  --p-online: #3fbf62;
+  --p-code: #d9e0eb;
+  --p-select: #1a2a48;
+  --p-select-border: #2b4677;
+  --p-picked: #f7b866;
+  --p-picked-bg: #3a2a12;
+  --p-violet: #ab98f8;
+  --p-raised: #1c2432;
+  --p-outline: #2a3446;
+  --p-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+
+  padding: 0 !important;
+  border: 1px solid var(--p-outline) !important;
+  border-radius: 12px !important;
+  background: var(--p-frame) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    var(--p-shadow) !important;
+  color: var(--p-text);
+  font:
+    13px/1.5 -apple-system,
+    BlinkMacSystemFont,
+    'Inter',
+    'Segoe UI',
+    system-ui,
+    sans-serif;
+}
+
+.look-pro.day {
+  --p-frame: #f2f4f8;
+  --p-body: #fbfcfd;
+  --p-field: #ffffff;
+  --p-border: #dfe4ec;
+  --p-hair: #e8ecf2;
+  --p-chip: #eef1f6;
+  --p-text: #1a2130;
+  --p-strong: #0d1320;
+  --p-mid: #475268;
+  --p-dim: #5f6b82;
+  --p-faint: #949eb2;
+  --p-link: #1f63d6;
+  --p-accent: #2a6ae0;
+  --p-icon: #56627a;
+  --p-online: #2fa84f;
+  --p-code: #222b3b;
+  --p-select: #e5eefc;
+  --p-select-border: #c4d6f6;
+  --p-picked: #8a4b00;
+  --p-picked-bg: #fff0d9;
+  --p-violet: #5d3fc4;
+  --p-raised: #ffffff;
+  --p-outline: #d3d9e4;
+  --p-shadow: 0 24px 60px rgba(30, 45, 80, 0.18);
+}
+
+.look-pro .win-title {
+  gap: 14px;
+  height: 42px;
+  margin: 0;
+  padding: 0 16px;
+  border-radius: 11px 11px 0 0;
+  border-bottom: 1px solid var(--p-hair);
+  background: var(--p-frame);
+  color: var(--p-strong);
+  font:
+    600 13.5px -apple-system,
+    BlinkMacSystemFont,
+    system-ui,
+    sans-serif;
+  text-shadow: none;
+}
+
+.look-pro .win-title > svg {
+  display: none;
+}
+
+.look-pro .win-title > span:first-of-type {
+  flex: none;
+}
+
+.look-pro .win-ctl {
+  order: -1;
+  gap: 8px;
+}
+
+.look-pro .win-ctl b {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: #ff5f57;
+}
+
+.look-pro .win-ctl b:nth-child(2) {
+  background: #febc2e;
+}
+
+.look-pro .win-ctl b.x {
+  order: 2;
+  background: #28c840;
+}
+
+.look-pro .win-ctl svg {
+  display: none;
+}
+
+.look-pro .win-menu {
+  display: none;
+}
+
+.look-pro .tools {
+  gap: 4px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--p-hair);
+  background: var(--p-frame);
+}
+
+.look-pro .tools svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* The toolbar shares the title's row, as it does in the app: ☰ with every menu in it where there is one,
+   the name, then Invite, Open in and Run with their words, and at the other end the pull request. The
+   contacts' and the side pane's buttons are icons alone. */
+.look-pro:has(> .tools) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.look-pro:has(> .tools) > * {
+  grid-column: 1 / -1;
+}
+
+.look-pro:has(> .tools) > .win-title {
+  grid-column: 1;
+  gap: 12px;
+  padding-right: 4px;
+  border-radius: 11px 0 0 0;
+}
+
+.look-pro:has(> .tools) > .tools {
+  grid-row: 1;
+  grid-column: 2;
+  align-items: center;
+  gap: 2px;
+  padding: 0 10px 0 0;
+  border-radius: 0 11px 0 0;
+}
+
+.look-pro .pro-menu {
+  display: grid;
+  color: var(--p-icon);
+}
+
+.look-pro .pro-menu svg {
+  width: 15px;
+  height: 15px;
+}
+
+.look-pro .title-of {
+  display: none;
+}
+
+.look-pro .tools span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 30px;
+  padding: 0 7px;
+  border-radius: 7px;
+  color: var(--p-mid);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.look-pro .tools span:first-child,
+.look-pro .tools span:last-child {
+  padding: 0 6px;
+  font-size: 0;
+}
+
+.look-pro .tools .more::after {
+  position: static;
+  content: '\2304';
+  margin-top: -6px;
+  font-size: 12px;
+}
+
+:is(.look-pro, .pro-icons) svg[data-icon] {
+  background: currentColor;
+  mask: var(--icon) center / contain no-repeat;
+}
+
+:is(.look-pro, .pro-icons) svg[data-icon] > * {
+  display: none;
+}
+
+.look-pro .group-body {
+  background: var(--p-body);
+}
+
+.look-pro .to {
+  gap: 6px;
+  padding: 8px 18px;
+  border: 0;
+  border-bottom: 1px solid var(--p-hair);
+  background: var(--p-body);
+  box-shadow: none;
+  color: var(--p-dim);
+}
+
+.look-pro .to b {
+  color: var(--p-strong);
+  font-weight: 600;
+}
+
+.look-pro .faint {
+  color: var(--p-faint);
+  font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+  font-size: 12px;
+}
+
+/* A contact's status is still its buddy: a small flat one, in green. */
+.look-pro svg.bud {
+  background: var(--p-online);
+  mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='5.4' r='2.9'/><path d='M2.9 14c.3-3.3 2.4-5.2 5.1-5.2s4.8 1.9 5.1 5.2z'/></svg>")
+    center / 13px no-repeat;
+}
+
+.look-pro svg.bud > * {
+  display: none;
+}
+
+.look-pro .group-main .log {
+  border: 0;
+  padding: 14px 22px;
+  background: var(--p-body);
+  box-shadow: none;
+}
+
+.look-pro .msg {
+  margin-bottom: 12px;
+}
+
+.look-pro .who {
+  color: var(--p-faint);
+  font-size: 12px;
+}
+
+.look-pro .who b {
+  color: var(--p-strong);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.look-pro .who i {
+  display: none;
+}
+
+.look-pro .who time {
+  display: inline;
+  margin-left: 8px;
+}
+
+.look-pro .msg p {
+  margin: 2px 0 0;
+  color: var(--p-text);
+}
+
+/* What you send sits on the right, in a bubble with no name over it, as the app draws it. */
+.look-pro .msg.you {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.look-pro .msg.you .who {
+  display: none;
+}
+
+.look-pro .msg.you p {
+  max-width: 85%;
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: var(--p-chip);
+}
+
+.look-pro .at {
+  color: var(--p-link);
+  font-weight: 600;
+}
+
+.look-pro .msg code,
+.look-pro .invite-what {
+  background: var(--p-chip);
+  color: var(--p-code);
+  font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+}
+
+.look-pro .msg u {
+  color: var(--p-link);
+  text-decoration: none;
+}
+
+.look-pro .msg.act,
+.look-pro .msg.done {
+  color: var(--p-dim);
+  font-size: 12.5px;
+  font-weight: normal;
+}
+
+.look-pro .msg.act svg,
+.look-pro .msg.done svg,
+.look-pro .note svg {
+  color: var(--p-icon);
+}
+
+.look-pro .note {
+  border-bottom: 1px dashed var(--p-hair);
+  color: var(--p-dim);
+}
+
+.look-pro .invite {
+  border: 1px solid var(--p-border);
+  border-radius: 10px;
+  background: var(--p-field);
+  box-shadow: none;
+}
+
+.look-pro .invite-head {
+  color: var(--p-strong);
+}
+
+.look-pro .invite-what {
+  border: 0;
+  border-radius: 6px;
+}
+
+.look-pro .compose {
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 10px 18px 14px;
+  background: var(--p-body);
+}
+
+.look-pro .compose-row {
+  grid-template-columns: minmax(0, 1fr) 62px;
+  padding: 10px 12px 2px;
+  border: 1px solid var(--p-border);
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  background: var(--p-field);
+}
+
+.look-pro .compose-bar {
+  gap: 14px;
+  padding: 4px 12px 8px;
+  border: 1px solid var(--p-border);
+  border-top: 0;
+  border-radius: 0 0 12px 12px;
+  background: var(--p-field);
+  color: var(--p-icon);
+}
+
+/* +, the microphone, the quick messages and the nudge, as the app has them: no font colour, emoticons,
+   winks or words. */
+.look-pro .compose-bar span:first-child:not(.attach),
+.look-pro .compose-bar :is(.font, .emo, .wink-button),
+.look-pro .compose-bar span > i {
+  display: none;
+}
+
+.look-pro .compose-bar .quick::after {
+  content: '\2304';
+  margin: -6px 0 0 1px;
+  font-size: 11px;
+}
+
+.look-pro .compose-bar svg,
+.look-pro .compose-bar img {
+  width: 16px;
+  height: 16px;
+}
+
+.look-pro .input {
+  min-height: 34px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--p-text);
+}
+
+.look-pro .caret {
+  background: var(--p-text);
+}
+
+.look-pro .send {
+  align-self: center;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--p-chip);
+  color: var(--p-dim);
+}
+
+.look-pro .people {
+  border-left: 1px solid var(--p-hair);
+  background: var(--p-frame);
+}
+
+/* The Agents tab, flat on the side pane's bar. */
+.look-pro .roster-tabs {
+  align-items: center;
+  padding: 6px;
+  border-bottom: 1px solid var(--p-hair);
+}
+
+.look-pro .roster-tabs .low-tab.on {
+  margin: 0;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--p-chip);
+  color: var(--p-strong);
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.look-pro .roster-tabs .tab-plus {
+  padding: 0 8px;
+  color: var(--p-dim);
+  font-weight: 400;
+}
+
+.look-pro .person {
+  grid-template-columns: minmax(0, 1fr);
+  border: 0;
+}
+
+.look-pro .person .dp {
+  display: none;
+}
+
+.look-pro .person.working {
+  border-color: var(--p-select-border);
+  background: var(--p-select);
+  box-shadow: none;
+}
+
+.look-pro .person b {
+  color: var(--p-strong);
+  font-weight: 600;
+}
+
+.look-pro .chip {
+  padding: 1px 15px 2px 7px;
+  border: 1px solid var(--p-border);
+  border-radius: 6px;
+  background: var(--p-field)
+    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5'><path d='M1 1l3 3 3-3' fill='none' stroke='%238f9ab0' stroke-width='1.3'/></svg>")
+    right 5px center / 7px no-repeat;
+  color: var(--p-mid);
+  font-size: 11.5px;
+}
+
+.look-pro .chip.picked {
+  border-color: transparent;
+  background-color: var(--p-picked-bg);
+  color: var(--p-picked);
+}
+
+/* In the list, each agent's name with its pause and ✕ beside it, over a quiet line of text:
+   Opus · High · Auto-accepts edits. */
+.look-pro :where(.roster) .person {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+}
+
+.look-pro .acts {
+  color: var(--p-faint);
+}
+
+.look-pro .acts svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* One line, as in the app: a model's name too long for it is the one cut short. */
+.look-pro .roster .chips {
+  flex-wrap: nowrap;
+  gap: 0;
+}
+
+.look-pro .roster .chip {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--p-dim);
+  font-size: 11px;
+}
+
+.look-pro .roster .chip:first-child {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.look-pro .roster .chip + .chip::before {
+  content: '·';
+  margin: 0 5px;
+  color: var(--p-faint);
+  font-weight: 400;
+}
+
+.look-pro .roster .chip.accepts {
+  color: var(--p-violet);
+}
+
+.look-pro .roster .chip.picked {
+  color: var(--p-picked);
+  font-weight: 600;
+}
+
+/* How they reply: a heading, both ways in one box with the chosen one raised, and what it does. */
+.look-pro .people-turns {
+  gap: 7px;
+  padding-top: 10px;
+  border-top-color: var(--p-hair);
+}
+
+.look-pro .people-turns b {
+  color: var(--p-faint);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.look-pro .turns-toggle {
+  gap: 4px;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--p-chip);
+}
+
+.look-pro .turns-toggle span {
+  padding: 3px 8px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--p-dim);
+  font-size: 11px;
+}
+
+.look-pro .turns-toggle .on {
+  background: var(--p-raised);
+  color: var(--p-text);
+  font-weight: 500;
+  box-shadow:
+    0 0 0 1px var(--p-outline),
+    0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.look-pro .turns-hint {
+  color: var(--p-faint);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.look-pro .status {
+  border-radius: 0 0 11px 11px;
+  height: 26px;
+  padding: 4px 16px;
+  border-top: 1px solid var(--p-hair);
+  background: var(--p-frame);
+  color: var(--p-dim);
+}
+
+.look-pro .mention-pop {
+  border: 1px solid var(--p-border);
+  border-radius: 8px;
+  background: var(--p-field);
+  color: var(--p-text);
+}
+
+/* ---- every window on the page in the professional look: what the comparison's group chat has not ---- */
+/* A contact's buddy in its status: green, red at work, amber waiting for you, grey offline. */
+.look-pro svg.bud:has(use[href='#b-busy']) {
+  background: #e5484d;
+}
+
+.look-pro svg.bud:has(use[href='#b-away']) {
+  background: #f5a524;
+}
+
+.look-pro svg.bud:has(use[href='#b-offline']) {
+  background: var(--p-faint);
+}
+
+.look-pro .log {
+  border: 0;
+  padding: 14px 18px;
+  background: var(--p-body);
+  box-shadow: none;
+}
+
+/* the contact list */
+.look-pro.win-list {
+  max-width: 340px;
+}
+
+.look-pro .me {
+  gap: 12px;
+  padding: 14px 14px 10px;
+  background: var(--p-frame);
+}
+
+.look-pro .me .dp {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: none;
+}
+
+.look-pro .me-text b {
+  color: var(--p-strong);
+  font-weight: 600;
+}
+
+.look-pro .me-text i,
+.look-pro .me-text .faint {
+  color: var(--p-dim);
+  font-family: inherit;
+}
+
+.look-pro .reviews {
+  margin: 0 12px 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--p-border);
+  border-radius: 8px;
+  background: var(--p-field);
+  color: var(--p-text);
+}
+
+.look-pro .reviews svg,
+.look-pro .nav-rows svg,
+.look-pro .find svg,
+.look-pro .plus svg {
+  color: var(--p-icon);
+}
+
+.look-pro .nav-rows {
+  gap: 2px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--p-hair);
+  background: var(--p-frame);
+  color: var(--p-text);
+}
+
+.look-pro .nav-rows span {
+  gap: 10px;
+  padding: 2px 6px;
+}
+
+.look-pro .find {
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--p-hair);
+  background: var(--p-frame);
+}
+
+.look-pro .find span {
+  padding: 5px 10px;
+  border: 1px solid var(--p-border);
+  border-radius: 8px;
+  background: var(--p-field);
+  color: var(--p-faint);
+}
+
+.look-pro .buddies {
+  padding: 4px 8px 10px;
+  background: var(--p-frame);
+}
+
+.look-pro .grp {
+  padding: 6px 6px 2px;
+  color: var(--p-dim);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.look-pro .grp i {
+  color: var(--p-faint);
+}
+
+.look-pro .row {
+  padding: 3px 8px 3px 16px;
+  border-radius: 6px;
+}
+
+.look-pro .row b {
+  color: var(--p-text);
+}
+
+.look-pro .row.off b,
+.look-pro .row .line {
+  color: var(--p-faint);
+}
+
+.look-pro .row.hot {
+  border-color: var(--p-select-border);
+  background: var(--p-select);
+}
+
+/* A pull request's tags, flat, in their colour. */
+.look-pro .tag {
+  height: 17px;
+  padding: 0 6px 0 5px;
+  border-radius: 5px;
+  background: var(--tag-top);
+  font: 600 10.5px/15px inherit;
+}
+
+.look-pro .tag-btn {
+  height: 17px;
+  padding: 0 7px;
+  border: 1px solid var(--p-border);
+  border-radius: 5px;
+  background: var(--p-field);
+  color: var(--p-link);
+  font: 600 10.5px/15px inherit;
+}
+
+.look-pro .tag-btn.quiet {
+  color: var(--p-icon);
+}
+
+/* the toast in the corner: a card */
+.look-pro.mini-toast {
+  overflow: hidden;
+}
+
+.look-pro .toast-bar {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--p-hair);
+  color: var(--p-dim);
+}
+
+.look-pro .toast-bar > svg {
+  display: none;
+}
+
+.look-pro .toast-body {
+  padding: 10px 12px 12px;
+  color: var(--p-text);
+}
+
+.look-pro .toast-body .dp {
+  border: 0;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+/* a conversation */
+.look-pro .msg.suggestions {
+  margin-left: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--p-border);
+  border-radius: 10px;
+  background: var(--p-field);
+}
+
+.look-pro .msg.suggestions .head {
+  color: var(--p-dim);
+}
+
+.look-pro .msg.suggestions .replies span {
+  padding: 3px 10px;
+  border: 1px solid var(--p-border);
+  border-radius: 999px;
+  background: var(--p-raised);
+  color: var(--p-text);
+  font-size: 12px;
+}
+
+.look-pro .todo-card {
+  padding: 8px 12px;
+  border: 1px solid var(--p-border);
+  border-radius: 10px;
+  background: var(--p-field);
+}
+
+.look-pro .todo-card li {
+  color: var(--p-text);
+}
+
+.look-pro .todo-card svg {
+  color: var(--p-faint);
+}
+
+.look-pro .todo-card .in_progress {
+  color: var(--p-strong);
+  font-weight: 600;
+}
+
+.look-pro .todo-card .in_progress svg {
+  color: var(--p-accent);
+}
+
+.look-pro .todo-card .completed {
+  color: var(--p-dim);
+}
+
+.look-pro .todo-card .completed svg {
+  color: var(--p-online);
+}
+
+.look-pro .todo-doing,
+.look-pro .todo-time {
+  color: var(--p-dim);
+}
+
+.look-pro .spin {
+  border-color: var(--p-border);
+  border-top-color: var(--p-accent);
+}
+
+.look-pro .invite-ask {
+  color: var(--p-text);
+}
+
+.look-pro .invite-ask u {
+  color: var(--p-link);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.look-pro .invite-done {
+  color: var(--p-dim);
+}
+
+.look-pro .invite-done svg {
+  color: var(--p-online);
+}
+
+/* the model and the mode, as quiet words at the end of the message box: Opus · Asks first */
+.look-pro .compose-bar .badges {
+  gap: 0;
+}
+
+.look-pro .compose-bar .badges .chip {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--p-dim);
+  font-size: 11.5px;
+  font-style: normal;
+}
+
+.look-pro .compose-bar .badges .chip + .chip::before {
+  content: '·';
+  margin: 0 6px;
+  color: var(--p-faint);
+}
+
+/* the manager's Team tab */
+.look-pro .low-tab {
+  margin: 0;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--p-dim);
+  font-family: inherit;
+}
+
+.look-pro .team-head {
+  padding: 4px 6px 0;
+  color: var(--p-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.look-pro .team-sec {
+  padding: 0 6px;
+  color: var(--p-dim);
+  font-weight: 600;
+}
+
+.look-pro .team-row {
+  border-radius: 8px;
+}
+
+.look-pro .team-row b {
+  color: var(--p-text);
+}
+
+.look-pro .team-row .when,
+.look-pro .team-line {
+  color: var(--p-faint);
+}
+
+.look-pro .team-line > svg {
+  color: var(--p-icon);
+}
+
+.look-pro .team-row.needs {
+  border-color: transparent;
+  background: var(--p-picked-bg);
+}
+
+.look-pro .team-row.needs .when {
+  color: var(--p-picked);
+}
+
+.look-pro .team-row.idle b {
+  color: var(--p-dim);
+}
+
+/* the pane beside the conversation, and what its tabs hold */
+.look-pro .pane-body {
+  background: var(--p-body);
+}
+
+.look-pro .pane-chat {
+  margin: 0;
+  padding: 12px 14px;
+  border: 0;
+  border-right: 1px solid var(--p-hair);
+  background: var(--p-body);
+}
+
+.look-pro .pane {
+  gap: 0;
+  margin: 0;
+  background: var(--p-frame);
+}
+
+.look-pro .tabs {
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--p-hair);
+}
+
+.look-pro .tabs button {
+  margin: 0;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--p-dim);
+  font: 500 12px inherit;
+}
+
+.look-pro .tabs button[aria-selected='true'] {
+  padding-top: 3px;
+  border: 0;
+  background: var(--p-chip);
+  color: var(--p-strong);
+}
+
+.look-pro .tabs svg {
+  color: var(--p-icon);
+}
+
+.look-pro .tab-plus,
+.look-pro .fold {
+  color: var(--p-dim);
+  font-weight: 400;
+}
+
+.look-pro .panel {
+  border: 0;
+  background: var(--p-field);
+}
+
+.look-pro .below.lit .panel {
+  box-shadow: inset 0 0 0 2px var(--p-accent);
+}
+
+.look-pro .plan-h {
+  color: var(--p-strong);
+  font: 600 15px inherit;
+}
+
+.look-pro .plan-ask {
+  border-color: var(--p-border);
+  border-radius: 10px;
+  background: var(--p-chip);
+}
+
+.look-pro .plan-ask span:first-child,
+.look-pro .session-head {
+  color: var(--p-strong);
+}
+
+.look-pro .xp-btn {
+  min-height: 22px;
+  padding: 1px 9px;
+  border: 1px solid var(--p-border);
+  border-radius: 6px;
+  background: var(--p-field);
+  color: var(--p-text);
+  font: 500 11.5px inherit;
+}
+
+.look-pro .xp-btn.primary {
+  border-color: var(--p-accent);
+  background: var(--p-accent);
+  color: #fff;
+}
+
+.look-pro .addr,
+.look-pro .chg-head {
+  border-bottom-color: var(--p-hair);
+  background: var(--p-frame);
+}
+
+.look-pro .url {
+  border: 1px solid var(--p-border);
+  border-radius: 6px;
+  background: var(--p-field);
+  color: var(--p-mid);
+}
+
+.look-pro .panel-session:not([hidden]) {
+  background: var(--p-body);
+}
+
+.look-pro .session-card {
+  border-color: var(--p-border);
+  border-radius: 10px;
+  background: var(--p-field);
+}
+
+.look-pro :is(.session-aside, .session-value, .session-more, .helper .doing, .chg-head span, .chg-file code) {
+  color: var(--p-faint);
+}
+
+.look-pro .session-tag,
+.look-pro .helper .kind {
+  border-color: var(--p-border);
+  background: var(--p-chip);
+  color: var(--p-mid);
+}
+
+.look-pro .helper,
+.look-pro .chg-file,
+.look-pro .diff {
+  border-bottom-color: var(--p-hair);
+}
+
+.look-pro .chg-more {
+  border-color: var(--p-border);
+  border-radius: 6px;
+  background: var(--p-field);
+}
+
+.look-pro .chg-file.open {
+  background: var(--p-select);
+}
+
+.look-pro .chg-file i {
+  color: var(--p-accent);
+}
+
+.look-pro .chg-file code b {
+  color: var(--p-strong);
+}
+
+.look-pro .viewed {
+  color: var(--p-dim);
+}
+
+.look-pro .thread {
+  border-color: var(--p-border);
+  border-radius: 10px;
+  background: var(--p-chip);
+}
+
+.look-pro .panel-terminal {
+  background: #10141b;
+}

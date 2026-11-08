@@ -1,0 +1,1564 @@
+/* The phone app, in the professional look: its colours are pro-theme.css's, by day and at night as the phone
+   is, in the palette of the user's theme (palettes.css), with white on its one colour as pro.css has it.
+   test/phone-app.test.js fails for a role the look has no colour for. */
+:root {
+  --ph-height: 100dvh;
+  --ph-radius: 12px;
+  /* The phone's own few, from the look's, so each palette's stays readable by day and at night: the accent's
+     words on its tint, white on its one colour, and an edge that can be seen. test/phone-home.test.js checks
+     every palette. */
+  --ph-on-tint: color-mix(in srgb, var(--accent) 60%, var(--text));
+  --ph-badge-bg: color-mix(in srgb, var(--badge-bg) 80%, black);
+  --ph-send-bg: color-mix(in srgb, var(--send-bg) 80%, black);
+  --ph-field-border: color-mix(in srgb, var(--text-dim) 75%, var(--card-bg));
+}
+
+/* Said to a screen reader, not shown. */
+.ph-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* The text size: 15 px, where a browser's own is 16, and on an iPhone or iPad what Settings > Display & Brightness
+   > Text Size and Accessibility > Larger Text say, as Subheadline is (15 pt by default). Sizes are rem from here
+   on, as calc(Npx / 15), so everything follows it. test/phone-home.test.js pins it. */
+html {
+  font-size: 93.75%;
+}
+
+@supports (font: -apple-system-body) and (-webkit-touch-callout: none) {
+  html {
+    font: -apple-system-subheadline;
+  }
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--body-bg);
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font: 1rem/1.4 var(--font-ui);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.ph-screen {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  height: var(--ph-height);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+}
+
+/* On its side, a phone with the keyboard up (keyboard.js) has a strip left for the app: its header is one short
+   line, the name with how it is beside it, and the rest is the conversation's. */
+@media (orientation: landscape) {
+  [data-keyboard] .ph-bar {
+    min-height: 0;
+    padding-block: 0;
+  }
+
+  [data-keyboard] .ph-back {
+    height: 32px;
+  }
+
+  [data-keyboard] .ph-bar .ph-avatar {
+    width: 24px;
+    height: 24px;
+  }
+
+  [data-keyboard] .ph-chat-title {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+  }
+}
+
+/* ---- the connection, and starting (see connection.js) --------------------------------------------- */
+
+/* While it shows, the banner takes its own room above the screen, so Back and the title stay where a finger finds
+   them. It reaches under the status bar, which the screen below it then doesn't. */
+body:has(> .ph-connection:not([hidden])) {
+  display: flex;
+  flex-direction: column;
+  height: var(--ph-height);
+}
+
+body:has(> .ph-connection:not([hidden])) > .ph-screen {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  padding-top: 0;
+}
+
+.ph-connection {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 12px;
+  padding: calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 12px) 8px
+    calc(env(safe-area-inset-left) + 12px);
+  border-bottom: 1px solid var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: max(12px, calc(13rem / 15));
+  text-align: center;
+}
+
+.ph-connection-retry {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ph-connection-retry:disabled {
+  opacity: 0.6;
+  text-decoration: none;
+}
+
+/* Heard, not seen (see announce.js). At the top, where it can't make the page any taller. */
+.ph-announcer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Until Home is drawn: connecting, or why the Mac can't be reached, with Retry. */
+.ph-boot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 24px calc(24px + env(safe-area-inset-bottom));
+  text-align: center;
+}
+
+.ph-boot-title {
+  margin: 0;
+  color: var(--heading);
+  font-size: calc(17rem / 15);
+  font-weight: 650;
+}
+
+.ph-boot-text,
+.ph-boot-checks {
+  max-width: 32em;
+  margin: 0;
+  color: var(--text-dim);
+}
+
+.ph-boot-checks {
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.ph-boot .ph-button {
+  min-width: 140px;
+  min-height: 44px;
+  margin-top: 8px;
+}
+
+/* ---- bars ---------------------------------------------------------------------------------------- */
+
+.ph-bar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 4px 12px 4px 16px;
+  border-bottom: 1px solid var(--bar-border);
+  background: var(--bar-bg);
+}
+
+/* With large text, the title gives way to the buttons beside it. */
+.ph-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--heading);
+  font-size: calc(19rem / 15);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Focused as a screen opens, for a screen reader to start there (see home.js): not a control, so no ring. */
+.ph-title:focus {
+  outline: none;
+}
+
+/* Whether the Mac is there: green while connected, amber while it is reached again (see main.js). */
+.ph-mac {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: max(12px, calc(13rem / 15));
+  white-space: nowrap;
+}
+
+.ph-mac::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--online);
+  content: '';
+}
+
+:root[data-connection='reconnecting'] .ph-mac::before {
+  background: var(--away);
+}
+
+.ph-icon-button,
+.ph-link {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: var(--link);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ph-bell {
+  display: flex;
+  align-items: center;
+  color: var(--text-dim);
+}
+
+.ph-bell[hidden] {
+  display: none;
+}
+
+.ph-bell[data-on] {
+  color: var(--link);
+}
+
+.ph-bell[data-on] .ph-bell-off {
+  display: none;
+}
+
+.ph-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---- Home ---------------------------------------------------------------------------------------- */
+
+.ph-heading {
+  margin: 20px 16px 6px;
+  color: var(--text-dim);
+  font-size: max(12px, calc(12rem / 15));
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ph-count {
+  flex-shrink: 0;
+  margin-left: 4px;
+  color: var(--text-dim);
+}
+
+.ph-fold {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.ph-chevron {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 7px;
+  height: 7px;
+  margin: 0 4px 0 2px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+}
+
+[aria-expanded='true'] > .ph-chevron {
+  transform: rotate(45deg);
+}
+
+.ph-group-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ph-entry {
+  --ph-depth: 0;
+  display: flex;
+  align-items: center;
+  padding-left: calc(var(--ph-depth) * 16px);
+}
+
+.ph-team-fold {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin-right: 8px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.ph-fold:focus-visible,
+.ph-team-fold:focus-visible,
+.ph-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.ph-rows {
+  margin: 0;
+  padding: 0;
+  border-block: 1px solid var(--hairline);
+  background: var(--card-bg);
+  list-style: none;
+}
+
+.ph-rows li + li .ph-row {
+  border-top: 1px solid var(--hairline);
+}
+
+.ph-row {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  margin-left: 16px;
+  padding: 8px 16px 8px 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ph-row:active {
+  background: var(--press-bg);
+}
+
+/* What asks for you reads first: larger and in the text's colour, where a finished reply's note stays quiet. */
+.ph-row[data-asks] {
+  min-height: 68px;
+}
+
+.ph-row[data-asks] .ph-row-note {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.ph-row[data-asks] .ph-chip {
+  font-size: max(12px, calc(12rem / 15));
+  line-height: 1.6;
+}
+
+.ph-avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
+
+.ph-avatar svg,
+.ph-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+}
+
+.ph-avatar::after {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--card-bg);
+  border-radius: 50%;
+  background: var(--offline);
+  content: '';
+}
+
+.ph-avatar.ph-online::after {
+  background: var(--online);
+}
+
+/* At work is not a problem: the accent, not the red of busy on the Mac. */
+.ph-avatar.ph-busy::after {
+  background: var(--accent);
+}
+
+.ph-avatar.ph-away::after {
+  background: var(--away);
+}
+
+.ph-bar .ph-avatar {
+  width: 32px;
+  height: 32px;
+}
+
+.ph-bar .ph-avatar::after {
+  border-color: var(--bar-bg);
+}
+
+.ph-row-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ph-row-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ph-name {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ph-badge {
+  flex-shrink: 0;
+  padding: 0 7px;
+  border: 1px solid var(--select-soft-border);
+  border-radius: 999px;
+  background: var(--select-soft);
+  color: var(--ph-on-tint);
+  font-size: max(12px, calc(12rem / 15));
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.ph-row-note,
+.ph-row-project {
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: max(12px, calc(13rem / 15));
+}
+
+.ph-row-project {
+  font-size: max(12px, calc(12rem / 15));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Two lines at most: with large text, what a contact asks stays readable rather than "Wa…". */
+.ph-row-note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.ph-note.ph-archived-note {
+  flex-shrink: 0;
+  max-width: none;
+  margin: 0;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--hairline);
+  background: var(--bar-bg);
+}
+
+.ph-chip {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--warn-border);
+  border-radius: 4px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: max(12px, calc(12rem / 15));
+  font-weight: 650;
+  line-height: 1.42;
+  vertical-align: 1px;
+}
+
+.ph-chip-question {
+  border-color: var(--violet-border);
+  background: var(--violet-bg);
+  color: var(--violet);
+}
+
+.ph-chip-plan {
+  border-color: var(--select-soft-border);
+  background: var(--select-soft);
+  color: var(--ph-on-tint);
+}
+
+.ph-unread {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  min-width: 1.84em;
+  min-height: 1.84em;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--ph-badge-bg);
+  color: #fff;
+  font-size: max(12px, calc(12rem / 15));
+  font-weight: 650;
+}
+
+.ph-empty {
+  margin: 32px 24px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* Waiting, with nobody in it. */
+.ph-none {
+  margin: 0;
+  padding: 14px 16px;
+  border-block: 1px solid var(--hairline);
+  background: var(--card-bg);
+  color: var(--text-dim);
+}
+
+/* Above more than 10 contacts, at the top of Home (see home.js); 16 px, so a phone doesn't zoom in to type. */
+.ph-filter-bar {
+  padding: 12px 16px 0;
+}
+
+.ph-filter {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--ph-field-border);
+  border-radius: 10px;
+  background: var(--field-bg);
+  color: var(--text);
+  font-size: max(16px, calc(16rem / 15));
+}
+
+.ph-filter::placeholder {
+  color: var(--text-dim);
+  opacity: 1;
+}
+
+.ph-filter:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* One at a time, under Waiting (see home.js). */
+.ph-hint {
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--select-soft-border);
+  border-radius: var(--ph-radius);
+  background: var(--card-bg);
+  font-size: max(12px, calc(14rem / 15));
+}
+
+.ph-hint p {
+  margin: 0 0 8px;
+}
+
+/* ---- buttons ------------------------------------------------------------------------------------- */
+
+.ph-button {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--ph-field-border);
+  border-radius: 10px;
+  background: var(--btn-bg);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ph-button:active {
+  background: var(--press-bg);
+}
+
+.ph-button.ph-primary {
+  border-color: transparent;
+  background: var(--ph-send-bg);
+  color: #fff;
+}
+
+.ph-button.ph-danger {
+  color: var(--danger);
+}
+
+.ph-button:focus-visible,
+.ph-icon-button:focus-visible,
+.ph-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.ph-button:disabled,
+.ph-link:disabled {
+  opacity: 0.5;
+}
+
+.ph-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ph-actions .ph-button {
+  flex: 1 1 auto;
+}
+
+.ph-actions-stacked {
+  flex-direction: column;
+}
+
+/* ---- a sheet from the bottom: Sign out asks first (see home.js) -------------------------------------- */
+
+.ph-sheet {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 480px;
+  margin: auto auto 0;
+  padding: 0;
+  border: 0;
+  border-radius: 16px 16px 0 0;
+  background: var(--card-bg);
+  color: var(--text);
+}
+
+.ph-sheet::backdrop {
+  background: var(--backdrop);
+}
+
+.ph-sheet-body {
+  padding: 20px 16px calc(16px + env(safe-area-inset-bottom));
+}
+
+.ph-sheet h2 {
+  margin: 0 0 6px;
+  color: var(--heading);
+  font-size: calc(17rem / 15);
+}
+
+.ph-sheet p {
+  margin: 0 0 16px;
+  color: var(--text-dim);
+}
+
+/* ---- a conversation ------------------------------------------------------------------------------ */
+
+/* Text sizes here are in rem or em, so they grow with the phone's own text size: calc(13rem / 15) is 13px while the
+   page's text is 15px. Signs drawn as glyphs in a box of their own (Back, the narrow Send and Stop) keep their pixels. */
+
+/* Said to a screen reader only: who said a message, how a call went. */
+.ph-hidden-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The contact's name is the screen's heading, and where the focus starts: not a control, so no ring. */
+.ph-chat-name {
+  margin: 0;
+  font: inherit;
+}
+
+.ph-chat-name:focus,
+.ph-answered:focus {
+  outline: none;
+}
+
+/* A control in a conversation shows where the keyboard is. */
+.ph-transcript [tabindex='0']:focus-visible,
+.ph-card .ph-button:focus-visible,
+.ph-queued .ph-button:focus-visible,
+.md .code-copy:focus-visible,
+.ph-send:focus-visible,
+.ph-stop:focus-visible {
+  outline: 2px solid var(--focus-border);
+  outline-offset: 2px;
+}
+
+.ph-chat-bar {
+  padding-left: 4px;
+}
+
+.ph-back {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--link);
+  font-size: 34px;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.ph-chat-title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ph-chat-state {
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: calc(12rem / 15);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ph-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 12px 16px;
+}
+
+.ph-earlier {
+  align-self: center;
+}
+
+/* After you answer here, who else waits for you: a tap away. */
+.ph-next {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  gap: 4px;
+  max-width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 0 16px;
+  border: 1px solid var(--control-border);
+  border-radius: 22px;
+  background: var(--card-bg);
+  color: var(--link);
+  font-size: calc(14rem / 15);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.ph-next b {
+  color: var(--text-strong);
+}
+
+.ph-msg {
+  box-sizing: border-box;
+  max-width: 86%;
+  padding: 8px 12px;
+  border-radius: 16px;
+  overflow-wrap: anywhere;
+}
+
+.ph-me {
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+  background: var(--send-bg);
+  color: #fff;
+}
+
+.ph-me p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.ph-me .ph-sent {
+  font-style: italic;
+}
+
+.ph-them {
+  align-self: flex-start;
+  max-width: 94%;
+  border: 1px solid var(--card-border);
+  border-bottom-left-radius: 4px;
+  background: var(--card-bg);
+}
+
+.ph-by {
+  margin: 0 0 2px;
+  color: var(--text-dim);
+  font-size: calc(12rem / 15);
+  font-weight: 600;
+}
+
+.ph-queued {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px !important;
+  white-space: normal !important;
+}
+
+.ph-queued span {
+  flex-basis: 100%;
+  color: var(--text-mid);
+  font-size: calc(13rem / 15);
+  font-weight: 600;
+}
+
+.ph-queued .ph-button {
+  flex: 1 1 auto;
+  min-height: 44px;
+}
+
+/* A message that waits to be read is the outline of the bubble it will be, in full contrast, with its buttons under
+   what it says: Cancel, and Interrupt and send. */
+.ph-me.ph-waits {
+  border: 1.5px dashed var(--send-bg);
+  background: var(--card-bg);
+  color: var(--text);
+}
+
+.ph-manager-note.ph-waits {
+  border-style: dashed;
+}
+
+/* One that Stop dropped before it was read says so under it. */
+.ph-me.ph-dropped {
+  border: 1.5px dashed var(--control-border);
+  background: var(--card-bg);
+  color: var(--text);
+}
+
+/* One sent with no word back: an outline too, with what is known of it under it. */
+.ph-me.ph-unsure {
+  border: 1.5px dashed var(--send-bg);
+  background: var(--card-bg);
+  color: var(--text);
+}
+
+.ph-unconfirmed {
+  margin-top: 6px !important;
+  color: var(--text-mid);
+  font-size: calc(13rem / 15);
+  white-space: normal !important;
+}
+
+/* A card whose answer may still get there: its buttons wait, as they are, and it says why. */
+.ph-card.ph-unsure {
+  opacity: 1;
+}
+
+.ph-card .ph-unconfirmed {
+  margin: 0 !important;
+}
+
+.ph-not-sent {
+  margin-top: 6px !important;
+  color: var(--text-mid);
+  font-size: calc(13rem / 15);
+  white-space: normal !important;
+}
+
+/* Someone is at work: a quiet line at the end of the conversation, with a dot that breathes. */
+.ph-working {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 4px;
+  color: var(--text-dim);
+  font-size: calc(13rem / 15);
+}
+
+.ph-working::before {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin: 0 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  content: '';
+  animation: ph-breathe 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes ph-breathe {
+  from {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ph-working::before {
+    animation: none;
+  }
+}
+
+.ph-tool {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding: 0 4px;
+  color: var(--text-mid);
+  font-size: calc(13rem / 15);
+  overflow-wrap: anywhere;
+}
+
+/* "Ran npm test": a call's line says who made it only where there is more than one to tell apart. */
+.ph-tool-text::first-letter {
+  text-transform: uppercase;
+}
+
+.ph-tool-mark {
+  flex-shrink: 0;
+  width: calc(14em / 13);
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.ph-tool-mark::before {
+  content: '•';
+}
+
+.ph-pending .ph-tool-mark::before {
+  content: '…';
+}
+
+.ph-done .ph-tool-mark::before {
+  color: var(--ok);
+  content: '✓';
+}
+
+.ph-failed .ph-tool-mark::before {
+  color: var(--danger);
+  content: '✗';
+}
+
+.ph-tool code,
+.md code {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--chip-bg);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.ph-note {
+  max-width: 92%;
+  margin: 2px auto;
+  color: var(--text-dim);
+  font-size: calc(12.5rem / 15);
+  text-align: center;
+}
+
+.ph-note p {
+  margin: 0;
+}
+
+.ph-answer {
+  color: var(--text-mid);
+}
+
+.ph-manager-note {
+  align-self: stretch;
+  max-width: none;
+  padding: 8px 12px;
+  border: 1px solid var(--violet-border);
+  border-radius: var(--ph-radius);
+  background: var(--violet-bg);
+  color: var(--text);
+  text-align: left;
+}
+
+.ph-manager-note .ph-link {
+  color: var(--link);
+}
+
+.ph-error {
+  margin: 2px 0;
+  padding: 6px 10px;
+  border: 1px solid var(--danger-border);
+  border-radius: 8px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: calc(13rem / 15);
+}
+
+/* ---- a reply's Markdown (see lib/markdown.js) ----------------------------------------------------- */
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child {
+  margin-bottom: 0;
+}
+
+.md p,
+.md ul,
+.md ol,
+.md blockquote,
+.md table,
+.md .code-block,
+.md > pre {
+  margin: 0.45em 0;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  margin: 0.7em 0 0.3em;
+  color: var(--heading);
+  font-size: 1.05em;
+}
+
+.md ul,
+.md ol {
+  padding-left: 1.3em;
+}
+
+.md a {
+  color: var(--link);
+}
+
+.md img {
+  max-width: 100%;
+}
+
+.md pre {
+  overflow-x: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--code-bg);
+  font: calc(12.5rem / 15)/1.45 var(--font-mono);
+}
+
+.md pre code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+
+/* A code block's Copy sits on a bar of its own above the code, never over its first line. */
+.md .code-block {
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  background: var(--code-bg);
+}
+
+.md .code-block > pre {
+  margin: 0;
+  padding-top: 2px;
+}
+
+.md .code-copy {
+  position: relative;
+  order: -1;
+  display: inline-flex;
+  align-self: flex-end;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  margin: 4px 4px 0;
+  padding: 2px 8px;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: var(--pane);
+  font-size: calc(11rem / 15);
+}
+
+/* A thumb's worth to tap, though it is drawn small. */
+.md .code-copy::before {
+  position: absolute;
+  inset: -8px -4px;
+  content: '';
+}
+
+.md .code-copy svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* A wide table keeps its columns as wide as what is in them, and scrolls sideways in the reply. */
+.md table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.md th,
+.md td {
+  padding: 4px 8px;
+  border: 1px solid var(--hairline);
+  /* Words whole, not a letter a line: what a bubble breaks anywhere (see .ph-msg), a cell doesn't. */
+  overflow-wrap: normal;
+}
+
+.md th {
+  white-space: nowrap;
+}
+
+.md blockquote {
+  padding-left: 10px;
+  border-left: 3px solid var(--hairline);
+  color: var(--text-mid);
+}
+
+.md .emoticon {
+  width: calc(19em / 15);
+  height: calc(19em / 15);
+  vertical-align: -4px;
+}
+
+.md .diagram {
+  position: relative;
+  overflow-x: auto;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--code-bg);
+}
+
+.md .diagram img {
+  max-width: 100%;
+}
+
+.md .diagram-copy,
+.md .picture-reply {
+  display: none;
+}
+
+/* A picture that is on the Mac, said by its name: a phone can't load it from there. */
+.ph-mac-picture {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px dashed var(--control-border);
+  border-radius: 6px;
+  color: var(--text-mid);
+  font-size: calc(13rem / 15);
+  overflow-wrap: anywhere;
+}
+
+/* Code in the colours of its language (see lib/syntax.js). */
+.hljs-comment,
+.hljs-quote {
+  /* The look's comment colour, a little nearer the text's: 4.5:1 or more on a code block, by day and at night. */
+  color: color-mix(in srgb, var(--code-comment), var(--text) 25%);
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-doctag,
+.hljs-formula {
+  color: var(--code-keyword);
+}
+
+.hljs-section,
+.hljs-name,
+.hljs-selector-tag,
+.hljs-deletion,
+.hljs-subst {
+  color: var(--code-tag);
+}
+
+.hljs-literal {
+  color: var(--code-literal);
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute {
+  color: var(--code-string);
+}
+
+.hljs-attr,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-type,
+.hljs-selector-class,
+.hljs-selector-attr,
+.hljs-selector-pseudo,
+.hljs-number {
+  color: color-mix(in srgb, var(--code-number), var(--text) 15%);
+}
+
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-meta,
+.hljs-selector-id,
+.hljs-title {
+  color: var(--code-name);
+}
+
+.hljs-built_in,
+.hljs-title.class_ {
+  color: var(--code-type);
+}
+
+/* ---- cards --------------------------------------------------------------------------------------- */
+
+.ph-card {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 10px;
+  padding: 12px;
+  /* As an open card is in the app's conversation window (pro.css): a border all round, with no coloured edge. */
+  border: 1px solid var(--control-border);
+  border-radius: var(--ph-radius);
+  background: var(--card-bg);
+}
+
+.ph-answering {
+  opacity: 0.6;
+}
+
+.ph-card .ph-button {
+  min-height: 44px;
+}
+
+/* A button that can't be pressed yet, such as Send answers before every question has one, is plainly that and still
+   readable: not a faded blue. */
+.ph-card .ph-button:disabled {
+  border-color: var(--control-border);
+  background: var(--btn-bg);
+  color: var(--text-dim);
+  opacity: 1;
+}
+
+/* The two answers of a card side by side, the same width at every width, its yes last; a quiet one, such as Always
+   allow, on a row of its own below, set apart from both. */
+.ph-card .ph-actions-pair {
+  flex-wrap: nowrap;
+}
+
+.ph-card .ph-actions-pair .ph-button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 8px;
+}
+
+.ph-card .ph-actions-more {
+  margin-top: 4px;
+}
+
+.ph-button.ph-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--link);
+}
+
+/* A question's Send stays in view at the bottom of the conversation while its card is longer than the screen: on
+   its very edge, below the transcript's own padding there. */
+.ph-card-question .ph-card-send {
+  position: sticky;
+  bottom: -16px;
+  margin: 0 -12px -12px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--hairline);
+  border-radius: 0 0 var(--ph-radius) var(--ph-radius);
+  background: var(--card-bg);
+}
+
+.ph-card-title {
+  margin: 0;
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.ph-card-reason {
+  margin: 0;
+  color: var(--text-mid);
+  font-size: calc(13rem / 15);
+}
+
+.ph-card-detail {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--code-bg);
+  font: calc(12.5rem / 15)/1.45 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ph-question {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ph-question legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-weight: 600;
+}
+
+.ph-question .ph-chip {
+  border-color: var(--violet-border);
+  background: var(--violet-bg);
+  color: var(--violet);
+}
+
+.ph-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--control-border), var(--text) 40%);
+  border-radius: 10px;
+  background: var(--field-bg);
+  cursor: pointer;
+}
+
+.ph-option:has(input:checked) {
+  border-color: var(--select);
+  background: var(--select-soft);
+  box-shadow: inset 0 0 0 1px var(--select);
+}
+
+.ph-option input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--select);
+}
+
+.ph-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ph-option-label {
+  font-weight: 600;
+}
+
+.ph-option-description {
+  color: var(--text-dim);
+  font-size: calc(12.5rem / 15);
+}
+
+/* 16px or more, so a phone doesn't zoom in on a box as it is tapped. */
+.ph-other,
+.ph-feedback textarea,
+.ph-composer textarea {
+  box-sizing: border-box;
+  padding: 9px 12px;
+  /* What the field is drawn by, against what is behind it: 3:1 or more. */
+  border: 1px solid color-mix(in srgb, var(--control-border), var(--text) 40%);
+  border-radius: 10px;
+  background: var(--field-bg);
+  font-size: max(16px, 16rem / 15);
+}
+
+/* A question's own answer is a box to write in, not one more option: no frame like theirs, a line to write on. */
+.ph-other {
+  border-width: 0 0 1px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.ph-other::placeholder,
+.ph-feedback textarea::placeholder,
+.ph-composer textarea::placeholder {
+  color: var(--text-dim);
+  opacity: 1;
+}
+
+.ph-other:focus,
+.ph-feedback textarea:focus,
+.ph-composer textarea:focus {
+  border-color: var(--focus-border);
+  outline: 2px solid var(--focus-border);
+  outline-offset: 1px;
+}
+
+.ph-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* An approval this phone may not give, said once under the ones it may. */
+.ph-card-held {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: max(12px, calc(12.5rem / 15));
+}
+
+.ph-plan {
+  max-height: 45vh;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  font-size: calc(14rem / 15);
+}
+
+/* ---- the composer -------------------------------------------------------------------------------- */
+
+.ph-composer {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--bar-border);
+  background: var(--bar-bg);
+}
+
+/* How many of yours wait, on a line of its own over the box: a tap brings the oldest into sight. */
+.ph-queued-jump {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-top: 1px solid var(--bar-border);
+  background: var(--bar-bg);
+  color: var(--accent);
+  font: inherit;
+  font-size: calc(13rem / 15);
+  font-weight: 600;
+  text-align: left;
+}
+
+/* Right on the keyboard (keyboard.js), there is no home indicator to keep clear of. */
+[data-keyboard] .ph-composer {
+  padding-bottom: 8px;
+}
+
+.ph-composer textarea {
+  flex: 1;
+  min-height: 42px;
+  max-height: 140px;
+  line-height: 1.35;
+  resize: none;
+}
+
+/* Where the box would be, on a phone that may only answer or only read: what it may not do here, beside Stop. */
+.ph-access-note {
+  flex: 1;
+  align-self: center;
+  margin: 0;
+  padding: 4px 2px;
+  color: var(--text-dim);
+  font-size: max(12px, calc(12.5rem / 15));
+  line-height: 1.35;
+}
+
+.ph-send,
+.ph-stop {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 21px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.ph-send {
+  border: 1px solid transparent;
+  background: var(--send-bg);
+  color: #fff;
+}
+
+.ph-stop {
+  border: 1px solid var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* On a narrow screen (a small phone with large text), Send and Stop are a square each with a sign for what they do,
+   and the box keeps most of the row. Their names stay for a screen reader. */
+@media (max-width: 300px) {
+  .ph-send,
+  .ph-stop {
+    width: 44px;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .ph-send::before {
+    content: '↑';
+    font-size: 20px;
+  }
+
+  .ph-stop::before {
+    content: '■';
+    font-size: 14px;
+  }
+}
