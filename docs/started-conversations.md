@@ -8,6 +8,8 @@ An agent can start another conversation, for work that should go on apart from i
 
 **One it thinks of itself** is drafted, and waits for you. It is in your list with its first message in its message box, unsent, and the line says _"Claude added a conversation for you to start"_. Nothing runs, and nothing spends usage, until you start it. It never starts by itself. To have it start at once too, turn on **Settings > Conversations > Start the conversations Claude adds**: the line then says _"Claude started a conversation"_. It works in the mode of the conversation that added it, so in one that asks nothing first it changes files without you looking in.
 
+**One a read-only agent starts**, such as a reviewer's, is always drafted, and waits for you to start it: also one it says you asked for, and with **Start the conversations Claude adds** on. It could change files, and the reviewer can't. A manager's conversation is the exception, as above: what you ask of it starts at once.
+
 **Starting a draft, or deleting it.** A draft says it waits wherever it shows:
 
 - **In the contact list**, its row says _Waiting to start_ in the colour of what waits for you, and its buddy wears a play mark. So does its row in the list beside a conversation, and in a manager's [Team tab](project-managers.md), where it is under **Needs you**.

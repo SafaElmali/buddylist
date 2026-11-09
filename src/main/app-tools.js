@@ -126,12 +126,17 @@ const inviteeFields = {
 /** The list of names, as a sentence says it: "A, B and C". */
 const listed = (names) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]);
 
+/** What the card for a command a read-only agent wants typed into a terminal says of where it runs. */
+export const OUTSIDE_SANDBOX = 'It runs in your own shell, outside the read-only sandbox, so it can change files.';
+
 /**
  * @param {string} hostId
  * @param {Pick<import('./terminals.js').Terminals, 'wanted'>} terminals
+ * @param {boolean} [readOnly]  the agent asking changes no files: its session keeps it from that, and a terminal is
+ *   the user's own shell, which nothing keeps
  * @returns {AppTool}
  */
-function openTerminals(hostId, terminals) {
+function openTerminals(hostId, terminals, readOnly = false) {
   return {
     name: APP_TOOLS.terminals,
     description:
@@ -161,12 +166,28 @@ function openTerminals(hostId, terminals) {
         ),
     },
     // A terminal by itself runs nothing and changes nothing: the user gets their own shell. One that
-    // is to run something is asked about, as a command the agent runs itself is.
-    ask: ({ command } = {}) => Boolean(cleanCommand(command)),
-    run: ({ count, names, command }) => {
+    // is to run something is asked about, as a command the agent runs itself is. One a read-only agent wants run
+    // is asked about on a card of its own as it runs, whatever its mode: its commands run unasked only where its
+    // sandbox holds them, and none holds the user's shell.
+    ask: ({ command } = {}) => !readOnly && Boolean(cleanCommand(command)),
+    run: async ({ count, names, command }, context) => {
       if (/[\r\n]/.test(String(command ?? '').trim())) throw new Error('A command for a terminal is one line.');
       const typed = cleanCommand(command);
       const tabs = Array.from({ length: howMany(count, names) }, (_, i) => cleanTerminalName(names?.[i]) || null);
+      if (readOnly && typed) {
+        const answer = await context.ask({
+          kind: 'tool',
+          canAlways: false,
+          activity: appActivity(APP_TOOLS.terminals, { count, names, command: typed }),
+          reason: OUTSIDE_SANDBOX,
+        });
+        if (answer.decision === 'cancelled') {
+          throw new Error('The turn ended before the user answered. No terminal was opened.');
+        }
+        if (!['allow', 'always'].includes(answer.decision)) {
+          throw new Error(answer.message || 'The user chose not to run it. No terminal was opened.');
+        }
+      }
       if (!terminals.wanted(hostId, tabs, typed || null)) {
         throw new Error('The conversation’s window is closed, so no terminal was opened.');
       }
@@ -187,6 +208,9 @@ function openTerminals(hostId, terminals) {
  * @param {Map<string, { input: string, result: ReturnType<StartConversation> }>} starts  attempts kept across sessions
  * @param {(hostId: string) => boolean} [userAsks]  whether the host's agent may say the user asked for one: not a
  *   manager's while it acts on a project manager's message the user did not approve (see Managers.startsAtOnce)
+ * @param {boolean} [drafts]  every one it starts waits for the user: the agent asking works read-only, outside a
+ *   manager's conversation, and what it starts could change files. Its word that the user asked isn't taken, nor is
+ *   Settings' start at once, which is for the agents that change files themselves
  * @returns {AppTool}
  */
 function startConversation(
@@ -197,11 +221,12 @@ function startConversation(
   speakerId,
   manages = false,
   starts,
-  userAsks = () => true
+  userAsks = () => true,
+  drafts = false
 ) {
   // One the user asked for starts at once, and so does one the agent thought of when the user said so in Settings.
-  const startsNow = (input) => (input?.asked_by_user === true && userAsks(hostId)) || startsAnyway();
-  const waits = !startsAnyway();
+  const startsNow = (input) => !drafts && ((input?.asked_by_user === true && userAsks(hostId)) || startsAnyway());
+  const waits = drafts || !startsAnyway();
   const services = agents.map((agent) => agent.id);
   return {
     name: APP_TOOLS.conversation,
@@ -211,8 +236,10 @@ function startConversation(
       'nothing of this conversation, so the prompt must tell it everything it needs. You hear its first reply, ' +
       'then progress replies wait while background work runs: the latest is sent when it finishes, or a later ' +
       'reply supersedes it. Questions, approvals, file changes and failed or stopped turns do not wait. ' +
-      'When the user asks for work, such as "fix this", or approves ' +
-      'work you proposed, set asked_by_user to true: they need not ask for a new conversation or name this tool. ' +
+      (drafts
+        ? ''
+        : 'When the user asks for work, such as "fix this", or approves ' +
+          'work you proposed, set asked_by_user to true: they need not ask for a new conversation or name this tool. ') +
       'Give each intended conversation a request_id and reuse it with the same inputs when retrying a cancelled ' +
       'or lost call: the same attempt and its result are kept while the app is running. Use a new ID for another ' +
       'conversation, even with the same prompt. ' +
@@ -226,24 +253,29 @@ function startConversation(
         ? 'Other agents, such as Codex, can be in it from the start, as in a group chat: they take turns on each ' +
           'message with its own agent. '
         : '') +
-      (waits
-        ? 'It starts at once only when the user asked for it: one you thought of waits with the prompt in its ' +
-          'message box until the user sends it.'
-        : 'It starts at once, also one you thought of: the user has it so in their settings.'),
+      (drafts
+        ? 'It waits with the prompt in its message box until the user starts it, also one the user asked for: you ' +
+          'work read-only here, and the conversation you start can change files.'
+        : waits
+          ? 'It starts at once only when the user asked for it: one you thought of waits with the prompt in its ' +
+            'message box until the user sends it.'
+          : 'It starts at once, also one you thought of: the user has it so in their settings.'),
     input: {
       prompt: z
         .string()
         .min(1)
         .max(DRAFT_LIMIT)
         .describe('Its first message: what it is to do, and everything it needs to know to do it.'),
-      asked_by_user: z
-        .boolean()
-        .optional()
-        .describe(
-          waits
-            ? 'True when the user asked for this work (for example, "fix this") or approved work you proposed: it then starts at once. They need not ask for a new conversation or name this tool. Otherwise false: it waits for the user.'
-            : 'True when the user asked for this work (for example, "fix this") or approved work you proposed. They need not ask for a new conversation or name this tool.'
-        ),
+      ...(!drafts && {
+        asked_by_user: z
+          .boolean()
+          .optional()
+          .describe(
+            waits
+              ? 'True when the user asked for this work (for example, "fix this") or approved work you proposed: it then starts at once. They need not ask for a new conversation or name this tool. Otherwise false: it waits for the user.'
+              : 'True when the user asked for this work (for example, "fix this") or approved work you proposed. They need not ask for a new conversation or name this tool.'
+          ),
+      }),
       request_id: z
         .string()
         .trim()
@@ -278,7 +310,7 @@ function startConversation(
       }),
     },
     // Nothing runs that the user did not ask for: a conversation the agent thought of waits for them,
-    // unless they said in Settings that it needn't.
+    // unless they said in Settings that it needn't. One a read-only agent starts waits for them whatever it says.
     ask: () => false,
     // Whether it started is up to Settings too, not only to what the agent said.
     activity: (input) => ({ ...appActivity(APP_TOOLS.conversation, input), started: startsNow(input) }),
@@ -718,6 +750,12 @@ function projectManagerTools(hostId, managers) {
 }
 
 /**
+ * How the session of the agent asking for its tools has it: whether it is kept from changing files (see `readOnly` on
+ * SessionContact).
+ * @typedef {{ readOnly?: boolean }} Seat
+ */
+
+/**
  * The app's own tools for the agents of a conversation.
  * @param {object} deps
  * @param {Pick<import('./storage/store.js').Store, 'getContact' | 'settings'>} deps.store
@@ -727,7 +765,8 @@ function projectManagerTools(hostId, managers) {
  * @param {Partial<Managing>} [deps.managers]  what a project’s manager does with its tools; no contact is one when left out
  * @param {{ id: string, name: string }[]} [deps.agents]  the services whose agents can join a conversation one
  *   starts; none when left out
- * @returns {(hostId: string, speakerId?: string) => AppTool[]}  tools bound to the agent answering in that conversation
+ * @returns {(hostId: string, speakerId?: string, seat?: Seat) => AppTool[]}  tools bound to the agent answering in
+ *   that conversation, as its session has it
  */
 export function appTools({
   store,
@@ -767,27 +806,41 @@ export function appTools({
   // This factory lives as long as the app. Rebuilding a provider session must not create another worker
   // for a request whose result was lost. Host and speaker identity are bound by the app, never by input.
   const starts = new Map();
-  return (hostId, speakerId = hostId) => {
+  return (hostId, speakerId = hostId, { readOnly = false } = {}) => {
     const contact = store.getContact(hostId);
     if (!contact) return [];
     // A project manager starts no conversation and messages no worker: it acts through its managers.
     if (managers.leads(contact)) {
       return [
-        openTerminals(hostId, terminals),
+        openTerminals(hostId, terminals, readOnly),
         projectInstructions(hostId, instructions),
         ...(managers.oversees(contact) ? projectManagerTools(hostId, managers) : []),
       ];
     }
     const leadName = () => managers.leadOf(store.getContact(hostId))?.name ?? '';
     const userAsks = (id) => managers.startsAtOnce(id);
-    // With services there are to invite.
+    // A manager's conversation changes no files, and hands work to the workers it starts: its agents start the ones
+    // the user asked for at once, as far as the manager may (see Managers.startsAtOnce). Any other read-only agent's
+    // word that the user asked isn't taken: what it starts could change files, so it waits for the user to start it.
+    const drafts = readOnly && !managers.oversees(contact);
+    // With services there are to invite: only a manager's conversation has them.
     const invites =
       agents.length > 0
         ? inviteToConversation(hostId, managers, agents, userAsks, () => store.settings.roles ?? [])
         : null;
     return [
-      openTerminals(hostId, terminals),
-      startConversation(hostId, start, startsAnyway, agents, speakerId, Boolean(contact.manages), starts, userAsks),
+      openTerminals(hostId, terminals, readOnly),
+      startConversation(
+        hostId,
+        start,
+        startsAnyway,
+        agents,
+        speakerId,
+        Boolean(contact.manages),
+        starts,
+        userAsks,
+        drafts
+      ),
       projectInstructions(hostId, instructions),
       ...(managers.oversees(contact) ? managerTools(hostId, managers, leadName, invites) : []),
     ];

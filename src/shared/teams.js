@@ -151,7 +151,8 @@ export function roleModeNote(role, provider) {
   }
   return {
     text: picked.danger
-      ? 'With Read only on, it runs commands without asking, in a sandbox that can’t change files.'
+      ? 'With Read only on, it runs commands without asking, in a sandbox that can’t change files. A command it wants ' +
+        'run in a terminal of yours still asks you first: that runs in your own shell.'
       : 'With Read only on, it still changes no files: its commands run in a sandbox that can’t, and one that needs more is declined without asking you.',
   };
 }

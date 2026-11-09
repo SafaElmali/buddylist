@@ -15,6 +15,7 @@ version into package.json and package-lock.json in the release prep PR.
 
 - **Security updates** — buddylist now runs on a newer Electron and updated libraries, with their latest security fixes.
 - **Folded sections stay folded** — A project you folded in the contact list opened again when the list reloaded, after a restart, and in the list beside each conversation window you opened, so with many workers it kept coming back. Now a section stays as you leave it until you open it again: in every list, beside every conversation and after a restart. Folded, it says how much in it is unread, with the orange count a contact wears, so you don’t open it to find out. Its line takes the keyboard too: **Enter** or **Space** folds it, and a screen reader hears whether it is open.
+- **Read-only agents ask before they reach past their sandbox** — A command a read-only agent, such as a reviewer, wants typed into a terminal beside the conversation now asks you first in every mode, **Never ask** included, and the card says it runs in your own shell, outside the read-only sandbox. A conversation it starts waits for you to start it, with **Start**; a manager still starts the workers you ask for at once. A read-only agent also stays in the mode that changes no files: a Gemini or OpenCode that can’t be put in Plan stops and says why, and a read-only Claude moved to **Never ask** or **Auto-accept file edits** starts again with its sandbox required. A read-only Claude goes without worktree tools and the tools of MCP servers other than buddylist’s.
 
 ## v0.7.2 — 2026-11-09
 
