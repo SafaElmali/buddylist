@@ -28,6 +28,19 @@ import { outputKind, splitOutputs } from '../../shared/terminal-mentions.js';
 /** What the tray says over its entries. @param {number} count */
 export const trayCount = (count) => `${count} queued`;
 
+/**
+ * Why a manager's notes wait for you, where they do, and what lets them go: said after the count.
+ * @param {'stopped' | 'paused' | null | undefined} held  as main says (see #notesHeld in conversations.js)
+ * @param {number} notes  how many of the entries are a manager's notes
+ */
+export function heldLine(held, notes) {
+  if (!notes) return '';
+  const they = notes === 1 ? 'it goes' : 'they go';
+  if (held === 'stopped') return `Held since you stopped: ${they} with your next message, or Send now.`;
+  if (held === 'paused') return `Everyone here is paused: ${they} once you resume an agent or mention one.`;
+  return '';
+}
+
 /** What a message says without what it carries, on one line. */
 function words(text) {
   let rest = text;
@@ -109,7 +122,11 @@ export class QueueTray {
     this.said = said;
     this.on = on;
     root.replaceChildren(
-      el(html`<div class="queue-tray-head">${raw(smallIcon.clock())}<span class="queue-tray-count"></span></div>`),
+      el(
+        html`<div class="queue-tray-head">
+          ${raw(smallIcon.clock())}<span class="queue-tray-count"></span><span class="queue-tray-held" hidden></span>
+        </div>`
+      ),
       el(html`<ol class="queue-tray-list" aria-label="Queued messages"></ol>`)
     );
     this.list = /** @type {HTMLElement} */ (root.querySelector('.queue-tray-list'));
@@ -119,8 +136,9 @@ export class QueueTray {
    * Draws what waits now: an entry stays as it was drawn while nothing about it changed, and one that was just
    * queued is read out. The focus, where it was in the tray, stays on the same button of an entry still here.
    * @param {Queued[]} queued  oldest first
+   * @param {'stopped' | 'paused' | null} [held]  why a manager's notes among them wait for you, if they do
    */
-  show(queued) {
+  show(queued, held = null) {
     const rows = queued.map((one) => trayRow(one, this.on.participants()));
     const focus = this.#focused();
     const keys = new Set(rows.map((row) => row.key));
@@ -144,6 +162,9 @@ export class QueueTray {
     for (const pending of this.#pending)
       if (!rows.some((row) => pending.endsWith(` ${row.id}`))) this.#pending.delete(pending);
     this.root.querySelector('.queue-tray-count').textContent = trayCount(rows.length);
+    const why = /** @type {HTMLElement} */ (this.root.querySelector('.queue-tray-held'));
+    why.textContent = heldLine(held, rows.filter((row) => row.managerNote).length);
+    why.hidden = !why.textContent;
     this.root.hidden = !rows.length;
     this.#tell(queued);
     if (focus) this.#refocus(focus, rows);

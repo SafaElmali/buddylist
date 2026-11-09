@@ -1312,17 +1312,31 @@ test('Send now on a note is the user acting: its turn starts a round, also past 
   assert.equal(start(turns), 'codex', 'what it hands over to counts from the note on');
 });
 
-test('Send now on a note cannot restart a round the user stopped', () => {
+test('Send now on a note the user’s Stop holds gives it a round of its own, and the other notes stay held', () => {
   const turns = new Turns();
   turns.userSaid('Work', [claude]);
   turns.next(1);
   turns.stop();
-  assert.equal(turns.noteNow(claude.id, 'correction'), false);
+  assert.equal(turns.held, true);
+  assert.equal(turns.noteNow(claude.id, 'correction'), true, 'the user sends it now');
+  const note = turns.next();
+  assert.deepEqual([note.id, note.note], [claude.id, 'correction']);
+  turns.agentSaid(claude.id, '@Codex check it', agents, ME);
+  turns.turnEnded(claude.id, result());
+  assert.equal(start(turns), 'codex', 'its round hands over as any other');
+  turns.turnEnded(codex.id, result());
+  assert.deepEqual(turns.followUp(['reviewer']), ['reviewer'], 'and is followed up on');
+  turns.next();
+  turns.turnEnded('reviewer', result());
+  assert.equal(turns.held, true, 'what the user stopped still holds the notes nobody sent now');
+  assert.equal(turns.readNotes(claude.id), false);
 
   turns.userSaid('Again', [claude]);
+  assert.equal(turns.held, false, 'until the user says something');
   turns.next();
   turns.turnEnded(claude.id, result(true));
-  assert.equal(turns.noteNow(claude.id, 'correction'), false, 'nor one whose turn the user stopped');
+  assert.equal(turns.held, true, 'a turn the user stopped by declining holds them too');
+  assert.equal(turns.noteNow(claude.id, 'correction'), true);
 });
 
 // ---- notes for the conversation's agent ----------------------------------------------------------
@@ -1379,7 +1393,16 @@ test('notes never restart a round the user stopped, also one cut at the limit be
 
   turns.userSaid('once more', [claude]);
   runOut(turns);
+  assert.equal(turns.held, false);
   assert.equal(turns.readNotes(claude.id), true, 'what the user says next starts the rounds again');
+});
+
+test('a round cut at the limit holds no note, so nothing says notes are held', () => {
+  const turns = new Turns();
+  turns.userSaid('discuss', [claude, codex]);
+  pingPong(turns, 2);
+  assert.equal(turns.held, false);
+  assert.equal(turns.readNotes(claude.id), true);
 });
 
 test('a hand-off limit the user stopped at stays stopped for an automatic continuation', () => {

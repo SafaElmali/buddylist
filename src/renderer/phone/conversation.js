@@ -63,6 +63,13 @@ const CONTEXT_PX = 12;
 const isTodo = (entry) => entry.kind === 'tool' && entry.activity?.kind === 'todo';
 /** What one of your messages says that a Stop dropped while it waited, before it was read. */
 const NOT_SENT = 'Not sent: you stopped before it was read.';
+/** What a message that waits says on it: a manager's note that waits for you says why, and what lets it go. */
+const heldMark = (held) =>
+  held === 'stopped'
+    ? 'Held since you stopped: it goes with your next message'
+    : held === 'paused'
+      ? 'Held: everyone here is paused'
+      : 'Queued';
 /** What a call is to, to tell which call a permission asks about: they carry the same activity. */
 const target = ({ kind, command, path, url, query, label } = /** @type {any} */ ({})) =>
   `${kind}\n${command ?? path ?? url ?? query ?? label ?? ''}`;
@@ -105,6 +112,8 @@ export class ConversationScreen {
   #waiting = { count: 0, inLine: false };
   /** @type {Set<string>} the notes from a manager that wait to be read */
   #waitingNotes = new Set();
+  /** @type {'stopped' | 'paused' | null} why they wait for you, if they do: you stopped the conversation, or paused all */
+  #notesHeld = null;
   #state = 'idle';
   #stopping = false;
   #ready = false;
@@ -198,6 +207,7 @@ export class ConversationScreen {
     this.#state = init.state;
     this.#waiting = { count: init.waiting || 0, inLine: Boolean(init.inLine) };
     this.#waitingNotes = new Set(init.waitingNotes || []);
+    this.#notesHeld = init.notesHeld || null;
     const running = new Set(init.running || []);
     // A to-do list is said once, where it was last told.
     const todo = init.history.findLast(isTodo);
@@ -501,6 +511,7 @@ export class ConversationScreen {
       }
       case 'waiting-notes':
         this.#waitingNotes = new Set(event.ids || []);
+        this.#notesHeld = event.held || null;
         return this.#markQueued();
       case 'notice':
         return this.transcript.append(
@@ -851,7 +862,7 @@ export class ConversationScreen {
     for (const node of mine)
       this.#queued(node, queued.has(node), this.#waiting.inLine || node.dataset.editable === 'true');
     for (const node of this.transcript.querySelectorAll('.ph-manager-note'))
-      this.#queued(node, this.#waitingNotes.has(/** @type {HTMLElement} */ (node).dataset.note), true);
+      this.#queued(node, this.#waitingNotes.has(/** @type {HTMLElement} */ (node).dataset.note), true, this.#notesHeld);
     // However far the transcript has scrolled on, how many wait shows over the box, a tap from the oldest.
     const waiting = this.transcript.querySelectorAll('.ph-waits').length;
     this.queuedJump.hidden = !waiting;
@@ -866,7 +877,14 @@ export class ConversationScreen {
     /** @type {HTMLElement | null} */ (oldest.querySelector('.ph-queued button'))?.focus({ preventScroll: true });
   }
 
-  #queued(node, waits, cancellable) {
+  /**
+   * @param {HTMLElement} node
+   * @param {boolean} waits
+   * @param {boolean} cancellable
+   * @param {'stopped' | 'paused' | null} [held]  a manager's note that waits for you, and why: nothing is at work for
+   *   Send now to interrupt
+   */
+  #queued(node, waits, cancellable, held = null) {
     // One of yours that has just come to wait is news; one that waited when the conversation opened isn't.
     if (this.#ready && waits && node.matches('.ph-me') && !node.classList.contains('ph-waits'))
       announce('Message queued.');
@@ -878,17 +896,21 @@ export class ConversationScreen {
     }
     const id = node.dataset.id || node.dataset.note;
     if (!waits) return void (mark.hidden = true);
-    const drawn = `${id || ''}\n${maySend()}`;
+    const drawn = `${id || ''}\n${maySend()}\n${held}`;
     if (mark.hidden || mark.dataset.for !== drawn) {
       mark.dataset.for = drawn;
       mark.replaceChildren(
-        el(html`<span>Queued</span>`),
+        el(html`<span>${heldMark(held)}</span>`),
         ...(id && maySend()
           ? [
               ...(cancellable
                 ? [el(html`<button class="ph-button" type="button" data-do="cancel">Cancel</button>`)]
                 : []),
-              el(html`<button class="ph-button" type="button" data-do="send-now">Interrupt and send</button>`),
+              el(
+                html`<button class="ph-button" type="button" data-do="send-now">
+                  ${held ? 'Send now' : 'Interrupt and send'}
+                </button>`
+              ),
             ]
           : [])
       );
@@ -905,6 +927,7 @@ export class ConversationScreen {
     const id = node.dataset.id || node.dataset.note;
     button.disabled = true;
     if (button.dataset.do === 'send-now') {
+      const label = button.textContent.trim();
       button.textContent = 'Sending…';
       try {
         await api.chat.sendNow(this.contactId, id);
@@ -912,7 +935,7 @@ export class ConversationScreen {
         // Sent with no word back, it may still be done once the Mac is back: not offered again meanwhile.
         if (error?.code !== UNCONFIRMED) {
           button.disabled = false;
-          button.textContent = 'Interrupt and send';
+          button.textContent = label;
         }
         this.#keepAtEnd(() => this.transcript.append(this.#line('ph-error', errorText(error))));
       }
