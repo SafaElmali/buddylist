@@ -857,6 +857,8 @@ export class Managers {
       );
     }
     const busy = this.conversations.view(worker).status !== 'online';
+    // The user stopped it: what it is sent waits for them, also an urgent message (see Conversations#hurryNote).
+    const stopped = Boolean(this.conversations.stopped?.(worker.id));
     const key = `${manager.id}:${crypto.randomUUID()}`;
     this.conversations.pass(worker.id, {
       // Each its own: several sent while it works are all read.
@@ -865,13 +867,21 @@ export class Managers {
       note: managerMessage(manager.name, said),
       from: manager.id,
     });
-    const delivery = urgent ? await this.conversations.hurryNote(worker.id, key) : busy ? 'waiting' : 'sent';
+    const delivery = stopped
+      ? 'stopped'
+      : urgent
+        ? await this.conversations.hurryNote(worker.id, key)
+        : busy
+          ? 'waiting'
+          : 'sent';
     const timing =
-      delivery === 'next-step'
-        ? ', requested through Send now; delivery is at its next step after the current turn is interrupted'
-        : delivery === 'waiting'
-          ? ', and it waits until the worker is free'
-          : '';
+      delivery === 'stopped'
+        ? '. The user stopped it, so it waits until the user writes to it or sends it now'
+        : delivery === 'next-step'
+          ? ', requested through Send now; delivery is at its next step after the current turn is interrupted'
+          : delivery === 'waiting'
+            ? ', and it waits until the worker is free'
+            : '';
     return (
       `${worker.name} has your message${timing}. ` +
       'You are sent its answer: carry on meanwhile, without waiting for it.'

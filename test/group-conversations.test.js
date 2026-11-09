@@ -4709,6 +4709,111 @@ test('a nudge keeps queued and later manager messages from restarting a stopped 
   assert.match(app.sentTo(codex).text, /Add tests\.\n\nAdd docs\./);
 });
 
+/**
+ * A worker as a manager's are: Claude, with a Codex reviewer that answers after changes and works read-only. Claude
+ * was at work when the user nudged, and then the manager sent three notes.
+ */
+async function heldByANudge() {
+  const app = withTeam([{ ...REVIEWER, provider: 'codex', model: '' }]);
+  const { conversations, claude } = app;
+  app.say('Add the PDF export');
+  await conversations.interrupt(claude.id);
+  app.answer(claude, '', { stopped: true });
+  const notes = ['Hold the export.', 'Use CSV, not PDF.', 'Ship the export today.'].map((note, at) => {
+    conversations.pass(claude.id, { key: `manager:${at}`, line: `Manager says: ${note}`, note, from: 'manager' });
+    return app.history.read(claude.id).at(-1).id;
+  });
+  return { ...app, notes, reviewer: app.guest('Reviewer') };
+}
+
+test('notes a nudge holds wait for the user, and say so: the window and the phone are told why', async () => {
+  const app = await heldByANudge();
+  assert.deepEqual(app.turns, ['Claude'], 'nobody starts on them by themselves');
+  assert.deepEqual(app.events('waiting-notes').at(-1), { type: 'waiting-notes', ids: app.notes, held: 'stopped' });
+  assert.equal(app.conversations.snapshot(app.claude.id).notesHeld, 'stopped');
+});
+
+test('notes that waited for the agent before a nudge are said to be held by it, and no longer once you write', async () => {
+  const app = withTeam([{ ...REVIEWER, provider: 'codex', model: '' }]);
+  const { conversations, claude } = app;
+  app.say('Work');
+  conversations.pass(claude.id, { key: 'manager:1', line: 'Manager says: docs', note: 'Add docs.', from: 'manager' });
+  const [id] = conversations.snapshot(claude.id).waitingNotes;
+  assert.deepEqual(app.events('waiting-notes').at(-1), { type: 'waiting-notes', ids: [id] }, 'it waits for Claude');
+  await conversations.interrupt(claude.id);
+  assert.deepEqual(app.events('waiting-notes').at(-1), { type: 'waiting-notes', ids: [id], held: 'stopped' });
+  app.answer(claude, '', { stopped: true });
+  assert.deepEqual(app.turns, ['Claude']);
+  app.say('/compact');
+  assert.deepEqual(
+    app.events('waiting-notes').at(-1),
+    { type: 'waiting-notes', ids: [id] },
+    'a command reads no note, but you wrote: it waits for Claude to be free again'
+  );
+  app.answer(claude, 'Compacted.');
+  assert.deepEqual(app.turns, ['Claude', 'Claude', 'Claude']);
+  assert.match(app.sentTo(claude).text, /Add docs\./);
+});
+
+test('Send now on a note a nudge holds gives it to the host on a round of its own; the others stay held', async () => {
+  const app = await heldByANudge();
+  const { conversations, claude, reviewer, notes } = app;
+  await conversations.sendNow(claude.id, notes[1]);
+  assert.deepEqual(app.turns, ['Claude', 'Claude'], 'the host reads it, not the reviewer that answers after changes');
+  assert.match(app.sentTo(claude).text, /Use CSV, not PDF\./);
+  assert.doesNotMatch(app.sentTo(claude).text, /Hold the export|Ship the export today/);
+  assert.deepEqual(app.events('waiting-notes').at(-1), {
+    type: 'waiting-notes',
+    ids: [notes[0], notes[2]],
+    held: 'stopped',
+  });
+  editsAndAnswers(app, claude, 'src/export.js', 'Dropped the PDF export.');
+  assert.deepEqual(app.turns, ['Claude', 'Claude', 'Reviewer'], 'its round is followed up on as any other');
+  app.answer(reviewer, 'Looks right.');
+  assert.deepEqual(app.turns, ['Claude', 'Claude', 'Reviewer'], 'and the notes nobody sent now still wait');
+
+  app.say('Go on');
+  assert.deepEqual(app.turns, ['Claude', 'Claude', 'Reviewer', 'Claude']);
+  assert.match(
+    app.sentTo(claude).text,
+    /Go on[\s\S]*Hold the export\.\n\nShip the export today\.$/,
+    'yours, then theirs in order'
+  );
+  assert.deepEqual(app.events('waiting-notes').at(-1), { type: 'waiting-notes', ids: [] });
+  const sent = app.sessions.flatMap((session) => session.sent.map((one) => one.text ?? ''));
+  for (const note of ['Hold the export.', 'Use CSV, not PDF.', 'Ship the export today.'])
+    assert.equal(sent.filter((text) => text.includes(note)).length, 1, `${note} is read once`);
+});
+
+test('after a nudge, what the user says next starts a round that reads every held note once, in order', async () => {
+  const app = await heldByANudge();
+  const { claude, reviewer } = app;
+  app.say('Carry on');
+  assert.deepEqual(app.turns, ['Claude', 'Claude']);
+  assert.match(
+    app.sentTo(claude).text,
+    /Carry on[\s\S]*Hold the export\.\n\nUse CSV, not PDF\.\n\nShip the export today\.$/
+  );
+  assert.deepEqual(app.events('waiting-notes').at(-1), { type: 'waiting-notes', ids: [] });
+  editsAndAnswers(app, claude, 'src/csv.js');
+  app.answer(reviewer, 'Approved.');
+  assert.deepEqual(app.turns, ['Claude', 'Claude', 'Reviewer'], 'nothing is read twice');
+});
+
+test('Send now on a held note says why when no agent can take it: everyone here is paused', async () => {
+  const app = await heldByANudge();
+  const { conversations, claude, reviewer, notes } = app;
+  conversations.setPaused(claude.id, claude.id, true);
+  conversations.setPaused(claude.id, reviewer.id, true);
+  assert.equal(app.events('waiting-notes').at(-1).held, 'paused');
+  await assert.rejects(conversations.sendNow(claude.id, notes[0]), /Everyone here is paused/);
+  assert.deepEqual(app.turns, ['Claude']);
+  conversations.setPaused(claude.id, reviewer.id, false);
+  assert.equal(app.events('waiting-notes').at(-1).held, 'stopped', 'resumed, only your Stop holds them');
+  await conversations.sendNow(claude.id, notes[0]);
+  assert.deepEqual(app.turns, ['Claude', 'Reviewer'], 'with nobody else active, the reviewer reads it');
+});
+
 /** Whether each one in Claude's conversation is paused, by name. */
 const pausedIn = (participants) => participants.map((p) => [p.name, Boolean(p.paused)]);
 

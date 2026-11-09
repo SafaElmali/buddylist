@@ -186,7 +186,7 @@ If an agent's tool loses track of its checklist, so that the agent can't tick of
 - Messages that wait for the same turn each have a line, and **Send now** on any of them stops that turn.
 - Several messages that wait are answered one by one, in the order you sent them, each in a turn of its own, never together. In a [group conversation](group-conversations.md) too.
 - If the contact doesn't take the message, **Send now** is there again, with a line that says why. Trying again keeps that message and the rest of the queue as they were.
-- A [manager's](project-managers.md) note that waits has a line in the tray too, apart from your messages: **Send now** on one of yours, or the next of yours in line, never sends the manager's in its place.
+- A [manager's](project-managers.md) note that waits has a line in the tray too, apart from your messages: **Send now** on one of yours, or the next of yours in line, never sends the manager's in its place. In a group conversation you stopped, the tray says the notes are held, and what lets them go (see [Group conversations](group-conversations.md)).
 - Queued controls follow the message's identity, including requests sent from toolbar buttons. They clear when the turn takes that message. A manager note's **Send now** also recovers if its interruption fails or times out; retrying keeps one copy, and cancelling removes only that note.
 - **Edit** takes it back before Claude reads it, to change: it leaves the tray, and its words and pictures are in the message box again, ahead of what you were writing. Send it and it waits again, last in line. What Claude is doing goes on.
 - **Cancel** drops it before Claude reads it: it leaves the tray and is never sent. A manager's note has **Cancel** but no **Edit**.

@@ -108,6 +108,11 @@ const SEARCH_MIN = 2;
 const BRANCH_FRESH_MS = 10 * 1000;
 /** How many conversations held outside the app are kept as they were read, for the next search to look through. */
 const READ_ELSEWHERE = 100;
+/** Send now on something no agent here can take now, for no reason the conversation knows of. */
+const NOBODY_READY = 'This message is still queued, but no agent is ready to take it. Try again or cancel the message.';
+/** Send now with everyone here paused. */
+const EVERYONE_PAUSED =
+  'Everyone here is paused, so no agent can take this message. Resume one, or cancel the message.';
 /** How long a listing of every folder's conversations held outside the app is taken to be what is there. */
 const HELD_FRESH_MS = 10 * 1000;
 /** What went wrong, as it was said. */
@@ -337,6 +342,8 @@ export class Conversations {
   #waitingNotes = new Map();
   /** A stopped manager's notes wait for the user, also when it has no group turn queue. */
   #stoppedManagers = new Set();
+  /** hostId -> why its notes wait for the user, as its window was last told (see #notesHeld) */
+  #notesTold = new Map();
   /** The conversations whose agent is answering such notes: what it says to them is no news for the one above */
   #noted = new Set();
   /** hostId -> the notes its agent read since its last round was over, by key: what that round answered */
@@ -557,6 +564,7 @@ export class Conversations {
     const unfinished = new Set(this.#toolEntries.values());
     const offered = this.#offered(contactId);
     const waitingIds = this.#waitingIds(contactId);
+    const notesHeld = this.#notesHeld(contactId);
     return {
       contact: this.view(contact),
       provider: this.providers.descriptor(contact.provider),
@@ -582,6 +590,8 @@ export class Conversations {
       waitingIds,
       waitingTo: waitingIds && this.#waitingTo(contactId, waitingIds),
       waitingNotes: [...(this.#waitingNotes.get(contactId)?.keys() ?? [])],
+      // Why they wait for you, where they do (see #tellWaitingNotes).
+      ...(notesHeld && { notesHeld }),
       ...(this.#inLine(contactId) && { inLine: true }),
     };
   }
@@ -646,6 +656,8 @@ export class Conversations {
    */
   #tellWaiting(hostId) {
     this.#syncWaitingNotes(hostId);
+    // Why the notes wait changes with what goes on: a Stop, a pause, what you say next.
+    if (this.#notesHeld(hostId) !== this.#notesTold.get(hostId)) this.#tellWaitingNotes(hostId);
     this.#sendingNow.get(hostId)?.check();
     const count = this.#waiting(hostId);
     const inLine = this.#inLine(hostId);
@@ -1920,10 +1932,7 @@ export class Conversations {
     // Messages queued before a guest joined still belong to the host session. Preserve the group's
     // line when that session stops for one of them, without looking up its id in the group queue.
     const speaking = inGroup ? turns.hurry(entryId) : entryId !== undefined ? (turns?.hurry() ?? []) : [];
-    if (speaking === null)
-      throw new Error(
-        'This message is still queued, but no agent is ready to take it. Try again or cancel the message.'
-      );
+    if (speaking === null) throw new Error(this.#nobodyAnswers(contactId) ? EVERYONE_PAUSED : NOBODY_READY);
     return this.#requestSendNow(
       contactId,
       entryId,
@@ -1974,14 +1983,11 @@ export class Conversations {
     Promise.resolve(dispatch(controller.signal))
       .then((status) => {
         // Manager tools report acceptance at the next step; a button waits for actual consumption.
-        if (acknowledge) resolve(status);
-        else if (note && status === 'waiting') {
-          reject(
-            new Error(
-              'This message is still queued, but no agent is ready to take it. Try again or cancel the message.'
-            )
-          );
-        } else if (entryId === undefined) resolve();
+        // The manager hears of a note that waits for a pause as of one that waits for the worker.
+        if (acknowledge) resolve(status === 'paused' ? 'waiting' : status);
+        else if (note && status === 'paused') reject(new Error(EVERYONE_PAUSED));
+        else if (note && status === 'waiting') reject(new Error(NOBODY_READY));
+        else if (entryId === undefined) resolve();
         else check();
       })
       .catch((error) => {
@@ -2284,8 +2290,9 @@ export class Conversations {
       if (turn.brief) message.text = [message.text, turn.brief].filter(Boolean).join('\n\n');
       // Only an actual answer reads waiting notes. A user can ask even a paused agent to answer;
       // an effort check or a slash command must leave the notes for a turn that can act on them, and so must a
-      // turn for what a manager asked of a guest it invited: they are for the conversation's own agent.
-      if (!turn.check && !turn.command && !turn.brief) {
+      // turn for what a manager asked of a guest it invited: they are for the conversation's own agent. While your
+      // Stop holds them, a turn reads none but the one you sent now: not a hand-off or a follow-up on its round.
+      if (!turn.check && !turn.command && !turn.brief && (turn.note || !group.turns.held)) {
         message.text = [message.text, this.#takeNotes(hostId, turn.id, turn.note)].filter(Boolean).join('\n\n');
       }
       inner(this.#sent, hostId).set(turn.id, {
@@ -3488,6 +3495,7 @@ export class Conversations {
       this.#notes,
       this.#waitingNotes,
       this.#stoppedManagers,
+      this.#notesTold,
       this.#noted,
       this.#read,
       this.#reported,
@@ -4306,21 +4314,55 @@ export class Conversations {
   }
 
   /**
-   * Whether the user stopped a manager: the notes passed to it since wait until the user writes to it.
+   * Whether the user stopped a manager, or a conversation with guests: the notes passed to it since wait until the
+   * user writes to it, or sends one now.
    * @param {string} contactId
    */
   stopped(contactId) {
-    return this.#stoppedManagers.has(contactId);
+    return this.#stoppedManagers.has(contactId) || Boolean(this.#groups.get(contactId)?.turns.held);
   }
 
-  /** Hurry a manager's note by its pass key, without exposing a different delivery path to tools. */
+  /**
+   * Everyone in a conversation with guests is paused: nobody reads what nobody mentions. Asked as often as the window
+   * is told what waits, so it reads the pauses as they are kept rather than drawing everyone up (see participants).
+   */
+  #nobodyAnswers(hostId) {
+    const host = this.store.getContact(hostId);
+    const guests = host ? this.#guests(host) : [];
+    return guests.length > 0 && Boolean(host.paused) && guests.every(({ entry }) => entry.paused);
+  }
+
+  /**
+   * Why the notes that wait for a conversation are not read once its agents are free, if any wait and they aren't:
+   * everyone here is paused, or the user stopped it (see `stopped`).
+   * @param {string} hostId
+   * @returns {'paused' | 'stopped' | undefined}
+   */
+  #notesHeld(hostId) {
+    if (![...(this.#waitingNotes.get(hostId)?.values() ?? [])].some((note) => !note.session)) return undefined;
+    if (this.#nobodyAnswers(hostId)) return 'paused';
+    return this.stopped(hostId) ? 'stopped' : undefined;
+  }
+
+  /**
+   * Hurry a manager's note by its pass key, without exposing a different delivery path to tools. Not past the user's
+   * Stop: Send now there is theirs alone, and the note waits for them as any other.
+   */
   async hurryNote(hostId, key) {
+    if (this.stopped(hostId)) return 'stopped';
     const entry = [...(this.#waitingNotes.get(hostId) ?? [])].findLast(([, note]) => note.key === key);
     return entry ? this.sendNow(hostId, entry[0], { acknowledgeNote: true }) : 'sent';
   }
 
   #tellWaitingNotes(hostId) {
-    this.chats.send(hostId, { type: 'waiting-notes', ids: [...(this.#waitingNotes.get(hostId)?.keys() ?? [])] });
+    const held = this.#notesHeld(hostId);
+    this.#notesTold.set(hostId, held);
+    this.chats.send(hostId, {
+      type: 'waiting-notes',
+      ids: [...(this.#waitingNotes.get(hostId)?.keys() ?? [])],
+      // Why they wait for you, where they do: the window says so, and what lets them go.
+      ...(held && { held }),
+    });
     this.#sendingNow.get(hostId)?.check();
   }
 
@@ -4352,7 +4394,8 @@ export class Conversations {
     if (group) {
       const active = inAnswerOrder(this.participants(hostId), group.turns.order).filter((agent) => !agent.paused);
       const next = active.find((agent) => !agent.afterChanges) ?? active[0];
-      if (!next || !group.turns.noteNow(next.id, entryId)) return 'waiting';
+      if (!next) return 'paused';
+      if (!group.turns.noteNow(next.id, entryId)) return 'waiting';
       const speaking = group.turns.hurry();
       await Promise.all(
         speaking.map((id) => {

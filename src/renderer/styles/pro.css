@@ -2378,6 +2378,11 @@
     height: 13px;
   }
 
+  & .queue-tray-held {
+    color: var(--text-faint);
+    font-size: 11.5px;
+  }
+
   & .queue-tray-list {
     max-height: 94px;
     padding: 0 0 4px;

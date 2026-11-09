@@ -83,10 +83,15 @@ export class Turns {
   /**
    * Why the round was cut short, if it was: the user stopped it, or the agents took all the turns they get
    * on it. Nobody follows up on it until the user says something again. A note still starts a round of its
-   * own after the limit, but never after the user stopped one (see `readNotes`).
+   * own after the limit, but never after the user stopped one (see `held`).
    * @type {'stopped' | 'limit' | null}
    */
   #cut = null;
+  /**
+   * The user stopped the conversation: notes wait for what they say next, or for them to send one now. A note
+   * they send now has a round as any other, and the rest stay held all the same (see `noteNow`).
+   */
+  #held = false;
 
   /** @param {{ atOnce?: boolean, order?: string[] | null }} [how] */
   constructor({ atOnce = false, order = null } = {}) {
@@ -97,6 +102,11 @@ export class Turns {
   /** Who is speaking: the first of them to start, when several are. Null for nobody. */
   get current() {
     return this.#speaking.keys().next().value ?? null;
+  }
+
+  /** The notes that wait wait for the user: they stopped the conversation, and have said nothing since. */
+  get held() {
+    return this.#held;
   }
 
   /** Agents are in line for a turn. */
@@ -174,6 +184,7 @@ export class Turns {
    */
   userSaid(text, agents, images = [], effortBy = null, said = null, recipients = null, fixedEffort = false) {
     this.#cut = null;
+    this.#held = false;
     // With nobody in line, what was said before has been heard, or was sent away: it waits no more.
     const message = { id: said, images, asked: [] };
     this.#unheard = [...(this.waiting ? this.#unheard : []), message];
@@ -272,14 +283,15 @@ export class Turns {
 
   /**
    * The user wants a note read now, with Send now: a turn of its own ahead of everyone in line, which starts a
-   * round as a message of the user's does, also once the round going on took all the turns it gets. Not when
-   * the user stopped the round.
+   * round as a message of the user's does, also once the round going on took all the turns it gets, or once the
+   * user stopped it. Only that note: the others the user's Stop holds stay held (see `held`). The user's alone to
+   * ask for, then: whoever else would hurry a note checks `held` first.
    * @param {string} id
    * @param {string} note  the note, by its entry in the conversation's history
    * @returns {boolean}  whether it is in line
    */
   noteNow(id, note) {
-    if (this.#cut === 'stopped' || this.#leaving.has(id)) return false;
+    if (this.#leaving.has(id)) return false;
     // Retrying an unacknowledged interrupt must not add another turn for the same note.
     if (this.#queue.some((turn) => turn.note === note)) return true;
     this.#queue.unshift({ id, images: [], note });
@@ -290,12 +302,12 @@ export class Turns {
    * Notes wait for the conversation, and `id` is to read them: a turn of its own, which starts a round as a
    * message of the user's does. What other conversations report is no hand-off between the agents here, so a
    * round cut at the limit holds no note back, and the turns taken on it are counted from the note on. Not
-   * while a round goes on: its next turn reads them. Nor when the user stopped the round.
+   * while a round goes on: its next turn reads them. Nor while the user's Stop holds them (see `held`).
    * @param {string} id
    * @returns {boolean}  whether it is in line
    */
   readNotes(id) {
-    if (this.#cut === 'stopped' || this.active || this.#leaving.has(id)) return false;
+    if (this.#held || this.active || this.#leaving.has(id)) return false;
     this.#queue.push({ id, images: [], notes: true });
     return true;
   }
@@ -433,6 +445,7 @@ export class Turns {
     if (event.type === 'result' && event.stopped && !this.#hurried && !stopping) {
       this.#queue = [];
       this.#cut = 'stopped';
+      this.#held = true;
     }
     this.#over(id);
     return true;
@@ -497,6 +510,7 @@ export class Turns {
     this.#hurried = false;
     this.#hurryPending = false;
     this.#cut = 'stopped';
+    this.#held = true;
   }
 
   /**

@@ -169,6 +169,8 @@ export class Conversation {
   #waitingTo = null;
   /** Whether they wait in line for a turn, as last told (see showWaiting). */
   #inLine = false;
+  /** @type {'stopped' | 'paused' | null} why a manager's notes that wait wait for you, as last told (see showWaitingNotes) */
+  #notesHeld = null;
   /** @type {Map<string, HTMLElement>} participant id -> its newest reply in the turn it is in, to say under it how long that took */
   #turnReply = new Map();
   /** @type {HTMLElement | null} the button back down to the newest line, where there is one (see showLatestWith) */
@@ -446,6 +448,7 @@ export class Conversation {
     this.#waitingIds = null;
     this.#waitingTo = null;
     this.#inLine = false;
+    this.#notesHeld = null;
     this.#followLatest();
     this.#queueChanged();
   }
@@ -746,7 +749,7 @@ export class Conversation {
 
   /** The tray shows what waits now. It grows and shrinks the pane, which stays at its newest line if it was there. */
   #queueChanged() {
-    if (this.tray) this.keepPinned(() => this.tray.show(this.queued()));
+    if (this.tray) this.keepPinned(() => this.tray.show(this.queued(), this.#notesHeld));
   }
 
   /**
@@ -984,8 +987,13 @@ export class Conversation {
     return node;
   }
 
-  /** Manager notes have explicit identities; they do not consume the user's queued-message count. */
-  showWaitingNotes(ids = []) {
+  /**
+   * Manager notes have explicit identities; they do not consume the user's queued-message count.
+   * @param {string[]} [ids]
+   * @param {'stopped' | 'paused' | null} [held]  why they wait for you, if they do: the tray says so
+   */
+  showWaitingNotes(ids = [], held = null) {
+    this.#notesHeld = held;
     const waiting = new Set(ids);
     this.keepPinned(() => {
       for (const node of this.root.querySelectorAll('.manager-note'))
