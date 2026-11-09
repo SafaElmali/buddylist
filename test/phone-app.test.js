@@ -172,11 +172,11 @@ test('a permission card asks in the provider’s words or its own, shows what to
 test('an Always allow that covers the rest of the conversation says so, and only a phone with full access offers it', () => {
   const prompt = {
     kind: 'tool',
-    title: 'Allow Computer Use to use "TikTok LIVE Studio"?',
+    title: 'Allow Computer Use to use "Preview"?',
     activity: { kind: 'tool', label: 'MCP tool', source: 'cua_repl' },
     reason: 'Codex works read-only here, but that doesn’t cover Computer Use: if you allow it for this conversation, …',
     canAlways: true,
-    alwaysLabel: 'Allow Computer Use in TikTok LIVE Studio for this conversation',
+    alwaysLabel: 'Allow Computer Use in Preview for this conversation',
     alwaysScope: 'conversation',
   };
   const choices = (may) =>
@@ -185,7 +185,7 @@ test('an Always allow that covers the rest of the conversation says so, and only
   assert.deepEqual(choices({ always: true }), [
     ['Decline', 'deny', false],
     ['Allow', 'allow', false],
-    ['Allow Computer Use in TikTok LIVE Studio for this conversation', 'always', true],
+    ['Allow Computer Use in Preview for this conversation', 'always', true],
   ]);
   assert.equal(toolCard(prompt, 'Codex').reason, prompt.reason);
   // Answer only (and Read only, which answers nothing): Allow once or Decline, as for any Always allow (PH-50).
@@ -196,7 +196,7 @@ test('an Always allow that covers the rest of the conversation says so, and only
   // What it says once answered.
   assert.equal(
     answeredLine({ kind: 'tool', decision: 'always', title: prompt.title, scope: 'conversation' }, 'Codex'),
-    'You allowed for this conversation: Allow Computer Use to use "TikTok LIVE Studio"?.'
+    'You allowed for this conversation: Allow Computer Use to use "Preview"?.'
   );
   assert.equal(
     answeredLine(

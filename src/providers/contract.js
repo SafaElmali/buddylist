@@ -121,7 +121,7 @@
  * @property {string} [detail]        plain-text details to review before accepting
  * @property {boolean} [canAlways]     whether "Always allow" is offered
  * @property {string} [alwaysLabel]    what "Always allow" says instead, where it covers less: "Allow Computer Use in
- *   TikTok LIVE Studio for this conversation"
+ *   Preview for this conversation"
  * @property {'conversation'} [alwaysScope]  how long that covers: the rest of the conversation, as its session lasts
  * @property {Question[]} [questions]  (`question`)
  * @property {string} [plan]           Markdown (`plan`)

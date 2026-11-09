@@ -892,7 +892,7 @@ test('an Always allow for the rest of the conversation is kept, and counted, wit
   app.say('Open the app');
   const [session] = app.sessions;
   const activity = { kind: 'tool', label: 'MCP tool', source: 'cua_repl' };
-  const title = 'Allow Computer Use to use "TikTok LIVE Studio"?';
+  const title = 'Allow Computer Use to use "Preview"?';
   const ask = (requestId, extra = {}) =>
     session.emit({
       type: 'permission',
@@ -905,7 +905,7 @@ test('an Always allow for the rest of the conversation is kept, and counted, wit
       ...extra,
     });
   ask('r1', {
-    alwaysLabel: 'Allow Computer Use in TikTok LIVE Studio for this conversation',
+    alwaysLabel: 'Allow Computer Use in Preview for this conversation',
     alwaysScope: 'conversation',
   });
   assert.deepEqual(app.conversations.respond(app.claude.id, 'r1', { decision: 'always' }), { scope: 'conversation' });
