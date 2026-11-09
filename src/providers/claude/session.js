@@ -4,9 +4,10 @@ import { selectQueued } from '../queued-message.js';
 import crypto from 'node:crypto';
 import { APP_SERVER } from '../../shared/app-tools.js';
 import { checkInDue } from '../../shared/check-ins.js';
-import { accountName, resetText, switchedMidTurn } from '../../shared/usage.js';
+import { accountName, planLimitText, resetText, switchedMidTurn } from '../../shared/usage.js';
 import { BaseSession, CHAT_INSTRUCTIONS, truncateOutput } from '../base-session.js';
 import { namesNoAnswer, offlineText } from '../offline.js';
+import { within } from '../within.js';
 import { accountEnv, loginPlan, OWN_LOGIN_ONLY } from './accounts.js';
 import { childEnv } from './env.js';
 import { InputQueue } from './input-queue.js';
@@ -17,7 +18,19 @@ import { toMcpServer } from './mcp.js';
 import { forkSession, getSessionMessages, query } from './sdk.js';
 import { TASK_TOOLS, Tasks } from './tasks.js';
 import { COMPACTED } from './transcript.js';
-import { accountOf, fromSeconds, planOf, planUsage, toContext, toExtra, toFill, toLimits, toWindows } from './usage.js';
+import {
+  accountOf,
+  creditsStop,
+  fromSeconds,
+  planLimitOf,
+  planOf,
+  planUsage,
+  toContext,
+  toExtra,
+  toFill,
+  toLimits,
+  toWindows,
+} from './usage.js';
 
 /** @typedef {import('../contract.js').PermissionResponse} PermissionResponse */
 
@@ -37,6 +50,15 @@ const CHECK_IN_INSTRUCTIONS =
 
 // How many of the messages sent to Claude are remembered until Claude Code says it took each one in.
 const SENT_KEPT = 20;
+
+// How long what a login's Claude Code last said of room in its plan holds: a turn started within it is not asked about
+// again before it starts. Its first request says anew, and one served from usage credits is stopped then.
+const PLAN_FRESH_MS = 60_000;
+// How long Claude Code gets to say what the plan has used before a turn.
+const PLAN_PATIENCE_MS = 10_000;
+
+/** What a turn the user lets use credits is sent, where the one stopped was none the app sent, as a check-in. */
+const GO_ON = 'Go on where you left off.';
 
 /** What Claude is told of questions the user skipped: to go on as it sees fit, and say so. */
 const skippedMessage = (input) =>
@@ -156,6 +178,9 @@ const LIMITS = {
   seven_day_sonnet: 'weekly Sonnet limit',
 };
 
+/** Claude Code's names of the limits a turn is stopped at to spend no usage credits (see #stopForCredits). */
+const LIMIT_TYPES = { session: 'five_hour', weekly: 'seven_day' };
+
 /**
  * Which limit an account reached, and when it starts over: "work@example.com reached its weekly
  * limit. Resets Wed 2:00 AM."
@@ -222,6 +247,24 @@ export class ClaudeSession extends BaseSession {
     this.limit = null;
     /** The turn going on was turned away by a limit. */
     this.limited = false;
+    /**
+     * Where the login stops at its plan's limit rather than spend usage credits: the turn going on is being stopped
+     * for that, once Claude Code says it is served from them.
+     * @type {import('../contract.js').PlanLimitStop & { account: string } | null}
+     */
+    this.creditStopping = null;
+    /**
+     * The turn the session was last stopped at its plan's limit in, or kept from: what waits for a turn waits on,
+     * until the user says something, lets it use credits or puts another account in use.
+     * @type {import('../contract.js').PlanLimitStop & { account: string } | null}
+     */
+    this.held = null;
+    /** The user let the next turn use usage credits, once. */
+    this.creditsOnce = false;
+    /** The turn going on may use usage credits: the one the user let. */
+    this.creditsTurn = false;
+    /** @type {object | null} the plan is being asked about before a turn, which starts once it has said */
+    this.creditCheck = null;
     /** Claude Code's own explanation of a failed request, when the result has no errors list. */
     this.turnError = '';
     this.turnFailure = null;
@@ -374,8 +417,9 @@ export class ClaudeSession extends BaseSession {
       if (Array.isArray(styles)) this.outputStyles = styles;
       if (Array.isArray(models)) this.models = models;
       if (Array.isArray(agents)) this.#warnMissingAgent(agents);
-      // Started to be asked about itself, with no message to answer (see #ask): it is there, and waits for one.
-      if (this.state === 'connecting') this.setState('idle');
+      // Started to be asked about itself, with no message to answer (see #ask): it is there, and waits for one. Not
+      // where it was started for a turn that waits for its plan to be asked about first (see #deliverChecked).
+      if (this.state === 'connecting' && !this.creditCheck) this.setState('idle');
     } catch {
       // It never connected, and #pump says why.
     }
@@ -446,6 +490,8 @@ export class ClaudeSession extends BaseSession {
     } finally {
       // A fresh restart may already have replaced this query.
       if (this.q === q) {
+        this.creditStopping = null;
+        this.creditsTurn = false;
         this.cancelPrompts();
         // Gone in the middle of a turn: the reply so far is kept, and what it was doing ends here.
         this.#flushText();
@@ -505,6 +551,7 @@ export class ClaudeSession extends BaseSession {
         // And how much of them is used, for the status bar.
         const limits = toWindows(msg.rate_limit_info);
         if (limits.length) this.#tellLimits(limits);
+        this.#creditsSaid(msg.rate_limit_info);
         return;
       }
       default:
@@ -532,7 +579,11 @@ export class ClaudeSession extends BaseSession {
       // Claude Code says this at the start of every turn, and nothing else has it say so. A turn
       // nobody sent a message for is one it starts on its own: a helper reported after the turn
       // it was asked in, or a message waited for the turn before. It is at work for that one too.
-      else if (this.state === 'idle') this.setState('working');
+      else if (this.state === 'idle') {
+        this.setState('working');
+        // Not asked about before it starts: on a login stopped at its limit, it is stopped as it starts.
+        this.#stopUnasked();
+      }
       // A helper's question is still open: it waits for that first, and is at work once you have answered.
       else if (this.state === 'waiting') this.inTurn = true;
     } else if (msg.subtype === 'compact_boundary') {
@@ -833,27 +884,34 @@ export class ClaudeSession extends BaseSession {
     const said = (msg.errors || []).join('\n');
     // Said once: the process ending after it adds nothing (see #pump).
     this.refused = msg.is_error ? this.#refusal(said) : null;
+    // Stopped at the plan's limit is no Stop of the user's: it is a limit reached, which says so.
+    const credit = this.creditStopping;
+    this.creditStopping = null;
+    this.creditsTurn = false;
+    if (credit) this.stopped = false;
     const isError = msg.is_error && !this.stopped;
     const limited = this.limited && !this.stopped;
     this.limited = false;
-    this.emit({
-      type: 'result',
-      // A turn the user stopped (nudge or "Decline") isn't an error.
-      stopped: this.stopped,
-      isError,
-      ...(limited && {
-        usageLimited: true,
-        ...(/seven_day/.test(this.limit?.rateLimitType)
-          ? { limitKind: 'weekly' }
-          : this.limit?.rateLimitType === 'five_hour'
-            ? { limitKind: 'session' }
-            : {}),
-      }),
-      ...(isError && this.turnFailure && { failureKind: this.turnFailure }),
-      errorText: isError ? (this.refused ?? errorTextOf(said || this.turnError, this.turnFailure)) : '',
-      durationMs: msg.duration_ms,
-      costUsd: msg.total_cost_usd,
-    });
+    if (credit) this.#stoppedAtLimit(credit, { durationMs: msg.duration_ms, costUsd: msg.total_cost_usd });
+    else
+      this.emit({
+        type: 'result',
+        // A turn the user stopped (nudge or "Decline") isn't an error.
+        stopped: this.stopped,
+        isError,
+        ...(limited && {
+          usageLimited: true,
+          ...(/seven_day/.test(this.limit?.rateLimitType)
+            ? { limitKind: 'weekly' }
+            : this.limit?.rateLimitType === 'five_hour'
+              ? { limitKind: 'session' }
+              : {}),
+        }),
+        ...(isError && this.turnFailure && { failureKind: this.turnFailure }),
+        errorText: isError ? (this.refused ?? errorTextOf(said || this.turnError, this.turnFailure)) : '',
+        durationMs: msg.duration_ms,
+        costUsd: msg.total_cost_usd,
+      });
     this.turnError = '';
     this.turnFailure = null;
     this.stopped = false;
@@ -864,8 +922,147 @@ export class ClaudeSession extends BaseSession {
     // Once the turn is over as far as anyone can tell: going on elsewhere starts Claude Code again.
     this.dispatching = false;
     this.hurried = false;
-    if (limited) queueMicrotask(() => this.#goOnElsewhere());
+    if (limited || credit) queueMicrotask(() => this.#goOnElsewhere(credit));
     else queueMicrotask(() => this.#drain());
+  }
+
+  // ---- the plan's limit, where the login stops at it rather than spend usage credits ---------------------
+
+  /**
+   * Whether turns in a login stop at its plan's limit: the setting of the login's own (see Accounts in Settings). Off
+   * for a fallback pinned to an account, whose own paid-usage rules decide, and with no accounts kept, as in tests.
+   * @param {string | undefined} accountId
+   */
+  #stopsAtLimit(accountId) {
+    return accountId !== undefined && this.accounts.stopsAtLimit?.(accountId) === true;
+  }
+
+  /**
+   * What Claude Code said of the plan's limits, with a request: every conversation in the login hears whether it is
+   * served from usage credits now, and a turn that is, where the login stops at its limit, is stopped at once. The
+   * request that said so was the first one paid for, and is the last.
+   * @param {import('@anthropic-ai/claude-agent-sdk').SDKRateLimitInfo | undefined} info
+   */
+  #creditsSaid(info) {
+    if (!info?.status || !this.account) return;
+    const stop = creditsStop(info);
+    this.accounts.planSeen?.(this.account.id, { at: Date.now(), stop });
+    if (stop && !this.creditsTurn && this.#stopsAtLimit(this.account.id)) this.#stopForCredits(stop, 'during');
+  }
+
+  /**
+   * A turn Claude Code started on its own, as for a check-in, which nobody asked about the plan before: on a login
+   * stopped at its limit, it is stopped as it starts, before it is served from usage credits. Claude Code says nothing
+   * more of a limit that hasn't changed.
+   */
+  #stopUnasked() {
+    if (this.creditsTurn || !this.account || !this.#stopsAtLimit(this.account.id)) return;
+    const seen = this.accounts.planSeen?.(this.account.id)?.stop;
+    const stop = this.held ?? (seen && !(seen.resetsAt && seen.resetsAt <= Date.now()) ? seen : null);
+    if (stop) this.#stopForCredits(stop, 'during');
+  }
+
+  /**
+   * Stops what Claude Code is doing in usage credits, as the user's Stop does: the turn, and the helpers it left at
+   * work, which are paid for as it is. The turn ends with a result that says why (see #stoppedAtLimit).
+   * @param {{ kind: 'session' | 'weekly' | 'plan', resetsAt: number | null }} stop
+   * @param {'before' | 'during'} when
+   */
+  #stopForCredits({ kind, resetsAt }, when) {
+    if (this.creditStopping || !this.q) return;
+    const stop = { kind, resetsAt, when, account: this.account.id };
+    for (const task of this.helpers.values()) if (task) this.q.stopTask(task).catch(() => {});
+    if (!this.inTurn && this.state !== 'waiting') {
+      this.held = stop;
+      return;
+    }
+    this.creditStopping = stop;
+    this.stopped = true;
+    this.cancelPrompts();
+    this.q.interrupt().catch(() => {});
+  }
+
+  /**
+   * Says the turn was stopped at the plan's limit, or kept from starting, as a limit reached: what happens at one
+   * happens (see #goOnElsewhere), and what waits waits on.
+   * @param {import('../contract.js').PlanLimitStop & { account: string }} stop
+   */
+  #stoppedAtLimit(stop, { durationMs = 0, costUsd = 0 } = {}) {
+    this.held = stop;
+    const { kind, resetsAt, when } = stop;
+    this.emit({
+      type: 'result',
+      stopped: false,
+      isError: true,
+      usageLimited: true,
+      ...(kind !== 'plan' && { limitKind: kind }),
+      planLimit: { kind, resetsAt, when },
+      errorText: planLimitText(stop),
+      durationMs,
+      costUsd,
+    });
+  }
+
+  /**
+   * Before a turn, where its login stops at its plan's limit: whether the turn would be paid for in usage credits.
+   * What any of the login's conversations said of room a moment ago holds; else Claude Code is asked afresh, as /usage
+   * does. One that can't say leaves the turn to the last word of the login's: stopped where that was usage credits,
+   * until the limit resets. A turn that starts and is served from them after all is stopped then (see #creditsSaid).
+   * @param {any} q  the Claude Code the turn is in
+   * @returns {Promise<{ kind: 'session' | 'weekly' | 'plan', resetsAt: number | null } | null>}
+   */
+  async #planLimit(q) {
+    const { id } = this.account;
+    const seen = this.accounts.planSeen?.(id);
+    if (seen && !seen.stop && Date.now() - seen.at < PLAN_FRESH_MS) return null;
+    const plan = await within(planUsage(q), PLAN_PATIENCE_MS, 'Claude Code').catch(() => null);
+    const now = Date.now();
+    if (!plan?.rate_limits_available) {
+      const last = seen?.stop;
+      return plan || !last || (last.resetsAt && last.resetsAt <= now) ? null : last;
+    }
+    const stop = planLimitOf(plan, now);
+    this.accounts.planSeen?.(id, { at: now, stop });
+    this.#tellLimits(toLimits(plan), id);
+    return stop;
+  }
+
+  /**
+   * The user lets the turn stopped at the plan's limit go on in usage credits: it is sent again, and that one turn
+   * may use them. The next is stopped as before. Nothing changes the login's setting.
+   * @returns {boolean}  whether there was one to let go on
+   */
+  useCredits() {
+    if (!this.held || this.isBusy || this.closed) return false;
+    const held = this.held;
+    this.held = null;
+    this.creditsOnce = true;
+    this.#again(held);
+    return true;
+  }
+
+  /**
+   * The user puts the next of the logins in use from the turn stopped at the plan's limit, as Accept does at a limit:
+   * the stopped turn goes on there once the app says it is in use (see accountSwitched).
+   * @returns {string | null}  the name of the account in use now; null where there is no stop, or none to go on in
+   */
+  switchAccount() {
+    if (!this.held || this.isBusy || this.closed) return null;
+    const to = this.accounts.next(new Set([this.held.account]));
+    if (!to) return null;
+    this.accounts.use(to.id);
+    return to.name;
+  }
+
+  /**
+   * What a turn stopped at the plan's limit was about goes first in line: the message Claude Code was kept from
+   * reading, with the id it is kept under, or the one whose turn was stopped halfway, which it has already, without.
+   * @param {{ when: 'before' | 'during' }} held
+   */
+  #again({ when }) {
+    const message = this.lastMessage;
+    this.queue.unshift(message ? { ...message, id: when === 'before' ? message.id : undefined } : { text: GO_ON });
+    this.#drain();
   }
 
   // ---- another account, when the one in use reached a limit -----------------------------------
@@ -875,18 +1072,23 @@ export class ClaudeSession extends BaseSession {
    * from the next account. Without asking, once the user said so. Every account the message was
    * turned away by is left out, so that it never goes round in a circle.
    */
-  async #goOnElsewhere() {
+  async #goOnElsewhere(credit = null) {
     const from = this.account;
     if (this.closed || !from) return;
     this.tried.add(from.id);
     const to = this.accounts.next(this.tried);
-    const why = limitReached(from.name, this.limit);
+    const why = limitReached(
+      from.name,
+      credit ? { rateLimitType: LIMIT_TYPES[credit.kind], resetsAt: credit.resetsAt } : this.limit
+    );
     if (!to) {
       // Said only where there was another to try: with one account, Claude Code's own message says it all.
       if (this.tried.size > 1)
         this.emit({ type: 'notice', text: `${why} Every one of your accounts has reached a limit.` });
       return;
     }
+    // Stopped so as not to spend usage credits, the conversation waits for the user's choice, which it offers.
+    if (credit && !this.accounts.automatic()) return;
     if (!this.accounts.automatic()) {
       this.offer = new AbortController();
       const { decision } = await this.requestPermission(
@@ -902,6 +1104,8 @@ export class ClaudeSession extends BaseSession {
       if (decision !== 'allow') return;
     }
     if (this.closed) return;
+    const held = this.held;
+    this.held = null;
     this.accounts.use(to.id);
     // Helpers still at work are in the account that reached its limit too: they end with it.
     if (this.q) this.#restart(true);
@@ -909,8 +1113,11 @@ export class ClaudeSession extends BaseSession {
       type: 'notice',
       text: this.lastMessage ? `Switched to ${to.name}, and sent your message again.` : `Switched to ${to.name}.`,
     });
-    // Claude Code has the message already, by its id, with the answer the limit gave: it is sent again without.
-    if (this.lastMessage) this.#push({ ...this.lastMessage, id: undefined });
+    // Claude Code has the message already, by its id, with the answer the limit gave: it is sent again without. One
+    // kept from starting at the plan's limit it never read.
+    if (!this.lastMessage) return;
+    this.dispatching = true;
+    this.#push({ ...this.lastMessage, id: held?.when === 'before' ? this.lastMessage.id : undefined });
   }
 
   /** Proactive rotation must not close anything left at work between turns. */
@@ -958,6 +1165,13 @@ export class ClaudeSession extends BaseSession {
    * #followAccount), and says so: the rest of the turn, and what the user sends meanwhile, is in the one before.
    */
   accountSwitched() {
+    // Stopped at the plan's limit of the account it was in: the stopped turn goes on in the one in use now.
+    if (this.held && !this.isBusy && this.accounts.current().id !== this.held.account) {
+      const held = this.held;
+      this.held = null;
+      this.#again(held);
+      return;
+    }
     if (this.accountCheck) return;
     const to = this.accounts.current();
     if (!this.q || !this.isBusy || !this.account || this.account.id === to.id) return;
@@ -971,6 +1185,7 @@ export class ClaudeSession extends BaseSession {
   #restart(keepQueued = false) {
     const old = this.q;
     this.q = null;
+    this.creditStopping = null;
     this.input.close();
     old?.close();
     this.#flushText();
@@ -1092,6 +1307,8 @@ export class ClaudeSession extends BaseSession {
     // A message of its own: the offer to send the one before again is past, and every account may answer.
     this.offer?.abort();
     this.tried = new Set();
+    // And a turn stopped at the plan's limit is tried again, asking the plan afresh.
+    this.held = null;
     this.queue.push(message);
     if (this.dispatching || this.inTurn) this.setWaiting(this.queue.length);
     else this.#drain();
@@ -1102,7 +1319,7 @@ export class ClaudeSession extends BaseSession {
   }
 
   #drain() {
-    if (this.closed || this.dispatching || this.inTurn || !this.queue.length) return;
+    if (this.closed || this.dispatching || this.inTurn || this.held || !this.queue.length) return;
     const message = this.queue.shift();
     this.dispatching = true;
     this.setWaiting(this.queue.length);
@@ -1112,7 +1329,7 @@ export class ClaudeSession extends BaseSession {
   /** The existing queue hands off here, once, before a new turn starts. */
   #push(message) {
     if (!this.accounts.beforeTurn || !this.accounts.proactive?.()) {
-      this.#deliver(message);
+      this.#deliverChecked(message);
       return;
     }
     const check = {};
@@ -1124,10 +1341,50 @@ export class ClaudeSession extends BaseSession {
       () => {
         if (!valid()) return;
         this.accountCheck = null;
-        this.#deliver(message, true);
+        this.#deliverChecked(message, true);
       },
       valid
     );
+  }
+
+  /**
+   * Where the login the turn is in stops at its plan's limit, the plan is asked about first (see #planLimit): a turn
+   * that would be paid for in usage credits doesn't start, and says so. One the user let use them starts as it is.
+   * @param {import('../contract.js').OutgoingMessage} message
+   */
+  #deliverChecked(message, beforeTurn = false) {
+    if (this.creditsOnce) {
+      this.creditsOnce = false;
+      this.creditsTurn = true;
+      this.#deliver(message, beforeTurn);
+      return;
+    }
+    if (!this.#stopsAtLimit(this.accounts.current().id)) {
+      this.#deliver(message, beforeTurn);
+      return;
+    }
+    const check = {};
+    this.creditCheck = check;
+    this.dispatching = true;
+    if (!this.isBusy) this.setState('connecting');
+    // Asked in the Claude Code the turn is to be in: the one in use, where it can move.
+    this.#followAccount(true);
+    this.start();
+    const valid = () => !this.closed && this.creditCheck === check;
+    this.#planLimit(this.q).then((stop) => {
+      if (!valid()) return;
+      this.creditCheck = null;
+      if (!stop || !this.#stopsAtLimit(this.account?.id)) {
+        this.#deliver(message, true);
+        return;
+      }
+      // Kept for the turn the user may let go on, or another account may take.
+      this.lastMessage = { text: message.text, images: message.images || [], id: message.id };
+      this.dispatching = false;
+      this.#stoppedAtLimit({ ...stop, when: 'before', account: this.account.id });
+      this.setState('idle');
+      void this.#goOnElsewhere({ ...stop, when: 'before' });
+    });
   }
 
   /** @param {import('../contract.js').OutgoingMessage} message */
@@ -1160,6 +1417,8 @@ export class ClaudeSession extends BaseSession {
   // The selected object moves, with its original id and attachments; everything else stays in order.
   async sendNow(id, { signal } = {}) {
     if (this.hurried || !selectQueued(this.queue, id)) return;
+    // Sent now by the user: tried again, as a new message is.
+    this.held = null;
     if (!this.dispatching && !this.inTurn) return this.#drain();
     const message = this.lastMessage;
     const retry = () => {
@@ -1192,8 +1451,10 @@ export class ClaudeSession extends BaseSession {
   }
 
   async #interruptTurn({ signal, reportError = false } = {}) {
-    if (this.accountCheck) {
+    this.creditsOnce = false;
+    if (this.accountCheck || this.creditCheck) {
       this.accountCheck = null;
+      this.creditCheck = null;
       this.dispatching = false;
       this.setState('idle');
       if (this.hurried) {
@@ -1243,6 +1504,7 @@ export class ClaudeSession extends BaseSession {
     this.sentBeforeInit = [];
     this.lastMessage = null;
     this.limited = false;
+    this.held = null;
     if (before === null) this.#startAfresh();
     // Never taken in, it is picked up where it is.
     else this.resumeAt = before ?? null;
@@ -1474,6 +1736,7 @@ export class ClaudeSession extends BaseSession {
   close() {
     this.closed = true;
     this.accountCheck = null;
+    this.creditCheck = null;
     this.unwatchAccount?.();
     this.cancelPrompts();
     this.input?.close();

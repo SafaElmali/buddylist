@@ -22,6 +22,9 @@ export const FORWARDED = new Set([
   REQUESTS.chatRespond,
   REQUESTS.chatInterrupt,
   REQUESTS.chatCancel,
+  // A turn stopped at its plan's limit: let it use usage credits this once, or go on in the next account.
+  REQUESTS.chatUseCredits,
+  REQUESTS.chatSwitchAccount,
   // A conversation the phone shows is read, as one in a window you look at is.
   REQUESTS.contactSetUnread,
   // Only read. A provider's models are asked without a folder (see route): one would run its program there.
@@ -92,8 +95,17 @@ export const READS = new Set([
 ]);
 /** What answers an agent: a card's answer, and Stop. Answer only asks these, besides what reads. */
 export const ANSWERS = new Set([REQUESTS.chatRespond, REQUESTS.chatInterrupt]);
-/** What says something to an agent: a message, one that waits sent at once, or taken back. Only with full access. */
-export const SENDS = new Set([REQUESTS.chatSend, REQUESTS.chatSendNow, REQUESTS.chatCancel]);
+/**
+ * What says something to an agent: a message, one that waits sent at once, or taken back; or lets a turn stopped at its
+ * plan's limit go on, in usage credits or another account. Only with full access.
+ */
+export const SENDS = new Set([
+  REQUESTS.chatSend,
+  REQUESTS.chatSendNow,
+  REQUESTS.chatCancel,
+  REQUESTS.chatUseCredits,
+  REQUESTS.chatSwitchAccount,
+]);
 
 /** A refused request's code, which the phone says in words (see network-ipc.js): its device may not ask that. */
 export const NOT_ALLOWED = 'not-allowed';

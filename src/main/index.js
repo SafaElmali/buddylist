@@ -439,6 +439,8 @@ function startApp(errorReports, electronUpdater) {
       roundCut: (contactId, round) => managers.roundCut(contactId, round),
       questionAsked: (contactId, prompt) => managers.questionAsked(contactId, prompt),
     },
+    // Before the turn, or during it: never the amounts, nor which account.
+    onPlanLimit: ({ when }) => analytics.capture('stopped at plan limit', { provider: 'claude', when }),
   });
   // Guests of a manager's conversation work read-only, also the ones that joined before they had to.
   conversations.lockManagerGuests();

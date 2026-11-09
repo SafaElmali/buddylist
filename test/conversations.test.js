@@ -25,7 +25,7 @@ const STORE_DEFAULTS = { defaultProvider: 'claude' };
 // what the project managers have to do with conversations.
 function setup(
   descriptor = claude,
-  { pullRequests, elsewhere = null, suggestReplies, loginOf, managing, inWorktree } = {}
+  { pullRequests, elsewhere = null, suggestReplies, loginOf, managing, inWorktree, onPlanLimit } = {}
 ) {
   const dir = tempDir('cm-conv-');
   const store = new Store(dir, STORE_DEFAULTS);
@@ -84,6 +84,7 @@ function setup(
     loginOf,
     managing,
     inWorktree,
+    onPlanLimit,
   });
   const contact = store.addContact({
     provider: descriptor.id,
@@ -4961,6 +4962,96 @@ test('stopped and failed turns report their outcomes, while empty turns alone ha
     'Claude (promo) finished a turn: Turn stopped. half of it',
     'Claude (promo) finished a turn: Turn failed: API error oops',
   ]);
+});
+
+/** What a session says of a turn stopped at its plan's limit so that usage credits aren't spent (see ClaudeSession). */
+const atPlanLimit = (when = 'during') => ({
+  isError: true,
+  usageLimited: true,
+  limitKind: 'session',
+  planLimit: { kind: 'session', resetsAt: Date.now() + 2 * 3600_000, when },
+  errorText: 'Stopped at the session limit so usage credits aren’t used. Resets in 2 hr.',
+});
+
+test('(f) a worker stopped at its plan limit tells its manager once, and the manager’s notes wait for the user', async () => {
+  const counted = [];
+  const app = setup(claude, { onPlanLimit: (about) => counted.push(about) });
+  const worker = startedFrom(app, app.contact, 'Claude (worker)');
+  askedAndSaid(app, worker.id, 'fix the cart', 'Half done.', atPlanLimit());
+  const told =
+    'Stopped at the session limit so usage credits aren’t used. Resets in 2 hr. Its login is at its plan limit: what ' +
+    'is sent to it waits until the user lets it use usage credits, switches account or writes to it.\n\nHalf done.';
+  assert.equal(notices(app, app.contact.id).length, 1);
+  assert.match(notices(app, app.contact.id)[0], /^Claude \(worker\) finished a turn: Stopped at the session limit/);
+  assert.deepEqual(sessionOf(app, app.contact.id).sent, [{ text: reportNote('Claude (worker)', told) }]);
+  assert.deepEqual(counted, [{ when: 'during' }]);
+  const kept = app.history.read(worker.id).findLast((entry) => entry.kind === 'result');
+  assert.equal(kept.planLimit.when, 'during');
+  // The manager is told once, and what it passes on waits: no turn is started for it.
+  const session = sessionOf(app, worker.id);
+  const sent = session.sent.length;
+  app.conversations.pass(worker.id, {
+    key: 'm:1',
+    line: 'Manager says: keep going',
+    note: 'keep going',
+    from: app.contact.id,
+  });
+  app.conversations.pass(worker.id, {
+    key: 'm:2',
+    line: 'Manager says: and the docs',
+    note: 'docs too',
+    from: app.contact.id,
+  });
+  assert.equal(session.sent.length, sent, 'no automatic restart');
+  assert.equal(await app.conversations.hurryNote(worker.id, 'm:1'), 'plan-limit');
+  assert.equal(session.sent.length, sent, 'not hurried past the stop either');
+  // The user's own message goes, and the notes after it, once it is free.
+  app.conversations.send(worker.id, { text: 'go on', images: [] });
+  assert.equal(session.sent.at(-1).text, 'go on');
+  session.emit({ type: 'state', state: 'working' });
+  session.emit({ type: 'result', isError: false, stopped: false, errorText: '', durationMs: 1, costUsd: 0 });
+  session.emit({ type: 'state', state: 'idle' });
+  assert.equal(session.sent.at(-1).text, 'keep going\n\ndocs too');
+});
+
+test('(f) Use credits for this turn is the user’s: the stopped session goes on once, and the notes wait for it', () => {
+  const app = setup();
+  const worker = startedFrom(app, app.contact, 'Claude (worker)');
+  askedAndSaid(app, worker.id, 'fix the cart', '', atPlanLimit('before'));
+  const session = sessionOf(app, worker.id);
+  let allowed = 0;
+  session.useCredits = () => (allowed++, true);
+  app.conversations.pass(worker.id, {
+    key: 'm:1',
+    line: 'Manager says: keep going',
+    note: 'keep going',
+    from: app.contact.id,
+  });
+  const sent = session.sent.length;
+  assert.equal(app.conversations.useCredits(worker.id), true);
+  assert.equal(allowed, 1);
+  assert.equal(session.sent.length, sent, 'the session sends its stopped message again itself');
+  assert.equal(notices(app, worker.id).at(-1), 'Usage credits may be used for this turn.');
+  // Without a stop to let go on, nothing happens.
+  session.useCredits = () => false;
+  assert.equal(app.conversations.useCredits(worker.id), false);
+});
+
+test('(f) putting another account in use lets the notes held at the plan limit go on', () => {
+  const app = setup();
+  const worker = startedFrom(app, app.contact, 'Claude (worker)');
+  askedAndSaid(app, worker.id, 'fix the cart', '', atPlanLimit());
+  const session = sessionOf(app, worker.id);
+  app.conversations.pass(worker.id, {
+    key: 'm:1',
+    line: 'Manager says: keep going',
+    note: 'keep going',
+    from: app.contact.id,
+  });
+  const sent = session.sent.length;
+  app.conversations.accountSwitched('claude');
+  assert.equal(session.sent.length, sent + 1);
+  assert.equal(session.sent.at(-1).text, 'keep going');
 });
 
 /** A started worker with its first reply already delivered and a command still running. */

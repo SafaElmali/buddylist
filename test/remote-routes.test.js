@@ -167,6 +167,8 @@ test('the channels a page may ask on are exactly these: nothing that runs an age
       REQUESTS.chatRespond,
       REQUESTS.chatInterrupt,
       REQUESTS.chatCancel,
+      REQUESTS.chatUseCredits,
+      REQUESTS.chatSwitchAccount,
       REQUESTS.contactSetUnread,
       REQUESTS.providerModels,
       REQUESTS.chatUsage,
@@ -272,9 +274,17 @@ test('a page asks for the entries before one it has, as the app answers them', a
 /** Whether each channel a page may ask on reaches the app, for a device at each level. */
 const MAY = {
   full: [...FORWARDED],
-  // Answering what an agent asks, and Stop: no message, nothing that waits sent at once or taken back.
+  // Answering what an agent asks, and Stop: no message, nothing that waits sent at once or taken back, and no turn
+  // stopped at its plan's limit let go on, in usage credits or another account.
   answer: [...FORWARDED].filter(
-    (channel) => ![REQUESTS.chatSend, REQUESTS.chatSendNow, REQUESTS.chatCancel].includes(channel)
+    (channel) =>
+      ![
+        REQUESTS.chatSend,
+        REQUESTS.chatSendNow,
+        REQUESTS.chatCancel,
+        REQUESTS.chatUseCredits,
+        REQUESTS.chatSwitchAccount,
+      ].includes(channel)
   ),
   // Only what reads, marks read, or is counted.
   read: [...FORWARDED].filter(
@@ -283,6 +293,8 @@ const MAY = {
         REQUESTS.chatSend,
         REQUESTS.chatSendNow,
         REQUESTS.chatCancel,
+        REQUESTS.chatUseCredits,
+        REQUESTS.chatSwitchAccount,
         REQUESTS.chatRespond,
         REQUESTS.chatInterrupt,
       ].includes(channel)

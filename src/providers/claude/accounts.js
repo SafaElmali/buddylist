@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnable } from '../spawnable.js';
 import { cliSignIn } from '../setup.js';
-import { planOf, toLimits } from './usage.js';
+import { planOf, toExtra, toLimits } from './usage.js';
 
 /** How long Claude Code gets to say who is signed in, or to sign out. */
 const PATIENCE_MS = 8000;
@@ -377,9 +377,12 @@ export function claudeAccounts({ binary, env, loginArgs, cliPath = () => undefin
         };
       try {
         const { plan, error } = await planOf({ env: inAccount(dir), cliPath: cliPath(), queryFn });
+        const extra = toExtra(plan);
         return {
           ...auth,
           limits: plan ? toLimits(plan, { includeUnknown: true }) : null,
+          // What it spends past them: the Accounts page says so beside whether it stops at the limit.
+          ...(extra && { extra }),
           ...(!plan && usageFailure(error)),
         };
       } catch (error) {
