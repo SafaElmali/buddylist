@@ -114,6 +114,7 @@ src/
   renderer/             the windows (plain ES modules; only a packaged app is bundled)
     lib/                frame, menus, dialogs, icons, emoticons, pictures and the viewer that shows one over the window, Markdown and the diagrams in it (Mermaid, loaded the first time a reply has one), sounds, handing an uncaught error to the main process
     sounds/             the three original MSN notification recordings
+    pictures/           the app icon in a title bar, the toast, About and the welcome wizard, at each size and twice it (npm run icon)
     contacts/           the contact list window; its list is drawn beside a conversation too
     chat/               the conversation window
     history/            the message history windows: one contact's, and every contact's

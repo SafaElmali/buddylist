@@ -29,6 +29,7 @@ import {
   SERVICE_WORKER,
 } from '../src/main/remote/web.js';
 import { PRELOAD, RENDERER_DIR, SRC_DIR, TRAY_ICON } from '../src/main/paths.js';
+import { APP_ICON_SIZES, appIconFiles } from '../src/renderer/lib/icons.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 /** The app's folder, as packed: the build is its src/ (see the "files" in package.json). */
@@ -501,6 +502,20 @@ test('of the two packages the main process loads, only the files it never reads 
 test('the files the main process looks up by path are in the build', () => {
   for (const file of [PRELOAD, TRAY_ICON, path.join(RENDERER_DIR, 'chat.html'), path.join(BUNDLED_PACK_DIR, 'winks')]) {
     assert.ok(fs.existsSync(inBuild(file)), file);
+  }
+});
+
+test('the app icon a title bar, the toast, About and the welcome wizard show is in the build, at each size and twice it', () => {
+  const pictures = APP_ICON_SIZES.flatMap(appIconFiles);
+  assert.equal(pictures.length, 4);
+  // A page finds them from where it is, beside them.
+  for (const file of pictures) assert.ok(fs.existsSync(path.join(OUT, 'renderer', file)), file);
+  for (const page of ['toast.html', 'onboarding.html']) {
+    const named = [
+      ...read(path.join('renderer', page)).matchAll(/<img\b[^>]*\bsrc="([^"]+)"[^>]*\bsrcset="(\S+) 2x"/g),
+    ];
+    assert.equal(named.length, 1, page);
+    for (const file of named[0].slice(1)) assert.ok(pictures.includes(file), `${page}: ${file}`);
   }
 });
 

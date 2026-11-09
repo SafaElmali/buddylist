@@ -86,6 +86,9 @@ fs.mkdirSync(path.join(OUT, 'sounds'), { recursive: true });
 for (const file of ['type.wav', 'nudge.wav', 'online.wav']) {
   fs.copyFileSync(path.join(RENDERER, 'sounds', file), path.join(OUT, 'sounds', file));
 }
+// The app icon a title bar, the toast and About show, found from each window's page as in the app.
+fs.rmSync(path.join(OUT, 'pictures'), { recursive: true, force: true });
+fs.cpSync(path.join(RENDERER, 'pictures'), path.join(OUT, 'pictures'), { recursive: true });
 // The pack as it is now: a wink the last build copied and src/ no longer has would be deployed with the rest.
 fs.rmSync(path.join(OUT, 'pack'), { recursive: true, force: true });
 fs.cpSync(path.join(ROOT, 'src', 'pack', 'winks'), path.join(OUT, 'pack', 'winks'), { recursive: true });

@@ -142,6 +142,7 @@ for (const file of ['index.html', 'contacts.html', 'chat.html', 'history.html', 
 }
 fs.cpSync(path.join(DEMO, 'pack'), path.join(OUT, 'demo', 'pack'), { recursive: true });
 fs.cpSync(path.join(DEMO, 'sounds'), path.join(OUT, 'demo', 'sounds'), { recursive: true });
+fs.cpSync(path.join(DEMO, 'pictures'), path.join(OUT, 'demo', 'pictures'), { recursive: true });
 // What draws a reply's diagram, loaded only when one has.
 fs.cpSync(path.join(DEMO, MERMAID_PREVIEW_DIR), path.join(OUT, 'demo', MERMAID_PREVIEW_DIR), { recursive: true });
 

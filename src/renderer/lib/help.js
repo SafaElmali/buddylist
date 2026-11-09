@@ -1,7 +1,7 @@
 // Help menu dialogs and items shared by every window.
 import { el, html, raw } from './dom.js';
 import { infoDialog } from './dialog.js';
-import { appMark } from './icons.js';
+import { appIcon } from './icons.js';
 import { CHANGELOG_URL } from '../../shared/release-notes.js';
 import { shortcutKeys, shortcutLabel, systemOf } from '../../shared/shortcuts.js';
 import { findKeyLabel } from '../../shared/terminal.js';
@@ -46,7 +46,7 @@ async function showAbout(askVersion) {
     'About buddylist',
     el(
       html`<div class="about">
-        <div class="about-mark">${raw(appMark(48))}</div>
+        <div class="about-mark">${raw(appIcon(48))}</div>
         <div>
           <p><b>buddylist</b> ${version}</p>
           <p>

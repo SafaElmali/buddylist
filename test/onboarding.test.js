@@ -11,6 +11,7 @@ import {
 import fs from 'node:fs';
 import { FEATURES, PAGES, step } from '../src/renderer/onboarding/pages.js';
 import { LOOKS } from '../src/shared/theme.js';
+import { APP_ICON_SIZES, appIconFiles } from '../src/renderer/lib/icons.js';
 
 const item = (id, state, more = {}) => ({ id, name: id[0].toUpperCase() + id.slice(1), state, note: '', ...more });
 const github = (state) => item('github', state, { name: 'GitHub CLI', optional: true });
@@ -137,25 +138,19 @@ const MARK = fs
   .readFileSync(new URL('../src/renderer/onboarding.html', import.meta.url), 'utf8')
   .match(/<div class="ob-mark">\s*<img([^>]*)>/)[1];
 const markSays = (name) => MARK.match(new RegExp(`\\s${name}="([^"]*)"`))[1];
-/** A PNG's width and height, from its header. */
-const pngSize = (file) => {
-  const png = fs.readFileSync(new URL(file, PICTURES));
-  return [png.readUInt32BE(16), png.readUInt32BE(20)];
-};
 
-test('the mark beside the name is the app icon, drawn at the size it is shown and twice it', () => {
-  const size = Number(markSays('width'));
-  assert.equal(Number(markSays('height')), size);
-  assert.equal(markSays('src'), 'onboarding/pictures/app-icon.png');
-  assert.equal(markSays('srcset'), 'onboarding/pictures/app-icon@2x.png 2x');
-  assert.deepEqual(pngSize('app-icon.png'), [size, size]);
-  assert.deepEqual(pngSize('app-icon@2x.png'), [size * 2, size * 2]);
+// Drawn at each size it is shown, and twice it: see app-icon.test.js.
+test('the mark beside the name is the app icon the windows show, at 48 and twice it', () => {
+  assert.equal(Number(markSays('width')), 48);
+  assert.equal(Number(markSays('height')), 48);
+  assert.ok(APP_ICON_SIZES.includes(48));
+  const [picture, twice] = appIconFiles(48);
+  assert.equal(markSays('src'), picture);
+  assert.equal(markSays('srcset'), `${twice} 2x`);
 });
 
 test('the wizard has no picture that none of its pages shows', () => {
   const shown = new Set([
-    'app-icon.png',
-    'app-icon@2x.png',
     ...LOOKS.map(({ id }) => `look-${id}.webp`),
     ...FEATURES.flatMap(({ id }) => [...LOOKS.map((look) => `${id}-${look.id}.webp`), `${id}-professional-night.webp`]),
   ]);

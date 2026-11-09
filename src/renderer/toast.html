@@ -19,7 +19,10 @@
   <body>
     <div class="toast" id="toast">
       <div class="toast-head">
-        <span class="toast-mark" id="mark"></span>
+        <!-- The app icon, drawn by `npm run icon` (scripts/make-icon.js) at this size and twice it. -->
+        <span class="toast-mark">
+          <img src="pictures/app-icon-16.png" srcset="pictures/app-icon-16@2x.png 2x" width="16" height="16" alt="" />
+        </span>
         <span class="toast-app">buddylist</span>
         <button class="toast-close" id="close" type="button" aria-label="Close">✕</button>
       </div>

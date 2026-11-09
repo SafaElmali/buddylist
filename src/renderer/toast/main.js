@@ -7,14 +7,12 @@ import '../lib/look.js';
 import { api } from '../lib/api.js';
 import { $ } from '../lib/dom.js';
 import { emoticonize } from '../lib/emoticons.js';
-import { appMark } from '../lib/icons.js';
 import { setPack } from '../lib/pack.js';
 import { pictureHtml } from '../lib/pictures.js';
 
 const params = new URLSearchParams(location.search);
 const toast = $('#toast');
 
-$('#mark').innerHTML = appMark(13);
 $('#picture').innerHTML = pictureHtml({ avatar: params.get('avatar') || 'default', size: 'small' });
 $('#title').textContent = params.get('title') || '';
 $('#message').textContent = params.get('body') || '';
