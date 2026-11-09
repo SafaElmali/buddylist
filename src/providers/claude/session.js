@@ -65,8 +65,12 @@ const skippedMessage = (input) =>
   `The user skipped ${input.questions?.length > 1 ? 'these questions' : 'this question'}. ` +
   'Go on with your best judgment, and say what you assumed.';
 
-// The tools that write files, which an agent that changes none goes without (see `readOnly` on SessionContact).
-const READ_ONLY_DISALLOWED = ['Edit', 'MultiEdit', 'Write', 'NotebookEdit'];
+// The tools that write files, which an agent that changes none goes without (see `readOnly` on SessionContact), and
+// the ones that make a worktree for it to go on in, or take it out of one.
+const READ_ONLY_DISALLOWED = ['Edit', 'MultiEdit', 'Write', 'NotebookEdit', 'EnterWorktree', 'ExitWorktree'];
+
+// The tools that run a command Claude Code may ask about.
+const COMMAND_TOOLS = ['Bash', 'PowerShell'];
 
 // What Claude is told of a command it asked to run while it changes no files: Claude Code asks only about the ones it
 // can't see change nothing, and doesn't run in its sandbox, so an approval could let one write (see #canUseTool).
@@ -74,6 +78,13 @@ const READ_ONLY_DECLINED =
   'buddylist declined this command without asking: you work read-only in this conversation, and Claude Code ' +
   'can’t tell that this command changes nothing. Only commands that run in its read-only sandbox, or that it sees ' +
   'as read-only, run here. For changes, start a worker with buddylist’s start_conversation tool.';
+
+// What Claude is told of a tool of an MCP server other than the app's that it called while it changes no files: no
+// sandbox holds what such a tool does, and in Never ask nothing would ask first (see #readOnlyTool).
+const READ_ONLY_MCP_DECLINED =
+  'buddylist declined this tool without asking: you work read-only in this conversation, and nothing keeps the ' +
+  'tools of MCP servers other than buddylist’s from changing files. For changes, start a worker with buddylist’s ' +
+  'start_conversation tool.';
 
 // The modes in which Claude Code runs a command it can't see changes nothing without asking, where no sandbox holds it,
 // by the names the mode picker gives them: Accept edits runs one that writes in the folder, and Bypass permissions any.
@@ -104,7 +115,8 @@ function didntStart(mode, said) {
  * and run without asking. Reads and the network still work, and so do macOS's certificate checks, which gh and other
  * Go tools need for HTTPS. Where the sandbox can't run, such as Linux without bubblewrap, a session in a mode that
  * asks still starts, and the commands Claude Code asks about are declined (see #canUseTool). One in a mode that runs
- * them unasked doesn't start there: nothing would keep them from writing.
+ * them unasked doesn't start there: nothing would keep them from writing. Nor is one put in such a mode while it runs:
+ * it starts again in it, with the sandbox required (see setPermissionMode).
  * @param {string[]} folders  its own, and the ones it reads in
  * @param {string} mode  the one it starts in
  */
@@ -271,6 +283,8 @@ export class ClaudeSession extends BaseSession {
     /** @type {AbortController | null} withdraws the offer to go on in another account, while it is open */
     this.offer = null;
     this.q = null;
+    /** Whether the Claude Code running, if any, was started not to run where its sandbox can't (see readOnlySandbox). */
+    this.sandboxRequired = false;
     this.textBuffers = new Map();
     /** @type {Map<string, { toolId: string, name: string, input: string, told: string }>} tool calls Claude is writing out, by block */
     this.drafts = new Map();
@@ -396,7 +410,12 @@ export class ClaudeSession extends BaseSession {
     if (this.contact.readOnly) {
       options.disallowedTools = READ_ONLY_DISALLOWED;
       options.sandbox = readOnlySandbox([this.contact.cwd, ...(this.contact.readDirs ?? [])], options.permissionMode);
+      // Asked before any call, in every mode, Never ask included, and for its helpers' calls too.
+      options.hooks.PreToolUse = [{ hooks: [async (call) => this.#readOnlyTool(call)] }];
     }
+    // Whether this Claude Code doesn't start where its sandbox can't run: a mode it is put in later can't loosen that
+    // (see setPermissionMode).
+    this.sandboxRequired = Boolean(options.sandbox?.failIfUnavailable);
     // Folders it reads in as in its own, without asking: a project's manager, its workers' worktrees.
     if (this.contact.readDirs?.length) options.additionalDirectories = this.contact.readDirs;
     // One of your own agents, from .claude/agents: Claude Code runs as it, with its prompt, tools and model.
@@ -1161,6 +1180,31 @@ export class ClaudeSession extends BaseSession {
   }
 
   /**
+   * Claude Code runs a read-only agent without its sandbox required, and the mode the agent is to be in runs commands
+   * unasked: where the sandbox can't run, nothing would keep them from changing files.
+   */
+  #lacksSandbox() {
+    return (
+      Boolean(this.q) &&
+      Boolean(this.contact.readOnly) &&
+      !this.sandboxRequired &&
+      Object.hasOwn(RUNS_UNASKED, this.contact.permissionMode)
+    );
+  }
+
+  /**
+   * A read-only agent was put in a mode that runs commands unasked since Claude Code was started without its sandbox
+   * required: it is started again in that mode, with the sandbox required, where it picks the conversation up. Not in
+   * the middle of a turn, a question for the user or a helper at work: it moves with the first message after that.
+   */
+  #followSandbox(beforeTurn = false) {
+    const checking = beforeTurn && this.state === 'connecting' && !this.inTurn && !this.prompts.size;
+    if (!this.#lacksSandbox() || (this.isBusy && !checking)) return;
+    if ([...this.helpers.values()].some(Boolean)) return;
+    this.#restart(true);
+  }
+
+  /**
    * Another account was put in use. One in the middle of a turn can't move until the turn is over (see
    * #followAccount), and says so: the rest of the turn, and what the user sends meanwhile, is in the one before.
    */
@@ -1234,7 +1278,7 @@ export class ClaudeSession extends BaseSession {
     if (appTool && !appTool.ask(input)) return { behavior: 'allow', updatedInput: input };
     // Kept from changing files, it runs the commands its sandbox holds, or Claude Code sees as read-only, and no
     // other: one it asks about may write, so it is declined unasked, and Claude hears why and where changes go.
-    if (this.contact.readOnly && (toolName === 'Bash' || (toolName === 'Monitor' && input?.command))) {
+    if (this.contact.readOnly && (COMMAND_TOOLS.includes(toolName) || (toolName === 'Monitor' && input?.command))) {
       if (toolUseID) this.declinedTools.add(toolUseID);
       return { behavior: 'deny', message: READ_ONLY_DECLINED };
     }
@@ -1266,6 +1310,23 @@ export class ClaudeSession extends BaseSession {
     const updates =
       askedIn === this.contact.permissionMode ? suggestions : suggestions?.filter(({ type }) => type !== 'setMode');
     return this.#toPermissionResult(response, input, updates);
+  }
+
+  /**
+   * A read-only agent's call of a tool of an MCP server other than the app's is declined before Claude Code decides
+   * whether to ask, and Claude hears why. Any other call goes on as it would.
+   * @param {{ tool_name: string, tool_use_id?: string }} call
+   */
+  #readOnlyTool({ tool_name: name, tool_use_id: toolUseID }) {
+    if (!String(name).startsWith('mcp__') || String(name).startsWith(appToolName(''))) return {};
+    if (toolUseID) this.declinedTools.add(toolUseID);
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: READ_ONLY_MCP_DECLINED,
+      },
+    };
   }
 
   /** @param {PermissionResponse} response */
@@ -1369,6 +1430,7 @@ export class ClaudeSession extends BaseSession {
     if (!this.isBusy) this.setState('connecting');
     // Asked in the Claude Code the turn is to be in: the one in use, where it can move.
     this.#followAccount(true);
+    this.#followSandbox(true);
     this.start();
     const valid = () => !this.closed && this.creditCheck === check;
     this.#planLimit(this.q).then((stop) => {
@@ -1390,6 +1452,7 @@ export class ClaudeSession extends BaseSession {
   /** @param {import('../contract.js').OutgoingMessage} message */
   #deliver({ text, images = [], id }, beforeTurn = false) {
     this.#followAccount(beforeTurn);
+    this.#followSandbox(beforeTurn);
     this.start();
     this.dispatching = true;
     this.lastMessage = { text, images, id };
@@ -1586,7 +1649,11 @@ export class ClaudeSession extends BaseSession {
 
   async setPermissionMode(mode) {
     this.contact.permissionMode = mode;
-    if (this.q) await this.q.setPermissionMode(mode);
+    // A read-only agent's Claude Code started where its sandbox wasn't required, in a mode that asks before a command
+    // it can't hold, isn't put in one that runs them unasked: that one may run where no sandbox can. It starts again
+    // in it with the sandbox required (see #followSandbox), and until then goes on in the one it had.
+    if (this.#lacksSandbox()) this.#followSandbox();
+    else if (this.q) await this.q.setPermissionMode(mode);
     if (mode !== 'bypassPermissions') return;
     for (const [requestId, prompt] of [...this.prompts]) {
       if (prompt.kind === 'tool' && prompt.automatic) this.respond(requestId, { decision: 'allow' });
@@ -1633,6 +1700,7 @@ export class ClaudeSession extends BaseSession {
    */
   async #ask(question) {
     this.#followAccount();
+    this.#followSandbox();
     this.start();
     const asked = this.q;
     try {

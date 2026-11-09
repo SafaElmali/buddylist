@@ -25,11 +25,14 @@ export const geminiAgent = (command = 'gemini') => ({
   // server it covers that tool, not everything the server has.
   alwaysOptions: ['proceed_always', 'proceed_always_tool'],
   modeFromText: (text) => MODE_UPDATE.exec(text)?.[1] ?? null,
+  // Gemini CLI goes on by itself in Auto-accept file edits once a file change is always allowed, and leaves Plan mode
+  // for Ask before acting once its plan is approved.
+  modeAfter: ({ mode, kind, always }) => (always && kind === 'edit' ? 'autoEdit' : mode === 'plan' ? 'default' : null),
 });
 
 /**
  * @param {object} [opts]
- * @param {(conversation: string, speakerId: string) => import('../../main/app-tools.js').AppTool[]} [opts.tools]
+ * @param {(conversation: string, speakerId: string, seat?: import('../../main/app-tools.js').Seat) => import('../../main/app-tools.js').AppTool[]} [opts.tools]
  * @param {() => string} [opts.cliPath]  the Gemini CLI the user pointed the app at, if any: asked each time
  * @returns {import('../contract.js').Provider}
  */
@@ -48,7 +51,7 @@ export function createGeminiProvider({ cliPath = () => '', tools = () => [] } = 
         agent: geminiAgent(cli()),
         env,
         instructions,
-        appTools: conversation ? tools(conversation, contact.id) : [],
+        appTools: conversation ? tools(conversation, contact.id, { readOnly: Boolean(contact.readOnly) }) : [],
       }),
     // Gemini CLI can't be asked whether it is signed in, only whether it is there.
     checkSetup: () =>

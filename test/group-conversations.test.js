@@ -6827,6 +6827,21 @@ function handBackAndForth(app) {
 
 const paused = (app) => app.notices().filter((text) => text === PAUSED);
 
+test('an agent in a manager’s conversation can’t say itself into a mode other than the one it works read-only in', () => {
+  const app = managerWithGuest();
+  const { store, claude, codex } = app;
+  app.say('@Codex look');
+  const session = app.session(codex);
+  const guest = () => store.getContact(claude.id).guests.find((one) => one.id === codex.id);
+  assert.equal(guest().permissionMode, 'read-only');
+  for (const mode of ['full-access', 'auto', 'nonsense']) {
+    session.emit({ type: 'mode', mode });
+    assert.equal(guest().permissionMode, 'read-only', mode);
+  }
+  session.emit({ type: 'mode', mode: 'read-only' });
+  assert.equal(guest().permissionMode, 'read-only');
+});
+
 test('a manager with a guest reads every worker note, however many come in a row', () => {
   const app = managerWithGuest();
   const { conversations, claude, turns } = app;

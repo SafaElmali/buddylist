@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ClaudeSession } from '../src/providers/claude/session.js';
+import { sdkTool } from '../src/providers/claude/app-tools.js';
+import { OUTSIDE_SANDBOX, appTools } from '../src/main/app-tools.js';
 import { descriptor } from '../src/providers/claude/descriptor.js';
 import { createProviders } from '../src/providers/index.js';
 import { allInstructions } from '../src/shared/project-settings.js';
@@ -3316,7 +3318,14 @@ test('an agent that changes no files goes without the tools that write them, and
   const events = collect(session);
   session.send({ text: 'review it' });
   await until(events, 'result');
-  assert.deepEqual(calls.options.disallowedTools, ['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
+  assert.deepEqual(calls.options.disallowedTools, [
+    'Edit',
+    'MultiEdit',
+    'Write',
+    'NotebookEdit',
+    'EnterWorktree',
+    'ExitWorktree',
+  ]);
   assert.equal(calls.options.permissionMode, 'default');
 
   const plain = fakeQuery([DONE]);
@@ -3440,7 +3449,9 @@ for (const permissionMode of ['default', 'acceptEdits', 'plan']) {
       async (options) => {
         decisions.push(
           await options.canUseTool('Bash', { command: 'cat > a.ts <<EOF\nx\nEOF' }, { signal, toolUseID: 'b1' }),
-          await options.canUseTool('Monitor', { command: 'tail -f log | tee copy' }, { signal, toolUseID: 'm1' })
+          await options.canUseTool('Monitor', { command: 'tail -f log | tee copy' }, { signal, toolUseID: 'm1' }),
+          // Claude Code on Windows runs its commands with PowerShell.
+          await options.canUseTool('PowerShell', { command: 'Set-Content a.ts x' }, { signal, toolUseID: 'p1' })
         );
       },
       {
@@ -3469,6 +3480,222 @@ for (const permissionMode of ['default', 'acceptEdits', 'plan']) {
     assert.equal(events.find((e) => e.type === 'tool-result' && e.toolId === 'b1')?.declined, true);
   });
 }
+
+/** A Claude Code that answers each message it is sent until it is closed, with each start of one kept. */
+function lastingQuery() {
+  const starts = [];
+  const queryFn = ({ prompt, options }) => {
+    const started = { options, modes: [], prompts: 0, closed: false };
+    starts.push(started);
+    async function* run() {
+      for await (const message of prompt) {
+        started.prompts += 1;
+        if (started.hold) await started.hold;
+        yield { ...DONE, session_id: 's1', message };
+      }
+    }
+    const gen = run();
+    gen.interrupt = async () => {};
+    gen.setPermissionMode = async (mode) => started.modes.push(mode);
+    gen.setModel = async () => {};
+    gen.initializationResult = async () => ({});
+    gen.applyFlagSettings = async () => {};
+    gen.close = () => (started.closed = true);
+    return gen;
+  };
+  return { queryFn, starts };
+}
+
+const results = (events) => events.filter((e) => e.type === 'result').length;
+const untilResults = (events, count) =>
+  new Promise((resolve) => {
+    const timer = setInterval(() => {
+      if (results(events) < count) return;
+      clearInterval(timer);
+      resolve();
+    }, 5);
+  });
+
+test('a read-only agent put in a mode that runs commands unasked starts again with its sandbox required', async () => {
+  for (const mode of ['bypassPermissions', 'acceptEdits']) {
+    const { queryFn, starts } = lastingQuery();
+    const session = new ClaudeSession({ contact: { ...contact(), readOnly: true }, emit: () => {}, queryFn });
+    const events = collect(session);
+    session.send({ text: 'look' });
+    await untilResults(events, 1);
+    assert.equal(starts[0].options.sandbox.failIfUnavailable, false, 'a mode that asks starts without it required');
+    await session.setPermissionMode(mode);
+    // Not put in that mode where nothing may hold its commands: closed, to start again in it.
+    assert.deepEqual(starts[0].modes, []);
+    assert.equal(starts[0].closed, true);
+    session.send({ text: 'look again' });
+    await untilResults(events, 2);
+    assert.equal(starts.length, 2);
+    assert.equal(starts[1].options.permissionMode, mode);
+    assert.equal(starts[1].options.sandbox.failIfUnavailable, true, `${mode}: it doesn't run where it can't`);
+    assert.equal(starts[1].prompts, 1, 'the message goes to the new one');
+    session.close();
+  }
+});
+
+test('one in the middle of a turn goes on in the mode it had, and starts again with the next message', async () => {
+  const { queryFn, starts } = lastingQuery();
+  const session = new ClaudeSession({ contact: { ...contact(), readOnly: true }, emit: () => {}, queryFn });
+  const events = collect(session);
+  let release;
+  session.send({ text: 'look' });
+  while (!starts.length) await new Promise((resolve) => setTimeout(resolve, 5));
+  starts[0].hold = new Promise((resolve) => (release = resolve));
+  while (session.state !== 'working') await new Promise((resolve) => setTimeout(resolve, 5));
+  await session.setPermissionMode('bypassPermissions');
+  assert.deepEqual(starts[0].modes, [], 'the turn going on stays in the mode that asks');
+  assert.equal(starts[0].closed, false, 'and isn’t cut short');
+  release();
+  await untilResults(events, 1);
+  session.send({ text: 'go on' });
+  await untilResults(events, 2);
+  assert.equal(starts[0].closed, true);
+  assert.equal(starts[1].options.permissionMode, 'bypassPermissions');
+  assert.equal(starts[1].options.sandbox.failIfUnavailable, true);
+  session.close();
+});
+
+test('a read-only agent started with its sandbox required, or one that may change files, just switches mode', async () => {
+  for (const [start, readOnly, to] of [
+    ['bypassPermissions', true, 'acceptEdits'],
+    ['acceptEdits', true, 'bypassPermissions'],
+    ['bypassPermissions', true, 'default'],
+    ['default', true, 'plan'],
+    ['default', false, 'bypassPermissions'],
+  ]) {
+    const { queryFn, starts } = lastingQuery();
+    const session = new ClaudeSession({
+      contact: { ...contact(), permissionMode: start, ...(readOnly && { readOnly }) },
+      emit: () => {},
+      queryFn,
+    });
+    const events = collect(session);
+    session.send({ text: 'look' });
+    await untilResults(events, 1);
+    await session.setPermissionMode(to);
+    assert.deepEqual(starts[0].modes, [to], `${start} → ${to}`);
+    assert.equal(starts[0].closed, false);
+    session.close();
+  }
+});
+
+test('a read-only agent’s plan approved into a mode that runs commands unasked takes it once started again', async () => {
+  let decision;
+  const { queryFn, starts } = lastingQuery();
+  const asking = ({ prompt, options }) => {
+    const q = queryFn({ prompt, options });
+    if (starts.length > 1) return q;
+    const next = q.next.bind(q);
+    let asked = false;
+    q.next = async (...args) => {
+      if (!asked) {
+        asked = true;
+        decision = await options.canUseTool(
+          'ExitPlanMode',
+          { plan: 'Read it all.' },
+          {
+            signal: new AbortController().signal,
+            toolUseID: 'x1',
+          }
+        );
+      }
+      return next(...args);
+    };
+    return q;
+  };
+  const session = new ClaudeSession({
+    contact: { ...contact(), permissionMode: 'plan', readOnly: true },
+    emit: () => {},
+    queryFn: asking,
+  });
+  const events = collect(session);
+  session.send({ text: 'plan it' });
+  const prompt = await until(events, 'permission');
+  session.respond(prompt.requestId, { decision: 'approve-plan', mode: 'acceptEdits' });
+  await untilResults(events, 1);
+  assert.equal(decision.behavior, 'allow');
+  assert.deepEqual(starts[0].modes, [], 'its Claude Code isn’t put in it');
+  assert.equal(session.contact.permissionMode, 'acceptEdits');
+  session.send({ text: 'go on' });
+  await untilResults(events, 2);
+  assert.equal(starts[1].options.permissionMode, 'acceptEdits');
+  assert.equal(starts[1].options.sandbox.failIfUnavailable, true);
+  session.close();
+});
+
+test('a read-only agent goes without the tools that make or leave a worktree, and other MCP servers’ tools', async () => {
+  const { queryFn, starts } = lastingQuery();
+  const session = new ClaudeSession({
+    contact: { ...contact(), permissionMode: 'bypassPermissions', readOnly: true },
+    emit: () => {},
+    queryFn,
+  });
+  const events = collect(session);
+  session.send({ text: 'look' });
+  await untilResults(events, 1);
+  const { options } = starts[0];
+  assert.ok(options.disallowedTools.includes('EnterWorktree'));
+  assert.ok(options.disallowedTools.includes('ExitWorktree'));
+  // Asked before every call, in Never ask too, where Claude Code asks nobody.
+  const [{ hooks }] = options.hooks.PreToolUse;
+  const before = (tool_name) =>
+    hooks[0]({ hook_event_name: 'PreToolUse', tool_name, tool_input: {}, tool_use_id: tool_name });
+  const declined = await before('mcp__files__write_file');
+  assert.equal(declined.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(declined.hookSpecificOutput.permissionDecisionReason, /declined.*read-only.*start_conversation/);
+  for (const allowed of ['mcp__messenger__open_terminals', 'Read', 'Grep', 'Bash', 'ListMcpResourcesTool']) {
+    assert.deepEqual(await before(allowed), {}, `${allowed} goes on as it would`);
+  }
+  session.close();
+
+  const plain = lastingQuery();
+  const other = new ClaudeSession({ contact: contact(), emit: () => {}, queryFn: plain.queryFn });
+  const told = collect(other);
+  other.send({ text: 'fix it' });
+  await untilResults(told, 1);
+  assert.equal(plain.starts[0].options.hooks.PreToolUse, undefined, 'one that may change files uses them as ever');
+  other.close();
+});
+
+test('a read-only agent in Never ask is asked about a command for a terminal, on a card saying where it runs', async () => {
+  const typed = [];
+  const tools = appTools({
+    store: { getContact: (id) => (id === 'c1' ? { id: 'c1' } : null), settings: {} },
+    terminals: { wanted: (...args) => (typed.push(args), true) },
+    startConversation: async () => ({}),
+    instructions: { of: async () => ({}), save() {} },
+  })('c1', 'c1', { readOnly: true });
+  const { queryFn, starts } = lastingQuery();
+  const session = new ClaudeSession({
+    contact: { ...contact(), permissionMode: 'bypassPermissions', readOnly: true },
+    emit: () => {},
+    queryFn,
+    tools,
+  });
+  const events = collect(session);
+  session.send({ text: 'open a terminal' });
+  await untilResults(events, 1);
+  assert.ok(starts[0].options.mcpServers.messenger, 'its tools are the app’s own server');
+  // As that server runs it: Claude Code asks nobody in Never ask, so the tool asks with the session.
+  const open = sdkTool(
+    tools.find((tool) => tool.name === 'open_terminals'),
+    () => session.appToolContext()
+  );
+  const answer = open.handler({ command: 'echo hi' }, {});
+  const card = await until(events, 'permission');
+  assert.equal(card.activity.command, 'echo hi');
+  assert.equal(card.reason, OUTSIDE_SANDBOX);
+  assert.deepEqual(typed, [], 'nothing is typed before the user says so');
+  session.respond(card.requestId, { decision: 'allow' });
+  assert.match((await answer).content[0].text, /with echo hi typed into it/);
+  assert.deepEqual(typed, [['c1', [null], 'echo hi']]);
+  session.close();
+});
 
 test('an agent that may change files is still asked before a command', async () => {
   const { queryFn } = fakeQuery([

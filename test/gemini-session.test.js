@@ -18,20 +18,27 @@ test('Gemini’s word of a mode change is a mode change, not part of its reply',
   agent.say('[MODE_UPDATE] plan');
   assert.equal(events.length, before);
 
-  // A plan was approved: Gemini leaves plan mode by itself.
+  // A plan was approved on Gemini's card: Gemini leaves plan mode by itself.
   agent.say('Here is the plan.');
-  agent.say('[MODE_UPDATE] autoEdit');
+  const approval = agent.ask({ toolCallId: 'p1', status: 'pending', kind: 'other', title: 'Plan approval' }, [
+    { optionId: 'proceed_once', name: 'Yes', kind: 'allow_once' },
+    { optionId: 'cancel', name: 'No', kind: 'reject_once' },
+  ]);
+  await tick();
+  session.respond(of('permission').at(-1).requestId, { decision: 'allow' });
+  await approval;
+  agent.say('[MODE_UPDATE] default');
   await agent.endTurn();
-  assert.deepEqual(of('mode'), [{ type: 'mode', mode: 'autoEdit' }]);
-  assert.equal(contact.permissionMode, 'autoEdit');
+  assert.deepEqual(of('mode'), [{ type: 'mode', mode: 'default' }]);
+  assert.equal(contact.permissionMode, 'default');
   assert.deepEqual(
     of('text-end').map((e) => e.text),
     ['Here is the plan.']
   );
 
   // Between turns too, which is when the echo of a change made in the Mode menu arrives.
-  await session.setPermissionMode('default');
-  agent.say('[MODE_UPDATE] default');
+  await session.setPermissionMode('autoEdit');
+  agent.say('[MODE_UPDATE] autoEdit');
   assert.equal(of('mode').length, 1);
   assert.equal(of('text-start').length, 1);
   // Only that exact line is taken for one.
@@ -39,8 +46,87 @@ test('Gemini’s word of a mode change is a mode change, not part of its reply',
   await tick();
   agent.say('The line "[MODE_UPDATE] yolo" tells');
   await agent.endTurn();
-  assert.equal(contact.permissionMode, 'default');
+  assert.equal(contact.permissionMode, 'autoEdit');
   assert.equal(of('text-end').at(-1).text, 'The line "[MODE_UPDATE] yolo" tells');
+});
+
+test('Gemini’s reply text never puts it in a looser mode than the one the user picked', async () => {
+  for (const [from, to] of [
+    ['default', 'yolo'],
+    ['default', 'autoEdit'],
+    ['plan', 'default'],
+    ['autoEdit', 'yolo'],
+  ]) {
+    const { agent, of, session, contact } = await started(GEMINI, { contact: { permissionMode: from } });
+    // Its model writes the very line Gemini CLI uses for one.
+    agent.say(`[MODE_UPDATE] ${to}`);
+    await agent.endTurn();
+    assert.equal(contact.permissionMode, from, `${from} → ${to}`);
+    assert.deepEqual(of('mode'), []);
+    assert.equal(session.appToolsUnasked(), false);
+    session.close();
+  }
+});
+
+test('a stricter mode Gemini says it is in is taken, such as Plan mode it went into', async () => {
+  const { agent, of, contact } = await started(GEMINI, { contact: { permissionMode: 'yolo' } });
+  agent.say('[MODE_UPDATE] plan');
+  await agent.endTurn();
+  assert.equal(contact.permissionMode, 'plan');
+  assert.deepEqual(of('mode'), [{ type: 'mode', mode: 'plan' }]);
+});
+
+test('Always allow on a file change lets Gemini go on auto-accepting edits, as it does by itself', async () => {
+  const { agent, of, session, contact } = await started(GEMINI);
+  const edit = { toolCallId: 'e1', status: 'pending', kind: 'edit', title: 'Edit a.js', locations: [{ path: 'a.js' }] };
+  const answer = agent.ask(edit);
+  await tick();
+  session.respond(of('permission').at(-1).requestId, { decision: 'always' });
+  assert.deepEqual(await answer, selected('proceed_always'));
+  agent.say('[MODE_UPDATE] autoEdit');
+  assert.equal(contact.permissionMode, 'autoEdit');
+  // Once: a second word of it in this turn is the model's.
+  await session.setPermissionMode('default');
+  agent.say('[MODE_UPDATE] autoEdit');
+  await agent.endTurn();
+  assert.equal(contact.permissionMode, 'default');
+  assert.deepEqual(of('mode'), [{ type: 'mode', mode: 'autoEdit' }]);
+});
+
+test('what the user let Gemini do lasts for that turn: in the next its reply text loosens nothing', async () => {
+  const { agent, of, session, contact } = await started(GEMINI, { contact: { permissionMode: 'plan' } });
+  const fetch = agent.ask({ toolCallId: 'f1', status: 'pending', kind: 'fetch', title: 'Fetch a page' });
+  await tick();
+  session.respond(of('permission').at(-1).requestId, { decision: 'allow' });
+  await fetch;
+  await agent.endTurn();
+  session.send({ text: 'go on' });
+  await tick();
+  agent.say('[MODE_UPDATE] default');
+  await agent.endTurn();
+  assert.equal(contact.permissionMode, 'plan');
+});
+
+test('a read-only Gemini stays in Plan mode, whatever it says, and is put back in it where it left', async () => {
+  const { agent, of, session, contact } = await started(GEMINI, {
+    contact: { permissionMode: 'plan', readOnly: true },
+  });
+  agent.say('[MODE_UPDATE] yolo');
+  await tick();
+  assert.equal(contact.permissionMode, 'plan');
+  assert.equal(session.appToolsUnasked(), false);
+  const setModes = () => agent.params('session/set_mode').map((p) => p.modeId);
+  const before = setModes().length;
+  // A plan approved on its card: Gemini really leaves Plan mode, and is put back in it.
+  const approval = agent.ask({ toolCallId: 'p1', status: 'pending', kind: 'other', title: 'Plan approval' });
+  await tick();
+  session.respond(of('permission').at(-1).requestId, { decision: 'allow' });
+  await approval;
+  agent.say('[MODE_UPDATE] default');
+  await tick();
+  assert.deepEqual(setModes().slice(before), ['plan']);
+  assert.equal(contact.permissionMode, 'plan');
+  assert.deepEqual(of('mode'), []);
 });
 
 test('old messages Gemini sends after loading a session stay out of the chat', async (t) => {

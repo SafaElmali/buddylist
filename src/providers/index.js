@@ -23,7 +23,7 @@ export const DEFAULT_PROVIDER = 'claude';
  * @param {boolean} [opts.demo]  replace every session with a scripted fake of its provider
  * @param {string} [opts.demoFolder]  in the demo, where the project folders of the conversations Claude Code had
  *   outside the app are made up (see demo/sessions.js). Without it, the demo has none
- * @param {(conversation: string, speakerId: string) => import('../main/app-tools.js').AppTool[]} [opts.tools]  what the agents of a
+ * @param {(conversation: string, speakerId: string, seat?: import('../main/app-tools.js').Seat) => import('../main/app-tools.js').AppTool[]} [opts.tools]  what the agents of a
  *   conversation can ask the app itself to do. Only a provider that can give its agent tools uses them
  * @param {(id: string) => string} [opts.cliPath]  where the user keeps a provider's program, when they said so
  *   in Settings: asked whenever one is started, so a change holds from the next session. '' for the app's own choice
@@ -61,7 +61,10 @@ export function createProviders({
         contact,
         emit,
         descriptor,
-        tools: descriptor.appTools && conversation ? tools(conversation, contact.id) : [],
+        tools:
+          descriptor.appTools && conversation
+            ? tools(conversation, contact.id, { readOnly: Boolean(contact.readOnly) })
+            : [],
         ...(descriptor.accounts && {
           accounts: sessionLogins((accountId) => accounts(descriptor.id, accountId), contact) || undefined,
           login: (dir) => demoWho(dir, own),

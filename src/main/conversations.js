@@ -4797,10 +4797,16 @@ export class Conversations {
         this.#offers.set(speaker, { ...this.#offers.get(speaker), models: event.models });
         this.#tellParticipants(hostId);
         break;
-      case 'mode':
+      case 'mode': {
+        // As setMode has it: a mode its service lists, and for a guest of a manager's conversation only the one it
+        // works read-only in. Whatever its agent says.
+        const here = this.participants(hostId).find((one) => one.id === speaker);
+        if (!here?.provider.permissionModes.some((m) => m.id === event.mode)) break;
+        if (here.readOnlyHere && event.mode !== readOnlyPermissionMode(here.provider)) break;
         this.#save(hostId, speaker, { permissionMode: event.mode });
         this.#tellParticipants(hostId);
         break;
+      }
       case 'session-reset':
         this.#save(hostId, speaker, { sessionId: null });
         // What filled the window was the conversation it couldn't pick up.

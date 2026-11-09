@@ -28,7 +28,7 @@ export const hermesAgent = (command = 'hermes') => ({
 
 /**
  * @param {object} [opts]
- * @param {(conversation: string, speakerId: string) => import('../../main/app-tools.js').AppTool[]} [opts.tools]
+ * @param {(conversation: string, speakerId: string, seat?: import('../../main/app-tools.js').Seat) => import('../../main/app-tools.js').AppTool[]} [opts.tools]
  * @param {() => string} [opts.cliPath]  the hermes the user pointed the app at, if any: asked each time
  * @returns {import('../contract.js').Provider}
  */
@@ -47,7 +47,7 @@ export function createHermesProvider({ cliPath = () => '', tools = () => [] } = 
         agent: hermesAgent(cli()),
         env: mainFolder ? { ...env, HERMES_ENABLE_PROJECT_PLUGINS: '0' } : env,
         instructions,
-        appTools: conversation ? tools(conversation, contact.id) : [],
+        appTools: conversation ? tools(conversation, contact.id, { readOnly: Boolean(contact.readOnly) }) : [],
       }),
     // Hermes can't be asked whether it has a provider set up, only whether it is there.
     checkSetup: () =>
