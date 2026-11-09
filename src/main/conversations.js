@@ -4322,10 +4322,14 @@ export class Conversations {
     return this.#stoppedManagers.has(contactId) || Boolean(this.#groups.get(contactId)?.turns.held);
   }
 
-  /** Everyone answering in a conversation with guests is paused: nobody reads what nobody mentions. */
+  /**
+   * Everyone in a conversation with guests is paused: nobody reads what nobody mentions. Asked as often as the window
+   * is told what waits, so it reads the pauses as they are kept rather than drawing everyone up (see participants).
+   */
   #nobodyAnswers(hostId) {
     const host = this.store.getContact(hostId);
-    return Boolean(host?.guests?.length) && !answeringParticipants(this.participants(hostId), host.answerOrder).length;
+    const guests = host ? this.#guests(host) : [];
+    return guests.length > 0 && Boolean(host.paused) && guests.every(({ entry }) => entry.paused);
   }
 
   /**
