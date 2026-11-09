@@ -1,5 +1,7 @@
 // A floating composer keeps its recipient until dismissed. Electron is supplied for testing.
 // The shortcut that opens it from any app is in shared/shortcuts.js, with the others you can change.
+import { BACKGROUND, giveFocus, showWindow } from './background.js';
+
 export class QuickSend {
   #window = null;
   #contactId = null;
@@ -7,8 +9,8 @@ export class QuickSend {
   #ready = false;
   #wanted = false;
 
-  constructor({ createWindow, screen, contact, showContacts, platform = process.platform }) {
-    Object.assign(this, { createWindow, screen, contact, showContacts, platform });
+  constructor({ createWindow, screen, contact, showContacts, platform = process.platform, background = BACKGROUND }) {
+    Object.assign(this, { createWindow, screen, contact, showContacts, platform, background });
   }
 
   contactOf(win) {
@@ -73,9 +75,9 @@ export class QuickSend {
 
   #show() {
     this.#window.setBounds(this.#bounds());
-    if (this.platform === 'darwin') this.#window.showInactive();
-    else this.#window.show();
-    this.#window.focus();
+    // A panel on a Mac takes the keyboard without bringing the app's other windows along.
+    showWindow(this.#window, { inactive: this.platform === 'darwin' }, this.background);
+    giveFocus(this.#window, this.background);
   }
 
   dismiss() {

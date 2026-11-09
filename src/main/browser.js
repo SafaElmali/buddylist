@@ -17,6 +17,7 @@ import {
   viewportOf,
   webAddress,
 } from '../shared/browser.js';
+import { giveFocus } from './background.js';
 
 /**
  * What a conversation window hears about its pages.
@@ -299,7 +300,7 @@ export class Browsers {
   #goTo(page, url) {
     // What goes wrong on the way is said by the page itself, as a load that failed.
     page.view.webContents.loadURL(url).catch(() => {});
-    page.view.webContents.focus();
+    giveFocus(page.view.webContents);
   }
 
   /** A file:// address in the folder you opened a file of in this page, or null. @param {Page} page @param {string} address */
@@ -375,7 +376,7 @@ export class Browsers {
       event.preventDefault();
       if (shortcut !== 'address') return this.#go(page, shortcut);
       // The address bar is the window's: the keyboard goes back there with it.
-      win.webContents.focus();
+      giveFocus(win.webContents);
       this.#send(win, { id, type: 'address' });
     });
 

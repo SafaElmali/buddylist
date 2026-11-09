@@ -1,4 +1,5 @@
 import { EVENTS } from '../../shared/ipc-channels.js';
+import { bringToFront } from '../background.js';
 import { createWindow, isAlive } from './common.js';
 import { ContactWindows } from './contact-windows.js';
 
@@ -39,9 +40,7 @@ export class HistoryWindows extends ContactWindows {
    */
   openAll({ query = '' } = {}) {
     if (isAlive(this.#all)) {
-      if (this.#all.isMinimized()) this.#all.restore();
-      this.#all.show();
-      this.#all.focus();
+      bringToFront(this.#all);
       if (query) this.#all.webContents.send(EVENTS.historyQuery, { query, conversation: '' });
       return this.#all;
     }

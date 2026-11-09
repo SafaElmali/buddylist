@@ -2,6 +2,7 @@
 // macOS lists an app's windows there itself, but only those with a title bar of its own, and
 // ours draw theirs (see windows/common.js). So the app lists them, by the title each gives itself.
 // Electron's app and Menu are handed in instead of imported, so everything here runs under node:test.
+import { bringToFront } from './background.js';
 
 /**
  * The menu, as a template for Electron's Menu.buildFromTemplate.
@@ -15,16 +16,13 @@ export function dockMenu(windows) {
       .filter((win) => !win.isDestroyed() && win.isFocusable())
       // Electron numbers its windows as they open, and hands them out in an order of its own.
       .sort((a, b) => a.id - b.id)
-      .map((win) => ({ id: String(win.id), label: win.getTitle(), click: () => bringToFront(win) }))
+      .map((win) => ({ id: String(win.id), label: win.getTitle(), click: () => choose(win) }))
   );
 }
 
-/** @param {Electron.BrowserWindow} win */
-function bringToFront(win) {
-  if (win.isDestroyed()) return;
-  if (win.isMinimized()) win.restore();
-  win.show();
-  win.focus();
+/** @param {Electron.BrowserWindow} win  closed by the time it was chosen, it is left as it is */
+function choose(win) {
+  if (!win.isDestroyed()) bringToFront(win);
 }
 
 /**

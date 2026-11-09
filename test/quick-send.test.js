@@ -9,10 +9,11 @@ import { Store } from '../src/main/storage/store.js';
 import { defaultShortcut, shortcutKeys, shortcutProblem, systemOf, toAccelerator } from '../src/shared/shortcuts.js';
 import { trayMenu } from '../src/main/tray.js';
 
-function setup(platform = 'darwin') {
+function setup(platform = 'darwin', { background = false } = {}) {
   const state = { contact: { id: 'first' }, windows: [], contactsOpened: 0 };
   const quick = new QuickSend({
     platform,
+    background,
     contact: () => state.contact,
     showContacts: () => {
       state.contactsOpened += 1;
@@ -86,6 +87,22 @@ test('Quick send opens the last viewed contact on the cursor display and dismiss
   assert.equal(win.visible, true);
   quick.toggle();
   assert.equal(win.visible, false);
+});
+
+test('elsewhere Quick send is shown in front, with the focus', () => {
+  const win = setup('win32').open();
+  assert.equal(win.visible, true);
+  assert.equal(win.inactive, undefined);
+  assert.equal(win.focused, true);
+});
+
+test('in the background Quick send never takes the focus, on a Mac or elsewhere', () => {
+  for (const platform of ['darwin', 'win32', 'linux']) {
+    const win = setup(platform, { background: true }).open();
+    assert.equal(win.visible, true, platform);
+    assert.equal(win.inactive, true, platform);
+    assert.equal(win.focused, false, platform);
+  }
 });
 
 test('a second shortcut while loading prevents a delayed popup', () => {

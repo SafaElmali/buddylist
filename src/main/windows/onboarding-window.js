@@ -1,3 +1,4 @@
+import { bringToFront } from '../background.js';
 import { createWindow, isAlive } from './common.js';
 
 let win = null;
@@ -8,9 +9,7 @@ let win = null;
  */
 export function showOnboardingWindow({ onClosed = () => {} } = {}) {
   if (isAlive(win)) {
-    if (win.isMinimized()) win.restore();
-    win.show();
-    win.focus();
+    bringToFront(win);
     return win;
   }
   // As tall as "Add a Contact" is in a repository with a main line to start from: the wizard ends in that dialog.

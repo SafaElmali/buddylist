@@ -2,6 +2,7 @@
 // The window sits still; the page slides itself in and out (smoother than
 // moving the window) and closes itself when its time is up.
 import { screen } from 'electron';
+import { showWindow } from '../background.js';
 import { createWindow, isAlive } from './common.js';
 
 // The card is 232×124; the window adds a margin for its shadow.
@@ -52,7 +53,7 @@ export class Toasts {
     );
     win.contactId = contactId;
     win.slot = slot;
-    win.once('ready-to-show', () => win.showInactive());
+    win.once('ready-to-show', () => showWindow(win, { inactive: true }));
     this.#open.push(win);
     win.on('closed', () => {
       this.#open = this.#open.filter((w) => w !== win);

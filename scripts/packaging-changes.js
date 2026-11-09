@@ -43,6 +43,8 @@ export const PACKAGING = [
   'src/main/paths.js',
   'src/providers/claude/binary.js',
   'src/main/terminals.js',
+  // How a check run keeps to the background (BUDDYLIST_TEST=1), which only these checks run on Windows and Linux.
+  'src/main/background.js',
   // What the job alone tests on Windows (Test platform integration).
   'src/main/app-updater.js',
   'src/main/shell-env.js',

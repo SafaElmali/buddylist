@@ -40,6 +40,7 @@ test('what goes into the installers, or checks them, builds them; the rest of th
     'scripts/packaging-changes.js',
     '.github/workflows/build-app.yml',
     'src/main/paths.js',
+    'src/main/background.js',
     'src/providers/claude/binary.js',
     'src/main/terminals.js',
     'src/main/git-bash.js',

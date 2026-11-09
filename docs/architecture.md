@@ -74,6 +74,7 @@ src/
     auto-away.js        Online to Away while the Mac sits idle, and back again
     analytics.js        anonymous usage counts: which requests of a window are counted, and sending them to PostHog
     tray.js             the menu-bar icon: statuses, unread count, its menu
+    background.js       a check run's copy (BUDDYLIST_TEST=1): see-through windows that never take the focus, no Dock icon
     quit-guard.js       "Signing out will end 3 conversations.": asks before quitting, or restarting to update, while contacts are busy
     shortcuts.js        the shortcuts that work from any app, and Settings... in the Mac menu bar, as Settings > Shortcuts has them
     updates.js          a newer version: asked of the public repository of releases, and whether this copy can put it in place itself

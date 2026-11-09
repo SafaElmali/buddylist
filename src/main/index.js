@@ -14,6 +14,7 @@ import {
   protocol,
   screen,
   session,
+  shell,
   Tray,
   WebContentsView,
 } from 'electron';
@@ -74,6 +75,7 @@ import { RemoteAccess, remotePort } from './remote/access.js';
 import { Tailscale } from './remote/tailscale.js';
 import { deviceWhere, hostNoun } from '../shared/remote-access.js';
 import { waitingCount } from '../shared/phone-sections.js';
+import { BACKGROUND, HiddenTray, captureWindow, stayInBackground } from './background.js';
 
 const DEMO = process.env.BUDDYLIST_DEMO === '1';
 const CONTACTS_EVERY_MS = 150;
@@ -86,6 +88,9 @@ if (process.env.BUDDYLIST_USER_DATA) app.setPath('userData', process.env.BUDDYLI
 // Before anything asks for the data folder: asking makes an empty one, and then nothing is moved.
 else adoptOldData(app.getPath('appData'), APP_NAME);
 app.setName(APP_NAME);
+// A copy that something else drives keeps out of your way, from before its first window and its Dock icon
+// (see background.js).
+if (BACKGROUND) stayInBackground({ app, dialog, shell, globalShortcut, Notification });
 // One copy of the app to a data folder: two would each write the contacts, the settings and the
 // history over what the other wrote, and start agents in the same folders. Electron keys the lock
 // on the data folder, so it is taken once the lines above settled which one that is (taking it
@@ -305,7 +310,8 @@ function startApp(errorReports, electronUpdater) {
     showContacts: showContactsWindow,
   });
   const tray = new AppTray({
-    electron: { Tray, Menu, nativeImage },
+    // In the background, the menu bar shows nothing of it.
+    electron: { Tray: BACKGROUND ? HiddenTray : Tray, Menu, nativeImage },
     icon: TRAY_ICON,
     actions: {
       onQuickSend: () => quickSend.toggle(),
@@ -463,8 +469,11 @@ function startApp(errorReports, electronUpdater) {
   });
 
   tray.update(conversations.views());
-  // A test that drives the real app from outside reads what the tray shows from here.
-  if (process.env.BUDDYLIST_TEST === '1') globalThis.buddylist = { tray };
+  // A test that drives the real app from outside reads what the tray shows from here, and takes a window-only
+  // screenshot of a window, the pages laid over it included, which a see-through one can't give otherwise.
+  if (process.env.BUDDYLIST_TEST === '1') {
+    globalThis.buddylist = { tray, captureWindow: (win) => captureWindow(win, nativeImage) };
+  }
 
   // Quitting while contacts are at work asks first. The first to hear of a quit: while it asks,
   // the listeners below see the quit held back (`defaultPrevented`) and leave everything as it is.
