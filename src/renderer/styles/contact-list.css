@@ -92,6 +92,13 @@
   outline-offset: -1px;
 }
 
+/* What a folded section has unread: the count its rows wear, right after its name (see .unread-count). */
+.group-toggle .group-unread {
+  position: static;
+  flex: none;
+  margin-left: 1px;
+}
+
 .group-arrow {
   width: 9px;
   height: 9px;

@@ -31,6 +31,8 @@ import {
   foldLabel,
   startedTitle,
   typedName,
+  unreadIn,
+  unreadInTitle,
   unreadTitle,
 } from './rows.js';
 
@@ -350,12 +352,23 @@ export class ContactList {
   #section(section, rows, add = null) {
     const pin = section.pinned ? pinMark(section.computer ? THIS_COMPUTER : 'This project') : '';
     const collapsed = this.collapsed.has(section.id);
+    const name = `${section.label} (${section.members.length})`;
+    // Folded away, it says how much its rows would say is unread, with the count a row wears: it is not opened for
+    // that. Open, its rows say it.
+    const unread = collapsed ? unreadIn(section.members) : 0;
+    const unreadSaid = unread ? unreadInTitle(unread, section.label) : '';
     // Its arrow and its name are one button, for the keyboard and screen readers. Its + is a button of its own.
     const node = el(
       html`<section class="group${collapsed ? ' collapsed' : ''}" data-section="${section.id}">
         <div class="group-header">
-          <button class="group-toggle" type="button" aria-expanded="${collapsed ? 'false' : 'true'}">
-            ${raw(groupArrow())}<span class="group-label">${pin}${section.label} (${section.members.length})</span>
+          <button
+            class="group-toggle"
+            type="button"
+            aria-expanded="${collapsed ? 'false' : 'true'}"
+            ${unread ? html`aria-label="${name}, ${unreadSaid}"` : ''}
+          >
+            ${raw(groupArrow())}<span class="group-label">${pin}${name}</span>
+            ${unread ? html`<span class="unread-count group-unread" title="${unreadSaid}" aria-hidden="true">${unread}</span>` : ''}
           </button>
           ${add && addButton(add.title)}
         </div>

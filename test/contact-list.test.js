@@ -637,3 +637,46 @@ test('bad or unavailable storage never keeps a section from folding, and archive
   without.header('kit').click();
   assert.equal(without.folded('kit'), true);
 });
+
+test('a folded section says how much in it is unread, as its rows would, and only while it is folded', (t) => {
+  foldStorage(t);
+  const unread = {
+    boss: { unread: 3 },
+    merged: { unread: 1 },
+    guested: { unread: 2 },
+  };
+  // A chat tab of a worker under the manager: a row of its own, with its own count, counted once.
+  const tab = contact({ id: 'tab', name: 'Codex', tabOf: 'merged', overseenBy: 'boss', unread: 1 });
+  const archived = { ...ARCHIVED_ONE, unread: 5 };
+  const people = [...CONTACTS.map((one) => ({ ...one, ...unread[one.id] })), tab, archived];
+  const { list, header, toggle, section } = sectionList(t, { contacts: people });
+  const pill = (label) => section(label)?.querySelector('.group-unread');
+  const shownOnRows = (label) =>
+    section(label)
+      .querySelectorAll('.contact .unread-count')
+      .reduce((sum, one) => sum + Number(one.textContent), 0);
+  assert.equal(shownOnRows('kit'), 7, 'what the rows say, a nested worker and its tab too');
+  assert.equal(pill('kit'), null, 'open, its rows say it');
+  assert.equal(toggle('kit').getAttribute('aria-label'), null);
+  header('kit').click();
+  assert.equal(pill('kit')?.textContent.trim(), '7');
+  assert.ok(pill('kit').classList.contains('unread-count'), 'the pill a row with something unread wears');
+  assert.equal(pill('kit').title, '7 unread in kit');
+  assert.equal(pill('kit').closest('.group-toggle'), toggle('kit'), 'right after the name, on its button');
+  assert.equal(pill('kit').getAttribute('aria-hidden'), 'true');
+  assert.equal(toggle('kit').getAttribute('aria-label'), 'kit (4), 7 unread in kit', 'a screen reader hears it');
+  assert.equal(section('kit').classList.contains('collapsed'), true, 'it says so instead of opening');
+  assert.equal(pill('Archived'), null, 'an archived contact has nothing unread to show');
+  header('notes').click();
+  assert.equal(pill('notes'), null, 'nothing unread, nothing said');
+  assert.equal(toggle('notes').getAttribute('aria-label'), null);
+  list.setContacts(people.map((one) => (one.id === 'boss' ? { ...one, unread: 0 } : one)));
+  assert.equal(pill('kit').textContent.trim(), '4', 'one read, it counts the rest');
+  list.setContacts(people.map((one) => ({ ...one, unread: 0 })));
+  assert.equal(pill('kit'), null, 'all read, it goes');
+  assert.equal(toggle('kit').getAttribute('aria-label'), null);
+  list.setContacts(people);
+  header('kit').click();
+  assert.equal(pill('kit'), null, 'opened, it goes: the rows say it');
+  assert.equal(shownOnRows('kit'), 7);
+});

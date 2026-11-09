@@ -210,6 +210,21 @@ export function typedName(typed, current) {
 export const unreadTitle = (unread) => `${unread} unread in this conversation`;
 
 /**
+ * How much the rows of a section's contacts say is unread, all together: each contact's own once, a worker under
+ * its manager and a chat tab too, as each has a row of its own. An archived contact says nothing (see contactRow).
+ * @param {{ unread?: number, archived?: boolean }[]} contacts
+ */
+export const unreadIn = (contacts) =>
+  contacts.reduce((sum, contact) => sum + (contact.archived ? 0 : contact.unread || 0), 0);
+
+/**
+ * What a folded section with something unread says of it, on its count and to a screen reader.
+ * @param {number} unread
+ * @param {string} label  the section's name, such as a project's
+ */
+export const unreadInTitle = (unread, label) => `${unread} unread in ${label}`;
+
+/**
  * What the count on a row with conversations under it says when you point at it: those its agent
  * started, and the ones those started, or for a project's manager the ones it oversees, or for its project
  * manager the managers, and that a click on it folds them away or brings them back.
