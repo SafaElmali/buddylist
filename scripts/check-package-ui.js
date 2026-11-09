@@ -1,6 +1,7 @@
 // Open an installed app with an isolated profile and exercise its real windows and IPC.
 // Demo mode supplies the agent reply, so CI needs no account or paid API calls.
 // node scripts/check-package-ui.js <executable> <screenshots-directory> [Electron arguments...]
+/* global Image */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,6 +9,7 @@ import path from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { _electron as electron } from 'playwright-core';
 import { Store } from '../src/main/storage/store.js';
+import { APP_ICON_SIZES, appIconFiles } from '../src/renderer/lib/icons.js';
 
 assert.ok(process.argv[2] && process.argv[3], 'Pass the app executable and screenshots directory');
 const output = path.resolve(process.argv[3]);
@@ -61,6 +63,24 @@ try {
   const row = contacts.locator(`.contact[data-id="${contact.id}"] .name`);
   await row.waitFor();
   await contacts.screenshot({ path: path.join(output, 'contacts.png') });
+  // The app icon a title bar, the toast, Help > About and the welcome wizard show, at each size and twice it, as a
+  // window finds it from its page.
+  const icons = await contacts.evaluate(
+    (files) =>
+      Promise.all(
+        files.map(async (file) => {
+          const picture = new Image();
+          picture.src = file;
+          await picture.decode().catch(() => {});
+          return [file, picture.naturalWidth];
+        })
+      ),
+    APP_ICON_SIZES.flatMap(appIconFiles)
+  );
+  assert.deepEqual(
+    icons,
+    APP_ICON_SIZES.flatMap((size) => appIconFiles(size).map((file, times) => [file, size * (times + 1)]))
+  );
   const opened = app.waitForEvent('window', { timeout: 30000 });
   await row.dblclick();
   const chat = await opened;
@@ -101,4 +121,4 @@ try {
   await app?.close();
   fs.rmSync(temp, { recursive: true, force: true });
 }
-console.log(`Installed ${process.platform}: contacts, chat reply, terminal and unattended quit passed.`);
+console.log(`Installed ${process.platform}: contacts, app icon, chat reply, terminal and unattended quit passed.`);
