@@ -1899,12 +1899,25 @@ test('in the app, the fresh session starts anew from the brief, with the news th
  * comes in, and a fresh session takes over. What `turn` does is a turn of a session's that fills its window as far as
  * `percent`.
  */
-function rolledOver(t) {
+function rolledOver(t, { late = false } = {}) {
   const app = setup(t);
   const { conversations, managers, sessions, manager } = inTheApp(app, { brief: 'Goals' });
   const [first] = sessions;
   const guest = app.worker('Codex', { provider: 'codex', under: null });
   conversations.invite(manager.id, guest.id);
+  // With `late`, a session closed says nothing at once, and only later that it is offline, then idle, with a reply that
+  // was on its way, as a provider whose process ends a tick after it is closed may.
+  const closesLate = (session) => {
+    session.close = () => {
+      session.closed = true;
+      setTimeout(() => {
+        session.emit({ type: 'state', state: 'offline' });
+        session.emit({ type: 'text-end', key: 'late', text: 'Late.' });
+        session.emit({ type: 'result', isError: false, stopped: false, errorText: '', durationMs: 1, costUsd: 0 });
+        session.emit({ type: 'state', state: 'idle' });
+      });
+    };
+  };
   const turn = (session, percent = 0, during = () => {}) => {
     session.emit({ type: 'state', state: 'working' });
     if (percent) session.emit({ type: 'context', ...full(percent) });
@@ -1915,14 +1928,16 @@ function rolledOver(t) {
   };
   // The guest answered once: its session is idle beside the manager's.
   conversations.send(manager.id, { text: '@Codex how are the workers?', images: [] });
-  turn(sessions.find((one) => one.contact.id === guest.id));
+  const codex = sessions.find((one) => one.contact.id === guest.id);
+  turn(codex);
+  if (late) [first, codex].forEach(closesLate);
   turn(first, 72);
   turn(first, 75, () => {
     managers.brief(manager.id, 'Goals\nWhere it stands');
     conversations.pass(manager.id, { key: 'worker', line: 'Claude (tags) changed 1 file', note: 'worker news' });
   });
   const fresh = sessions.findLast((one) => one.contact.id === manager.id);
-  return { app, conversations, sessions, manager, first, fresh, turn };
+  return { app, conversations, sessions, manager, first, codex, fresh, turn };
 }
 
 test('in the app, a manager with a guest goes on in a fresh session, and what the user says next reaches it', (t) => {
@@ -1947,6 +1962,41 @@ test('in the app, a manager with a guest goes on in a fresh session, and what th
   turn(fresh, 11);
   assert.equal(conversations.view(manager).status, 'online', 'nobody is at work');
   assert.equal(app.history.read(manager.id).filter((entry) => entry.text?.endsWith('hey')).length, 1);
+});
+
+test('in the app, a message sent while the fresh session reads the brief waits for that turn, without stopping it', async (t) => {
+  const { conversations, manager, fresh, turn } = rolledOver(t);
+  let stops = 0;
+  fresh.interrupt = async () => (stops += 1);
+  conversations.send(manager.id, { text: `@${manager.name} hey`, images: [] });
+  assert.equal(conversations.snapshot(manager.id).waiting, 1);
+  assert.equal(fresh.sent.length, 1, 'nothing more is sent in the middle of its turn');
+  turn(fresh, 10);
+  // The message's turn starts once the one before has finished saying where it stands.
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(stops, 0, 'its turn on the brief is not cut');
+  assert.equal(fresh.sent.length, 2);
+  assert.match(fresh.sent[1].text, /hey$/);
+  assert.equal(conversations.snapshot(manager.id).waiting, 0);
+});
+
+test('in the app, sessions that say they are offline or idle only after they were closed start nothing, and lose nothing', async (t) => {
+  const { app, conversations, manager, sessions, first, codex, fresh, turn } = rolledOver(t, { late: true });
+  assert.ok(first.closed && codex.closed);
+  assert.equal(fresh.sent.length, 1, 'the fresh session starts at once, on the news and the brief');
+  const count = sessions.length;
+  const kept = app.history.read(manager.id).length;
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(sessions.length, count, 'no session starts for what they say');
+  assert.equal(fresh.sent.length, 1, 'nor is anything sent');
+  assert.equal(app.history.read(manager.id).length, kept, 'what they say is nobody’s');
+  assert.equal(conversations.view(manager).status, 'busy', 'the fresh session is still at work on the brief');
+
+  turn(fresh, 10);
+  conversations.send(manager.id, { text: `@${manager.name} hey`, images: [] });
+  assert.equal(fresh.sent.length, 2);
+  assert.match(fresh.sent[1].text, /hey$/);
+  assert.equal(conversations.snapshot(manager.id).waiting, 0);
 });
 
 test('in the app, Send now on a message that waits for the fresh session stops its first turn and has it read once', async (t) => {
