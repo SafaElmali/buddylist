@@ -306,7 +306,10 @@ test('every counted request is one a window can make, and has a name', () => {
   assert.equal(COUNTED[REQUESTS.historyContinueThere].event, COUNTED[REQUESTS.historyResume].event);
   assert.equal(COUNTED[REQUESTS.chatPickFiles].event, COUNTED[REQUESTS.attached].event);
   assert.equal(COUNTED[REQUESTS.chatTakeNote].event, COUNTED[REQUESTS.chatCancel].event);
-  assert.equal(new Set(names).size, names.length - invites.length - 4);
+  // Start on a drafted conversation sends its first message, and Delete on one deletes a contact.
+  assert.equal(COUNTED[REQUESTS.chatStartDraft].event, COUNTED[REQUESTS.chatSend].event);
+  assert.equal(COUNTED[REQUESTS.chatDeleteDraft].event, COUNTED[REQUESTS.contactRemove].event);
+  assert.equal(new Set(names).size, names.length - invites.length - 6);
   for (const name of names) assert.match(name, /^[a-z]+( [a-z]+)+$/);
 });
 
@@ -518,6 +521,34 @@ test('a message says which agent it went to and how many share the conversation,
   for (const kept of ['secret', 'shop', '/Users/me', 'Claude (shop)', 'base64']) assert.ok(!sent.includes(kept), kept);
 });
 
+test('Start on a drafted conversation is a message sent, counted where it sent one', async () => {
+  const contacts = [{ id: 'c1', provider: 'claude', name: 'Claude (cart-total)', cwd: '/Users/example/shop' }];
+  const { analytics, posts } = setup({ contacts });
+  let answer = { id: 'entry-1' };
+  const start = analytics.counting(REQUESTS.chatStartDraft, () => answer);
+  await start({}, 'c1');
+  // Left to its own window, whose Send is counted, or with nothing to start.
+  for (answer of [{ inWindow: true }, null]) await start({}, 'c1');
+  await analytics.flush();
+  assert.deepEqual(events(posts), ['message sent']);
+  assert.deepEqual(
+    [posts[0].body.batch[0].properties.provider, posts[0].body.batch[0].properties.agents],
+    ['claude', 1]
+  );
+  assert.ok(!JSON.stringify(posts).includes('cart-total'));
+});
+
+test('Delete on a drafted conversation is a contact deleted, once it was', async () => {
+  const { analytics, posts } = setup();
+  let answer = { changes: 2 };
+  const remove = analytics.counting(REQUESTS.chatDeleteDraft, () => answer);
+  await remove({}, 'c1');
+  answer = { deleted: true };
+  await remove({}, 'c1', { discardChanges: true });
+  await analytics.flush();
+  assert.deepEqual(events(posts), ['contact deleted']);
+});
+
 test('a message to a contact that is gone is still counted, with nothing about it', async () => {
   const { analytics, posts } = setup();
   await analytics.counting(REQUESTS.chatSend, () => {})({}, 'gone', { text: 'hello' });
@@ -600,6 +631,8 @@ test('no other counted request passes on anything it was asked with', async () =
     REQUESTS.remoteUpdate,
     REQUESTS.remoteDeviceAccess,
     REQUESTS.remoteTailscale,
+    REQUESTS.chatStartDraft,
+    REQUESTS.chatDeleteDraft,
   ];
   const counted = Object.entries(COUNTED).filter(
     ([channel]) => channel !== REQUESTS.chatSend && !notThisWay.includes(channel)

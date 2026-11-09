@@ -29,6 +29,7 @@ import { cleanContactDefaults } from '../src/shared/contact-defaults.js';
 import { addressOf, cleanContactsPane, contactsPaneRoom } from '../src/shared/contacts-pane.js';
 import { postFeedback } from '../src/shared/feedback.js';
 import { cleanDraft, listMatching, parseReference, REFERENCE_HELP } from '../src/shared/github-item.js';
+import { NOT_A_DRAFT, waitingToStart } from '../src/shared/drafted.js';
 import { cleanGroupName, knownGroupId } from '../src/shared/groups.js';
 import { EVENTS, REQUESTS } from '../src/shared/ipc-channels.js';
 import { cleanListView } from '../src/shared/list-view.js';
@@ -871,10 +872,14 @@ async function startDemoConversation(hostId, { prompt, now, speakerId = hostId }
     },
     { startedBy: hostId, effort: speaker.effort }
   );
-  conversations.notice(contact.id, `${host.name} started this conversation.`);
+  conversations.notice(contact.id, `${host.name} ${now ? 'started' : 'drafted'} this conversation.`);
   await nameBranchFor(contact.id, prompt);
   if (now) conversations.send(contact.id, { text: prompt });
-  return { name: store.getContact(contact.id).name, worktree: !computer && contact.cwd !== host.cwd };
+  return {
+    id: contact.id,
+    name: store.getContact(contact.id).name,
+    worktree: !computer && contact.cwd !== host.cwd,
+  };
 }
 
 const handlers = {
@@ -1292,6 +1297,27 @@ const handlers = {
     await conversations.interrupt(contactId);
   },
   [REQUESTS.chatSendNow]: (_win, contactId, entryId) => conversations.sendNow(contactId, entryId),
+  // As in ipc.js: a draft open in its own window is sent from there, as what is in its box; any other as it was drafted.
+  [REQUESTS.chatStartDraft]: async (_win, contactId) => {
+    const contact = store.getContact(contactId);
+    if (!waitingToStart(contact)) return null;
+    const own = chatWindows.get(contactId);
+    if (own) {
+      desktop.send(own, EVENTS.chatAction, 'start');
+      return { inWindow: true };
+    }
+    await nameBranchFor(contactId, contact.draft);
+    const said = conversations.send(contactId, { text: contact.draft });
+    if (said) chats.send(contactId, { type: 'user-message', entry: said });
+    return said ? { id: said.id } : null;
+  },
+  // The demo's worktrees are made up: there are no changes in them to keep.
+  [REQUESTS.chatDeleteDraft]: (_win, contactId) => {
+    if (!waitingToStart(store.getContact(contactId))) throw new Error(NOT_A_DRAFT);
+    removeDemoContact(contactId, true);
+    broadcastEmptyProjects();
+    return { deleted: true };
+  },
   // The demo's agents never reach a plan's limit: there is no turn stopped there to let go on.
   [REQUESTS.chatUseCredits]: () => false,
   [REQUESTS.chatSwitchAccount]: () => null,

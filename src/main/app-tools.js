@@ -10,6 +10,7 @@ import {
   SAVED_INSTRUCTIONS_MAX,
   appActivity,
   cleanCommand,
+  conversationIdLine,
   howMany,
   instructionPart,
 } from '../shared/app-tools.js';
@@ -319,7 +320,7 @@ function startConversation(
         joined.length < invite.length ? ' Not every agent you asked for could join: its conversation says why.' : '';
       const later =
         'You hear its first reply and later outcomes; progress waits while background work runs. Carry on meanwhile, without waiting for notes.';
-      const identity = started.id ? ` Conversation ID: ${started.id}.` : '';
+      const identity = started.id ? conversationIdLine(started.id) : '';
       return now
         ? `${started.name} has started${where}${others}.${identity} It is listed under this conversation.${missed} ${later}`
         : `${started.name} is in the user’s contact list${where}${others}, under this conversation, with the prompt ` +

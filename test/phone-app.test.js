@@ -120,6 +120,27 @@ test('a row says what its contact asks, that it finished, what it does, or where
   assert.equal(roleOf(contact('w')), '');
 });
 
+test('a conversation a manager drafted says on its row that it waits to start, and stays with its project', () => {
+  const drafted = contact('cart', {
+    project: 'shop',
+    location: '~/code/shop',
+    startedBy: 'm',
+    draft: 'Round the cart total.',
+  });
+  assert.equal(rowNote(drafted), 'Waiting to start');
+  assert.equal(dotOf(drafted), 'draft');
+  // Not among the ones waiting for you: those wait on an answer, and are the number on the app's icon.
+  assert.deepEqual(homeSections([drafted])[0].members, []);
+  assert.equal(waitingCount([drafted]), 0);
+  // Started, gone, or the user's own draft: a row like any other.
+  assert.equal(rowNote({ ...drafted, draft: null }), 'shop');
+  assert.deepEqual(
+    [rowNote({ ...drafted, status: 'offline' }), dotOf({ ...drafted, status: 'offline' })],
+    ['shop', 'offline']
+  );
+  assert.equal(rowNote({ ...drafted, startedBy: undefined }), 'shop');
+});
+
 test('Home reuses the desktop project groups, managers first, with favorites, This computer and archived', () => {
   const views = [
     contact('worker', { project: 'shop', overseenBy: 'manager' }),

@@ -1088,6 +1088,41 @@
   flex: none;
 }
 
+/* ---- a conversation an agent drafted: the box over the message box (see draft-bar.js) ------------------- */
+/* In the colours of a row that waits for you, as the contact list says it waits to start. A whole box: what it says is
+   about the message box under it. */
+.draft-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 5px;
+  padding: 3px 3px 3px 9px;
+  border: 1px solid var(--warn-border, #d9b45a);
+  border-radius: 4px;
+  background: var(--warn-bg, #fffaf0);
+  color: var(--warn, #8a5a00);
+}
+
+.draft-bar-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.draft-bar .link {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.draft-bar .btn {
+  flex: none;
+}
+
 /* Until it is restored, nothing is said in it and nothing about the contact changes: no message box under it,
    no tab over it, no Reply on words picked in it, no pin taken off, and none of its agents' settings. Some of
    these are shown and hidden as they are used, so this has the last word. */
@@ -2329,6 +2364,58 @@
   flex: none;
   margin-left: 3px;
   text-decoration: underline;
+}
+
+/* A conversation the agent drafted, under the call that drafted it (see draft-card.js): its buddy and name, how it
+   stands, and Start while it waits to start, which says so in the colours of what waits for you. */
+.draft-card {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 460px;
+  margin: 4px 0 2px 19px;
+  padding: 3px 3px 3px 8px;
+  border: 1px solid var(--pane-border-soft);
+  border-radius: 4px;
+}
+
+.draft-card-buddy {
+  display: flex;
+  flex: none;
+}
+
+.draft-card-name {
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: bold;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.draft-card-name:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.draft-card-name:disabled {
+  cursor: default;
+}
+
+.draft-card-state {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.draft-card[data-state='waiting'] .draft-card-state {
+  color: var(--warn, #8a5a00);
+}
+
+.draft-card .btn {
+  flex: none;
 }
 
 .diff-del,

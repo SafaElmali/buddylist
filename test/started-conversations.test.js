@@ -445,3 +445,35 @@ for (const demo of [false, true]) {
     );
   });
 }
+
+test(
+  'a conversation drafted for the user says it was drafted, and one started at once that it was started',
+  opts,
+  async (t) => {
+    const app = fixture(t, 'claude', { workers: { use: 'manager' } });
+    await app.starter().run({ prompt: 'Round the cart total', asked_by_user: false });
+    await app.starter().run({ prompt: 'Fix the coupon code', asked_by_user: true });
+    const [drafted, started] = app.children();
+    assert.equal(drafted.draft, 'Round the cart total');
+    const said = (worker) => app.notices.filter(({ id }) => id === worker.id).map(({ text }) => text);
+    assert.deepEqual(said(drafted), ['Manager drafted this conversation.']);
+    assert.deepEqual(said(started), ['Manager started this conversation.']);
+    // Nothing is sent for the one it drafted: it waits for the user.
+    assert.deepEqual(
+      app.sent.map(({ id }) => id),
+      [started.id]
+    );
+  }
+);
+
+test('a worker a guest drafts in a manager’s conversation says who drafted it, and where', opts, async (t) => {
+  const app = fixture(t, 'claude', { workers: { use: 'manager' } });
+  const codex = app.store.addContact({ name: 'Codex', provider: 'codex', cwd: '/x', model: '' });
+  app.store.addGuest(app.host.id, { id: codex.id, permissionMode: 'read-only' });
+  await app.starter(codex).run({ prompt: 'Round the cart total', asked_by_user: false });
+  const [worker] = app.children();
+  assert.deepEqual(
+    app.notices.filter(({ id }) => id === worker.id).map(({ text }) => text),
+    ['Codex drafted this conversation from Manager.']
+  );
+});

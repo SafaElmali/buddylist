@@ -232,6 +232,47 @@ test('one under a project’s manager says who started it, with nothing else to 
   assert.equal(contactRow({ ...claude, archived: true }, { startedBy: 'shop manager' }).note, '~/projects/api');
 });
 
+test('a conversation a manager drafted says it waits to start, as a row that needs you says it', () => {
+  const drafted = { ...claude, startedBy: 'm', draft: 'Round the cart total.' };
+  assert.deepEqual(contactRow(drafted, { startedBy: 'shop manager' }), {
+    look: 'online',
+    icon: 'draft',
+    iconLabel: 'Waiting to start',
+    lead: false,
+    note: 'Waiting to start',
+    // In the colours of a row at work, which the list beside a conversation still shows.
+    doing: true,
+    where: false,
+    below: false,
+    company: '',
+    unread: 0,
+    tags: [],
+    tagsTitle: '',
+    size: null,
+    buttons: [],
+  });
+  // With guests, on the second line, as what a busy one does is.
+  const together = contactRow({ ...drafted, guests: [{ id: 'g', name: 'Codex' }] });
+  assert.deepEqual([together.note, together.below, together.company], ['Waiting to start', true, 'with Codex']);
+  // Away from its project's section it says which project, and still wears its badge.
+  const away = contactRow({ ...drafted, project: 'shop' }, { projectNote: true });
+  assert.deepEqual([away.note, away.doing, away.icon], ['shop', false, 'draft']);
+});
+
+test('a draft that waits on nobody, or one that can’t start, is a row like any other', () => {
+  // The user's own, from an issue: theirs to finish.
+  assert.deepEqual(contactRow({ ...claude, draft: 'Issue #1: Fix login' }), contactRow(claude));
+  // Sent: it has started.
+  const started = { ...claude, startedBy: 'm', draft: null };
+  assert.deepEqual(contactRow(started, { startedBy: 'shop manager' }).note, 'started by shop manager');
+  // Its folder is gone: offline says that first.
+  const gone = contactRow({ ...claude, status: 'offline', startedBy: 'm', draft: 'Round the cart total.' });
+  assert.deepEqual([gone.icon, gone.note, gone.doing], ['offline', '~/projects/api', false]);
+  // Archived: put away, as any.
+  const archived = contactRow({ ...claude, archived: true, startedBy: 'm', draft: 'Round the cart total.' });
+  assert.equal(archived.icon, 'offline');
+});
+
 test('an archived contact’s row: the offline buddy, its folder, and nothing to click', () => {
   const archived = {
     look: 'archived',

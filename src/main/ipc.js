@@ -14,6 +14,7 @@ import {
 } from '../shared/branch-names.js';
 import { FEEDBACK_URL, postFeedback, systemDetails } from '../shared/feedback.js';
 import { cleanDraft } from '../shared/github-item.js';
+import { NOT_A_DRAFT, waitingToStart } from '../shared/drafted.js';
 import { cleanContactsPane } from '../shared/contacts-pane.js';
 import { tabsOf } from '../shared/chat-tabs.js';
 import { cleanGroupName, knownGroupId } from '../shared/groups.js';
@@ -784,11 +785,13 @@ export function registerIpc({
         effort: pickedEffort ? null : worker.effort,
       }
     );
+    // One that waits for the user was drafted, not started: it starts when they send its first message.
+    const how = now ? 'started' : 'drafted';
     conversations.notice(
       contact.id,
       speakerId === hostId
-        ? `${host.name} started this conversation.`
-        : `${speaker.name} started this conversation from ${host.name}.`
+        ? `${host.name} ${how} this conversation.`
+        : `${speaker.name} ${how} this conversation from ${host.name}.`
     );
     // In before its first message, to take turns on it, each in turn. One by service alone joins as Invite's New
     // tab has one join; one with a model, effort level or role as the agent asked for it, and a role by its name.
@@ -1072,7 +1075,13 @@ export function registerIpc({
     }
   };
 
-  handleWithPath(REQUESTS.contactRemove, async (event, id, opts) => {
+  /**
+   * Deletes a contact, with its worktree or its folder on This computer where `opts` says so.
+   * @param {Electron.WebContents} sender  the window told of what could not be removed
+   * @param {string} id
+   * @param {{ removeWorktree?: boolean, discardChanges?: boolean }} [opts]
+   */
+  const removeContact = async (sender, id, opts) => {
     const contact = store.getContact(id);
     await stopAll(id);
     // On This computer, the folder made for it is what goes along, rather than a worktree: unless another contact,
@@ -1090,19 +1099,61 @@ export function registerIpc({
     forget(id);
     broadcastEmptyProjects();
     const kept = folder ? takeFolder(folder, Boolean(opts?.removeWorktree)) : '';
-    if (kept) notice(event.sender, `${contact.name} was deleted, but its folder was not.\n\n${kept}`);
+    if (kept) notice(sender, `${contact.name} was deleted, but its folder was not.\n\n${kept}`);
     // The contact is gone at once. Its worktree takes git seconds in a big repository, so that
     // goes on behind the answer: one that can't be removed stays as it is, and the user is told.
     if (worktree) {
       takeWorktree(project, contact, Boolean(opts.discardChanges)).then(
-        (problem) => problem && notice(event.sender, `${contact.name} was deleted, with its worktree. ${problem}`),
+        (problem) => problem && notice(sender, `${contact.name} was deleted, with its worktree. ${problem}`),
         (err) =>
           notice(
-            event.sender,
+            sender,
             `${contact.name} was deleted, but its worktree was not removed.\n\n${err.message}\n\nIt is still at ${shortPath(worktree.dir)}.`
           )
       );
     }
+  };
+  handleWithPath(REQUESTS.contactRemove, (event, id, opts) => removeContact(event.sender, id, opts));
+
+  // ---- a conversation an agent drafted (see shared/drafted.js) -------------------------------------------------
+  /** The drafts being started now, by id: a second Start meanwhile sends nothing. */
+  const startingDrafts = new Set();
+  // Start, on the card under the line of the agent that drafted it (see chat/activity.js): as the user would send its
+  // first message. Open in a window of its own, that window sends what is in its box, the draft or what the user made
+  // of it, as its Send would (see chat/draft-bar.js). Else the draft is sent as it was written.
+  handleWithPath(REQUESTS.chatStartDraft, async (event, id) => {
+    const contact = store.getContact(id);
+    if (!waitingToStart(contact) || startingDrafts.has(id)) return null;
+    const own = chats.get(id);
+    if (own) {
+      own.webContents.send(EVENTS.chatAction, 'start');
+      return { inWindow: true };
+    }
+    startingDrafts.add(id);
+    try {
+      const said = await sendMessage(id, { text: contact.draft });
+      if (!said || said.blocked) return null;
+      chats.send(id, { type: 'user-message', entry: said });
+      onChatMessage(id, said, event.sender);
+      return { id: said.id };
+    } finally {
+      startingDrafts.delete(id);
+    }
+  });
+  // Delete, on the phone (see remote/routes.js): it goes with its worktree, or the folder made for it on This
+  // computer while that is empty. Only a draft, which nothing has run in: a worktree with uncommitted changes, such
+  // as what its setup script made, is kept until the user says to throw them away. The answer says how many there are.
+  handleWithPath(REQUESTS.chatDeleteDraft, async (event, id, opts) => {
+    const contact = store.getContact(id);
+    if (!waitingToStart(contact) || startingDrafts.has(id)) throw new Error(NOT_A_DRAFT);
+    const discardChanges = opts?.discardChanges === true;
+    const worktree = madeOnComputer(contact.cwd) ? null : await ownWorktree(contact);
+    if (worktree && !discardChanges) {
+      const { changes } = await contactCard(contact, [], Date.now(), made);
+      if (changes !== 0) return { changes };
+    }
+    await removeContact(event.sender, id, { removeWorktree: Boolean(worktree), discardChanges });
+    return { deleted: true };
   });
 
   /**

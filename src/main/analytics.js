@@ -447,6 +447,12 @@ const tailscaleChanged = ({ answer }, what) =>
  */
 export const COUNTED = Object.freeze({
   [REQUESTS.chatSend]: { event: 'message sent', about: conversation },
+  // A conversation an agent drafted, started from the card under that agent's line: its first message sent, as Send
+  // sends one. Left to its own window, that window's Send is what is counted.
+  [REQUESTS.chatStartDraft]: {
+    event: 'message sent',
+    about: (answered, id) => (answered.answer?.id ? conversation(answered, id) : null),
+  },
   // Sent in place of one sent before, which the agent forgets with everything after it.
   [REQUESTS.chatEdit]: { event: 'message edited', about: conversation },
   // Back to just before one sent before, which the agent forgets with everything after it. Nothing is sent.
@@ -476,6 +482,8 @@ export const COUNTED = Object.freeze({
   },
   [REQUESTS.contactUpdate]: { event: 'contact pinned', about: contactPinned },
   [REQUESTS.contactRemove]: { event: 'contact deleted' },
+  // On the phone, a conversation an agent drafted. One with uncommitted changes in its worktree waits for a second ask.
+  [REQUESTS.chatDeleteDraft]: { event: 'contact deleted', about: ({ answer }) => (answer?.deleted ? {} : null) },
   [REQUESTS.contactSetUnread]: { event: 'conversation marked unread', about: markedUnread },
   [REQUESTS.contactArchive]: { event: 'contact archived', about: happened },
   // A project's contacts at once, from its right-click menu. They answer how many: none is not counted.

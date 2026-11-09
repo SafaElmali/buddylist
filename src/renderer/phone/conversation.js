@@ -20,6 +20,8 @@ import { draftOf, keepDraft, keepNote, keepSend, keepWaiting, noteOf, sendsOf } 
 import { CONNECTION, UNCONFIRMED } from '../remote/network-ipc.js';
 import { promptCard } from './prompt-cards.js';
 import { planLimitCard } from './plan-limit.js';
+import { confirmSheet, deleteDraft, draftText } from './draft-bar.js';
+import { WAITING_TO_START, waitingToStart } from '../../shared/drafted.js';
 import { homeSections, roleOf, rowNote } from '../../shared/phone-sections.js';
 import {
   canStop,
@@ -129,6 +131,8 @@ export class ConversationScreen {
   #stopping = false;
   #ready = false;
   #closed = false;
+  /** Start was pressed on a drafted conversation: what was in the box went, and the draft goes with the answer. */
+  #draftStarted = false;
 
   /**
    * @param {HTMLElement} root
@@ -163,6 +167,15 @@ export class ConversationScreen {
       el(html`<p class="ph-note ph-archived-note" hidden>${archived}</p>`),
       el(html`<button class="ph-queued-jump" id="queued-jump" type="button" hidden></button>`),
       el(
+        html`<div class="ph-draft-bar" role="status" hidden>
+          <p class="ph-draft-text"></p>
+          <div class="ph-actions">
+            <button class="ph-button" type="button" data-draft="delete">Delete…</button>
+            <button class="ph-button ph-primary" type="button" data-draft="start">Start</button>
+          </div>
+        </div>`
+      ),
+      el(
         html`<form class="ph-composer" id="composer">
           <p class="ph-access-note" id="access-note" hidden></p>
           <textarea
@@ -183,8 +196,9 @@ export class ConversationScreen {
     this.stopButton = /** @type {HTMLButtonElement} */ (root.querySelector('#stop'));
     this.accessNote = /** @type {HTMLElement} */ (root.querySelector('#access-note'));
     this.queuedJump = /** @type {HTMLButtonElement} */ (root.querySelector('#queued-jump'));
-    // What was written here and not sent, back in the box: after a Back, a reload or a dropped connection.
-    if (!this.view?.archived) this.input.value = draftOf(contactId) || '';
+    // What was written here and not sent, back in the box: after a Back, a reload or a dropped connection. A
+    // conversation an agent drafted has its first message there to start with, as it has on the computer.
+    if (!this.view?.archived) this.input.value = draftOf(contactId) || (this.#drafted() ? this.view.draft : '') || '';
     this.#header();
     this.#listen();
     if (this.input.value) this.#fit();
@@ -404,6 +418,11 @@ export class ConversationScreen {
     this.stopButton.addEventListener('click', () => this.#stop());
     this.transcript.addEventListener('click', (event) => this.#queuedAction(event));
     this.queuedJump.addEventListener('click', () => this.#showQueued());
+    this.root.querySelector('.ph-draft-bar').addEventListener('click', ({ target }) => {
+      const button = /** @type {HTMLElement} */ (target).closest?.('[data-draft]');
+      if (button?.dataset.draft === 'start') this.#startDraft();
+      if (button?.dataset.draft === 'delete') void this.#deleteDraft(button);
+    });
     // Esc twice, from a keyboard, stops whoever is at work, as in the conversation window (see stop-key.js).
     this.stopKey = new StopKey((pending) => {
       this.stopHint = pending ? 'Press Esc again to stop.' : '';
@@ -1234,7 +1253,7 @@ export class ConversationScreen {
       ? 'Archived'
       : !this.#reachable
         ? 'Not reachable'
-        : this.stopHint || doing || stateLabel(this.#state, view?.status);
+        : this.stopHint || doing || (this.#drafted() && WAITING_TO_START) || stateLabel(this.#state, view?.status);
     this.root.querySelector('#composer').hidden = Boolean(view?.archived);
     this.root.querySelector('.ph-archived-note').hidden = !view?.archived;
     // Said once, where the box would be: what this phone may not do here, and where it can.
@@ -1243,9 +1262,43 @@ export class ConversationScreen {
     this.accessNote.hidden = !note;
     this.input.hidden = !maySend();
     this.stopButton.setAttribute('aria-label', view?.name ? `Stop ${view.name}` : 'Stop');
+    this.#draftBar();
     this.#slot();
     this.#atWork(doing);
     document.title = view?.name ? `${view.name} · buddylist` : 'buddylist';
+  }
+
+  /** An agent drafted it for you, and it waits for you to start it. Its folder gone, it can't. */
+  #drafted() {
+    return this.view?.status === 'online' && waitingToStart(this.view);
+  }
+
+  /** Over the box of a conversation an agent drafted: who did, with Start and Delete where this phone may send. */
+  #draftBar() {
+    const bar = /** @type {HTMLElement} */ (this.root.querySelector('.ph-draft-bar'));
+    bar.hidden = !this.#drafted();
+    if (bar.hidden) return;
+    bar.querySelector('.ph-draft-text').textContent = draftText(this.view, this.contacts);
+    /** @type {HTMLElement} */ (bar.querySelector('.ph-actions')).hidden = !maySend();
+  }
+
+  /** Start: what is in the box goes as Send sends it, the draft or what was made of it. An emptied box gets it back. */
+  #startDraft() {
+    if (!this.#drafted() || !maySend() || this.#draftStarted || !this.#ready) return;
+    this.#draftStarted = true;
+    if (!this.input.value.trim()) this.#write(this.view.draft);
+    void this.#send();
+  }
+
+  /** Delete: asked first, and again for uncommitted changes in its worktree. Once it is gone, Home. */
+  async #deleteDraft(opener) {
+    if (!this.#drafted() || !maySend()) return;
+    try {
+      const deleted = await deleteDraft(this.view, { confirm: (what) => confirmSheet(opener, what) });
+      if (deleted && !this.#closed) location.hash = '#';
+    } catch (error) {
+      if (!this.#closed) this.#keepAtEnd(() => this.transcript.append(this.#line('ph-error', errorText(error))));
+    }
   }
 
   /**

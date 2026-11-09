@@ -448,7 +448,8 @@ body:has(> .ph-connection:not([hidden])) > .ph-screen {
   background: var(--accent);
 }
 
-.ph-avatar.ph-away::after {
+.ph-avatar.ph-away::after,
+.ph-avatar.ph-draft::after {
   background: var(--away);
 }
 
@@ -1505,6 +1506,28 @@ body:has(> .ph-connection:not([hidden])) > .ph-screen {
   font-size: calc(13rem / 15);
   font-weight: 600;
   text-align: left;
+}
+
+/* A conversation an agent drafted: over the box, who did, with Start and Delete where this phone may send. A whole
+   box in the colours of what waits for you, as the Mac's is. */
+.ph-draft-bar {
+  flex-shrink: 0;
+  margin: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--warn-border);
+  border-radius: 12px;
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.ph-draft-text {
+  margin: 0;
+  font-size: calc(14rem / 15);
+  line-height: 1.35;
+}
+
+.ph-draft-bar .ph-actions {
+  margin-top: 10px;
 }
 
 /* Right on the keyboard (keyboard.js), there is no home indicator to keep clear of. */
