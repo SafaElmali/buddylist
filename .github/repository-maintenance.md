@@ -52,6 +52,8 @@ a different-commit tag collision fails without changing the tag. A rule that als
 restricts creation would block releases. Apply or change these rules only after
 maintainer review; the release-flow PR proposes the exact configuration.
 
+To remove a mistaken release tag, a repository admin must temporarily disable this ruleset and re-enable it immediately afterwards.
+
 Require approval for workflow runs from outside contributors and enable private
 vulnerability reporting. Fork pull requests use `pull_request`, never
 `pull_request_target`, and must receive no repository secrets or write token.
