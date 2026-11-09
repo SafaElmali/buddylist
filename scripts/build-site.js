@@ -34,7 +34,9 @@ const SITE_URL = (process.env.SITE_URL || 'https://buddylist.dev').replace(/\/$/
 
 const read = (file) => fs.readFileSync(path.join(SITE, file), 'utf8');
 const page = read('index.html');
-const { version } = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+// Production gets the published-release snapshot from site-downloads.js. Offline builds
+// need no credentials: without that snapshot they omit release/version claims.
+const published = JSON.parse(process.env.SITE_RELEASES || '{"versions":[]}');
 const facts = pageFacts(page);
 const DOCS = path.join(ROOT, 'docs');
 const readGuide = (file) => fs.readFileSync(path.join(DOCS, file), 'utf8');
@@ -67,10 +69,9 @@ const modified = Object.fromEntries(
 // The page reuses the app's own artwork: see site-artwork.js.
 const tokens = {
   SITE_URL: () => attr(SITE_URL),
-  JSON_LD: () => scriptJson(jsonLd(SITE_URL, facts, version)),
+  JSON_LD: () => scriptJson(jsonLd(SITE_URL, facts, published.latest)),
   ANALYTICS: () => analyticsScript(),
-  // The changelog's versions, out by the version this build is of.
-  RELEASES: () => changelogMarkup(read('changelog.md'), version),
+  RELEASES: () => changelogMarkup(read('changelog.md'), published.versions),
   // The feedback form's limits are the Worker's own, so the page never promises more than it takes.
   FEEDBACK_MESSAGE_MAX: () => String(MESSAGE_MAX),
   FEEDBACK_EMAIL_MAX: () => String(EMAIL_MAX),
