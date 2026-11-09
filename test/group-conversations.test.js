@@ -1743,6 +1743,41 @@ test('a turn you stop or decline ends the round', () => {
   assert.deepEqual(turns, ['Claude', 'Opus']);
 });
 
+test('starting over beside an idle guest starts nothing on the sessions that close: the next message is answered', async () => {
+  const app = setup();
+  const { claude, codex, conversations, turns } = app;
+  app.invite(codex);
+  app.say('hello');
+  app.answer(claude, 'Hi.');
+  app.answer(codex, 'Hey.');
+  // You stopped them, and news came in: it waits for what you say next.
+  await conversations.interrupt(claude.id);
+  conversations.pass(claude.id, { key: 'news', line: 'A worker changed 1 file', note: 'news' });
+  assert.deepEqual(turns, ['Claude', 'Codex']);
+  const closing = [app.session(claude), app.session(codex)];
+  // As real sessions do, each says at once that it is offline as it closes, beside the other still idle.
+  for (const session of closing) {
+    session.close = () => {
+      session.closed = true;
+      session.emit({ type: 'state', state: 'offline' });
+    };
+  }
+
+  conversations.reset(claude.id);
+  assert.deepEqual(turns, ['Claude', 'Codex'], 'nobody is sent anything as their sessions close');
+  assert.ok(closing.every((session) => session.closed));
+  assert.equal(conversations.snapshot(claude.id).state, 'offline', 'nobody is at work: Send, not Stop');
+
+  app.say('start again');
+  assert.deepEqual(turns, ['Claude', 'Codex', 'Claude'], 'a fresh session answers');
+  assert.ok(!closing.includes(app.session(claude)));
+  assert.match(app.sentTo(claude).text, /start again/);
+  assert.doesNotMatch(app.sentTo(claude).text, /news/, 'what waited was for the conversation that ended');
+  app.answer(claude, 'Hello again.');
+  assert.deepEqual(turns, ['Claude', 'Codex', 'Claude', 'Codex']);
+  assert.equal(conversations.snapshot(claude.id).waiting, 0);
+});
+
 test('an agent that fails without finishing its turn does not hold up the others', () => {
   const app = setup();
   const { claude, codex, opus, turns, notifier } = app;
