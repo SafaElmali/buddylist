@@ -11,10 +11,6 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
-## v0.7.3
-
-- **Security updates** — buddylist now runs on a newer Electron and updated libraries, with their latest security fixes.
-
 ## v0.7.2 — 2026-11-09
 
 - **buddylist is open source** — Its code is now public on [GitHub](https://github.com/SafaElmali/buddylist), under the MIT license, in the same place as its releases. Read how it works, build it yourself or send a fix: the contributing guide there says how, and a copy you build counts nothing and reports no errors. The app now ships with the licenses of the open-source code it is made with.
