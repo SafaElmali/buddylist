@@ -581,7 +581,7 @@ test('a queued message offers Cancel first, then Interrupt and send, as buttons'
 test('a manager note your Stop holds says so, and offers Send now: nothing is at work to interrupt', async (t) => {
   const { open, root } = setup(t, { state: 'idle' });
   const screen = await open('a');
-  screen.heard({ type: 'notice', text: 'Manager says: merge 46 now', managerNote: true, entryId: 'n1' });
+  screen.heard({ type: 'notice', text: 'Manager says: ship the export today', managerNote: true, entryId: 'n1' });
   const note = root.querySelector('.ph-manager-note');
   const mark = () => [
     note.querySelector('.ph-queued span').textContent,
