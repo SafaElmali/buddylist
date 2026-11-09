@@ -191,7 +191,11 @@ test('a row that asks is marked as asking; a finished one is not', (t) => {
 test('asks are drawn larger than finished rows, and working wears the accent, not the danger red', () => {
   assert.match(phoneCss, /\.ph-row\[data-asks\]\s*\{[^}]*min-height:\s*68px/);
   assert.match(phoneCss, /\.ph-row\[data-asks\] \.ph-row-note\s*\{[^}]*color:\s*var\(--text\);[^}]*font-size:\s*1rem/);
-  assert.match(phoneCss, /\.ph-avatar\.ph-busy::after\s*\{\s*background:\s*var\(--accent\);?\s*\}/);
+  // So does one whose turn is over while what it left running in the background still runs.
+  assert.match(
+    phoneCss,
+    /\.ph-avatar\.ph-busy::after,\s*\.ph-avatar\.ph-background::after\s*\{\s*background:\s*var\(--accent\);?\s*\}/
+  );
   assert.doesNotMatch(phoneCss, /var\(--busy\)/);
 });
 
