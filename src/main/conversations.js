@@ -20,7 +20,7 @@ import { Doing } from '../shared/doing.js';
 import { levels, sameName } from '../shared/mentions.js';
 import { fallbackPolicy, fallbackKey, fallbackEligibility } from '../shared/fallback-policy.js';
 import { chooseFallback, inspectFallbackSession } from './fallback-recovery.js';
-import { answeringParticipants, requestRecipients } from '../shared/send-targets.js';
+import { requestRecipients } from '../shared/send-targets.js';
 import { fallbackPermissionModes, limitContinuation, readOnlyPermissionMode } from '../shared/limit-fallbacks.js';
 import { knownTodos } from '../shared/todo-handoff.js';
 import { cantJoinManager, invitedInstructions, invitedNote, managerSwitchMode } from '../shared/managers.js';
@@ -4392,8 +4392,8 @@ export class Conversations {
     }
     const group = this.#group(hostId);
     if (group) {
-      // The first active agent in reply order: one that answers after changes only when nobody else is active.
-      const [next] = answeringParticipants(this.participants(hostId), group.turns.order);
+      const active = inAnswerOrder(this.participants(hostId), group.turns.order).filter((agent) => !agent.paused);
+      const next = active.find((agent) => !agent.afterChanges) ?? active[0];
       if (!next) return 'paused';
       if (!group.turns.noteNow(next.id, entryId)) return 'waiting';
       const speaking = group.turns.hurry();
@@ -4446,7 +4446,8 @@ export class Conversations {
     if (!notes?.size || !host || host.archived) return;
     const group = this.#group(hostId);
     if (group) {
-      const [next] = answeringParticipants(this.participants(hostId), group.turns.order);
+      const active = inAnswerOrder(this.participants(hostId), group.turns.order).filter((agent) => !agent.paused);
+      const next = active.find((agent) => !agent.afterChanges) ?? active[0];
       if (next && group.turns.readNotes(next.id)) this.#nextTurn(hostId);
       return;
     }
