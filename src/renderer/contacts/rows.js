@@ -96,13 +96,16 @@ export const startedByNote = (name) => (name ? `started by ${name}` : '');
  *   nothing else to say: it is no longer drawn under that one. `tab`: for a chat tab drawn under the conversation
  *   it was opened from, which has its folder, its branch and its pull request: that one's row has the tags, so
  *   this one says what it is doing instead
- * @returns {{ look: string, icon: string, lead: boolean, note: string, doing: boolean, where: boolean,
- *   below: boolean, company: string, unread: number,
+ * @returns {{ look: string, icon: string, iconLabel: string, lead: boolean, note: string, doing: boolean,
+ *   where: boolean, below: boolean, company: string, unread: number,
  *   tags: (ReturnType<typeof pullRequestTags>[number] & ReturnType<typeof tagAction>)[],
  *   tagsTitle: string, size: ReturnType<typeof pullRequestSize>, buttons: ReturnType<typeof nextStepButtons> }}
- *   `look`: the row's class. `icon`: the buddy it wears. `lead`: it is a project's manager at work, which
- *   leads its section and looks it. `note`: what follows the name; empty for none.
- *   `doing`: the note says what it is busy with. `where`: it says which project, even beside tags.
+ *   `look`: the row's class. `icon`: the buddy it wears: "background" for one whose turn is over while what it
+ *   left running in the background still runs. `iconLabel`: what that buddy says when pointed at and to a screen
+ *   reader, which the note may be cut short of or leave out beside tags; empty for any other. `lead`: it is a
+ *   project's manager at work, which leads its section and looks it. `note`: what follows the name; empty for none.
+ *   `doing`: the note says what it is busy with, or left running in the background. `where`: it says which project,
+ *   even beside tags.
  *   `below`: what it is busy with goes on the second line, before `company`: a conversation with guests has that
  *   line anyway, and there it has the line's width, not what the name leaves of the first.
  *   `unread`: how much in its conversation you have not seen yet, as the menu bar counts it.
@@ -118,6 +121,7 @@ export function contactRow(contact, { projectNote = false, team = 0, startedBy =
     return {
       look: 'archived',
       icon: 'offline',
+      iconLabel: '',
       lead: false,
       note: contact.location,
       doing: false,
@@ -144,7 +148,11 @@ export function contactRow(contact, { projectNote = false, team = 0, startedBy =
       : contact.personalMessage;
   // Nothing else to say: only where it works.
   const idle = said === contact.location;
-  const doing = !project && (status === 'busy' || status === 'away');
+  // Its turn is over, and what it left running in the background still runs: work going on too, said as what a
+  // busy one does (beside a conversation, where where it works is left out, it is still said), and worn on its
+  // buddy, which a row with tags or cut short still shows. Busy or waiting for you, it says that instead.
+  const inBackground = status === 'online' && Boolean(contact.inBackground);
+  const doing = !project && (status === 'busy' || status === 'away' || inBackground);
   const company = companyOf(contact);
   // A row with tags is its name and its tags, nothing in between: they are what to see at a glance.
   // Which project it is, for a row away from its project's, goes between them all the same. A manager
@@ -157,7 +165,8 @@ export function contactRow(contact, { projectNote = false, team = 0, startedBy =
       : (idle && lead && overseesNote(team, Boolean(contact.leads))) || (idle && startedByNote(startedBy)) || said);
   return {
     look: status,
-    icon: status,
+    icon: inBackground ? 'background' : status,
+    iconLabel: inBackground ? contact.personalMessage : '',
     lead,
     note,
     doing,

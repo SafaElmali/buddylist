@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { homeSections, projectLabel, roleOf, rowNote, waitingCount } from '../src/shared/phone-sections.js';
+import { dotOf, homeSections, projectLabel, roleOf, rowNote, waitingCount } from '../src/shared/phone-sections.js';
 import { DEFAULT_LIST_VIEW, listSections } from '../src/shared/list-view.js';
 import {
   answeredLine,
@@ -64,6 +64,32 @@ test('Home lists who waits first, asking before finished, then who works, then d
   assert.deepEqual(ids(sections[2]), ['idle-old', 'idle-new']);
   assert.deepEqual(ids(sections[3]), ['offline']);
   assert.deepEqual(ids(sections[4]), ['archived']);
+});
+
+test('Home lists one with commands left running in the background among the working, saying so, not as finished', () => {
+  const running = contact('checks', {
+    unread: 1,
+    lastActive: 30,
+    personalMessage: '2 commands running in the background',
+    inBackground: true,
+  });
+  const sections = homeSections([contact('idle'), running, contact('cart', { status: 'busy', lastActive: 10 })]);
+  assert.deepEqual(
+    sections.slice(0, 2).map((section) => [section.id, ids(section)]),
+    [
+      ['waiting', []],
+      ['working', ['checks', 'cart']],
+    ]
+  );
+  assert.equal(rowNote(running), '2 commands running in the background');
+  assert.deepEqual(
+    [dotOf(running), dotOf(contact('cart', { status: 'busy' })), dotOf(contact('idle'))],
+    ['background', 'busy', 'online'],
+    'its dot is the accent of one at work'
+  );
+  // Once they end, what it said is waiting for you.
+  const ended = { ...running, personalMessage: '~/code/shop', inBackground: false };
+  assert.deepEqual([ids(homeSections([ended])[0]), rowNote(ended), dotOf(ended)], [['checks'], 'Finished', 'online']);
 });
 
 test('the priority sections are always there, empty project sections are omitted, and nobody is in two', () => {

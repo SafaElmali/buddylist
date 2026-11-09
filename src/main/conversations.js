@@ -512,11 +512,14 @@ export class Conversations {
     // says nothing: the home folder says so, as it can reach everything there.
     const checkIns = status === 'online' ? [...(this.#checkIns.get(contact.id)?.values() || [])].flat() : [];
     const background = status === 'online' ? [...(this.#background.get(contact.id)?.values() || [])].flat() : [];
+    const running = backgroundStatus(background);
     const idle =
-      backgroundStatus(background) ||
+      running ||
       (checkIns.length && checkInsStatus(checkIns)) ||
       (status === 'online' && pullRequestStatus(pullRequest)) ||
       (made ? '' : shortPath(contact.cwd));
+    const personalMessage =
+      status === 'away' ? 'Waiting for you to approve something' : doing || (helpers ? helpersAtWork(helpers) : idle);
     return {
       ...contact,
       status,
@@ -530,8 +533,11 @@ export class Conversations {
       // In a worktree of its own, or in its project's main folder: Invite offers only the ones there.
       worktree: this.inWorktree(contact.cwd),
       lastActive: this.history.lastActive(contact.id),
-      personalMessage:
-        status === 'away' ? 'Waiting for you to approve something' : doing || (helpers ? helpersAtWork(helpers) : idle),
+      personalMessage,
+      // Its line says what it left running in the background: its turn is over, and still it is at work. The lists
+      // say so as they say what a busy one does, while its status stays online: a dev server can run all day.
+      // Stopped at its plan's limit, it goes on with nothing once they end: it waits for the user.
+      inBackground: Boolean(running) && personalMessage === running && !this.#atPlanLimit.has(contact.id),
       // The first request it waits for you on, for a list to say what kind and what about; null for none.
       prompt: promptView(this.#prompts.get(contact.id)?.values().next().value),
       // Its row wears tags for it, whatever the contact is doing.

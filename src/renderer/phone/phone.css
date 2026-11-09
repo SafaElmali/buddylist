@@ -441,8 +441,10 @@ body:has(> .ph-connection:not([hidden])) > .ph-screen {
   background: var(--online);
 }
 
-/* At work is not a problem: the accent, not the red of busy on the Mac. */
-.ph-avatar.ph-busy::after {
+/* At work is not a problem: the accent, not the red of busy on the Mac. So is what one left running in the
+   background, with its turn over. */
+.ph-avatar.ph-busy::after,
+.ph-avatar.ph-background::after {
   background: var(--accent);
 }
 

@@ -467,10 +467,8 @@ export class ContactList {
         : teamOf(contact, this.contacts).length;
     // One under its project's manager says who started it, wherever that one is listed.
     const startedBy = (starter && this.contacts.find((c) => c.id === starter)?.name) || '';
-    const { look, icon, lead, note, doing, where, below, company, unread, tags, tagsTitle, size, buttons } = contactRow(
-      contact,
-      { ...opts, team, startedBy }
-    );
+    const { look, icon, iconLabel, lead, note, doing, where, below, company, unread, tags, tagsTitle, size, buttons } =
+      contactRow(contact, { ...opts, team, startedBy });
     // Continue, Archive and Delete are not drawn where there is nothing to do them with: hidden, they would
     // still hold the room of their column, and the tags before them would not end where the others do.
     const nextSteps = this.handlers.startBranch ? buttons : [];
@@ -501,7 +499,7 @@ export class ContactList {
               </button>`
             : ''
         }
-        ${raw(buddy(icon, 16, { lead }))}
+        ${raw(buddy(icon, 16, { lead, label: iconLabel }))}
         <span class="name">${contact.pinned ? pinMark(contact.name) : ''}${contact.name}</span>
         ${unread ? html`<span class="unread-count" title="${unreadTitle(unread)}">${unread}</span>` : ''}
         ${
