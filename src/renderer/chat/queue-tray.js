@@ -109,6 +109,8 @@ export class QueueTray {
   #told = new WeakSet();
   /** @type {Set<string>} what is on its way to be done, as the action and the message's id */
   #pending = new Set();
+  /** @type {Map<string, () => void>} of those, how the button drawn last for each is made ready again */
+  #ready = new Map();
 
   /**
    * @param {HTMLElement} root  the tray: hidden while nothing waits
@@ -292,10 +294,16 @@ export class QueueTray {
       if (busy) button.textContent = on ? busy : label;
     };
     const pending = `${action} ${row.id}`;
-    if (this.#pending.has(pending)) waiting(true);
+    const ready = () => waiting(false);
+    // Drawn again on its way: this button is the one that is ready again once it is done.
+    if (this.#pending.has(pending)) {
+      waiting(true);
+      this.#ready.set(pending, ready);
+    }
     button.addEventListener('click', async () => {
       if (button.disabled || !row.id || this.#pending.has(pending)) return;
       this.#pending.add(pending);
+      this.#ready.set(pending, ready);
       waiting(true);
       try {
         await run();
@@ -303,7 +311,8 @@ export class QueueTray {
         this.on.error(errorText(error));
       } finally {
         this.#pending.delete(pending);
-        waiting(false);
+        this.#ready.get(pending)?.();
+        this.#ready.delete(pending);
       }
     });
   }

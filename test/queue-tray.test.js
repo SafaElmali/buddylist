@@ -217,6 +217,27 @@ test('a Send now that fails says why, and can be tried again', async (t) => {
   assert.equal(tries, 2);
 });
 
+test('an entry drawn again while Send now is on its way says Send now again once it fails', async (t) => {
+  let fail;
+  const { view, button, errors } = tray(t, {
+    participants: [PLANNER, REVIEWER],
+    sendNow: () =>
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      }),
+  });
+  view.show([queued('a', 'first', { to: ['planner', 'reviewer'] })]);
+  button(0, 'now').click();
+  // Who it is for changed meanwhile: the entry is drawn again, still on its way.
+  view.show([queued('a', 'first', { to: ['planner'] })]);
+  assert.equal(button(0, 'now').textContent.trim(), 'Sending…');
+  fail(new Error('This message is still queued. Try Send now again.'));
+  await settle();
+  assert.match(errors[0], /still queued/);
+  assert.equal(button(0, 'now').disabled, false);
+  assert.equal(button(0, 'now').textContent.trim(), 'Send now');
+});
+
 test('Cancel and Edit hand over the message itself, once each while on their way', async (t) => {
   const { view, button, calls } = tray(t);
   view.show([queued('a', 'first'), queued('b', 'second')]);

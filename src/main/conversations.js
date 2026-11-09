@@ -373,6 +373,11 @@ export class Conversations {
   #quietNotes = new Map();
   /** A stopped manager's notes wait for the user, also when it has no group turn queue. */
   #stoppedManagers = new Set();
+  /**
+   * The conversations whose sessions `end` is closing: what they say as they close is kept, but it is no round
+   * that is over and frees them to read notes. A turn started then would go to a session that is closing.
+   */
+  #ending = new Set();
   /** hostId -> why its notes wait for the user, as its window was last told (see #notesHeld) */
   #notesTold = new Map();
   /**
@@ -3621,7 +3626,13 @@ export class Conversations {
     for (const key of this.#failures.keys()) if (key.startsWith(`${contactId}:`)) this.#failures.delete(key);
     // First, so that a session closing doesn't give the turn to the next one.
     this.#groups.delete(contactId);
-    for (const session of this.#sessions.get(contactId)?.values() || []) session.close();
+    // Nor, closing beside another one that is idle, start a round on itself (see #ending).
+    this.#ending.add(contactId);
+    try {
+      for (const session of this.#sessions.get(contactId)?.values() || []) session.close();
+    } finally {
+      this.#ending.delete(contactId);
+    }
     this.#sessions.delete(contactId);
     for (const map of [
       this.#prompts,
@@ -4744,7 +4755,7 @@ export class Conversations {
           this.#dropHelpers(hostId, speaker);
           this.#flushReport(host);
         }
-        if (this.#state(hostId) === 'idle') {
+        if (this.#state(hostId) === 'idle' && !this.#ending.has(hostId)) {
           this.#roundOver(host);
           this.#flushReport(host);
           // Free again: the notes that came in meanwhile are read now.
