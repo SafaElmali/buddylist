@@ -3314,6 +3314,10 @@
     text-decoration: none;
   }
 
+  & .group-toggle {
+    border-radius: var(--radius);
+  }
+
   & .group-arrow {
     width: 10px;
     height: 10px;

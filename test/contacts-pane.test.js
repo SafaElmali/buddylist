@@ -161,6 +161,48 @@ test('hiding the list and showing it again changes the page alone: the conversat
   assert.equal(heard.length, 4, 'shown already, nothing changes');
 });
 
+test('the list beside a conversation folds what the contact list folded, and keeps no copy of its own', (t) => {
+  const on = chatPage(t, '?contactId=c1&contacts=200');
+  // Every window shares one: the contact list's, the panes', and the next launch's.
+  const shared = new Map([['collapsedSections', JSON.stringify(['project:app'])]]);
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: { getItem: (key) => shared.get(key) ?? null, setItem: (key, value) => shared.set(key, value) },
+  });
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, 'localStorage', previous);
+    else delete globalThis.localStorage;
+  });
+  const own = storage();
+  own.set('contactsPaneFolded', JSON.stringify(['project:api']));
+  const pane = listOn(on);
+  const person = (id, project) => ({
+    id,
+    name: `Claude (${project})`,
+    status: 'online',
+    cwd: `/code/${project}`,
+    location: `~/code/${project}`,
+    project,
+    place: 'project',
+    guests: [],
+    unread: 0,
+  });
+  pane.setContacts([person('c1', 'app'), person('c2', 'api')]);
+  const box = on.root.querySelector('.cl-list');
+  const section = (label) =>
+    box.querySelectorAll('.group').find((one) => one.querySelector('.group-header').textContent.includes(`${label} (`));
+  assert.equal(section('app').classList.contains('collapsed'), true, 'folded in the contact list, folded here');
+  assert.equal(section('api').classList.contains('collapsed'), false, 'what one window once kept for itself is gone');
+  section('api').querySelector('.group-header').click();
+  assert.deepEqual(JSON.parse(shared.get('collapsedSections')).sort(), ['project:api', 'project:app']);
+  assert.equal(
+    own.get('contactsPaneFolded'),
+    JSON.stringify(['project:api']),
+    'nothing more kept for the window alone'
+  );
+});
+
 test('the list has a shortcut of its own on a Mac and everywhere else', () => {
   assert.equal(defaultShortcut('contactsPane', 'mac'), 'Shift+Meta+KeyL');
   assert.equal(defaultShortcut('contactsPane', 'linux'), 'Control+Shift+KeyL');

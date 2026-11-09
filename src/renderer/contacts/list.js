@@ -31,6 +31,8 @@ import {
   foldLabel,
   startedTitle,
   typedName,
+  unreadIn,
+  unreadInTitle,
   unreadTitle,
 } from './rows.js';
 
@@ -46,22 +48,34 @@ const pinMark = (what) => html`<span class="pin-mark" title="${what} is pinned">
 /** A row that can be selected: a contact's, or a search hit's. */
 const ROW = '.contact, .hit';
 
-// Shared by the contact window and conversation panes, like the kept Changes view and Invite tab.
+// Shared by the contact window and conversation panes, like the kept Changes view and Invite tab, and kept
+// after a restart: the contacts folded away under the one they came from, and the sections folded away.
 const FOLDED = 'foldedContacts';
+const COLLAPSED = 'collapsedSections';
+// Archived contacts are out of the way until you ask for them: their section starts folded.
+const FIRST_COLLAPSED = ['archived'];
 const FOLD_BUTTON = '.contact-fold, .started-count';
+const SECTION_TOGGLE = '.group-toggle';
 
-function keptFolded() {
+/**
+ * The ids kept under `key`. `first` while nothing that can be read is kept, and null when storage can't be read.
+ * @param {string} key
+ * @param {string[]} [first]
+ * @returns {Set<string> | null}
+ */
+function keptIds(key, first = []) {
   try {
-    const ids = JSON.parse(localStorage.getItem(FOLDED) || '[]');
-    return new Set(Array.isArray(ids) ? ids.filter((id) => typeof id === 'string') : []);
+    const ids = JSON.parse(localStorage.getItem(key) ?? 'null');
+    return new Set(Array.isArray(ids) ? ids.filter((id) => typeof id === 'string') : first);
   } catch {
     return null;
   }
 }
 
-function keepFolded(folded) {
+/** @param {string} key  @param {Set<string>} ids  @returns {boolean} whether they were kept */
+function keepIds(key, ids) {
   try {
-    localStorage.setItem(FOLDED, JSON.stringify([...folded]));
+    localStorage.setItem(key, JSON.stringify([...ids]));
     return true;
   } catch {
     // Folding still works in this window when storage is unavailable.
@@ -69,12 +83,16 @@ function keepFolded(folded) {
   }
 }
 
+const keptFolded = () => keptIds(FOLDED);
+const keptCollapsed = () => keptIds(COLLAPSED, FIRST_COLLAPSED);
+
 export class ContactList {
   // Only typing reuses rows. A contact update, layout change, fold or rename invalidates them all.
   #rows = new Map();
   #visibleContacts = null;
   #searching = false;
   #foldsKept = true;
+  #sectionsKept = true;
   /**
    * @param {HTMLElement} root
    * @param {object} handlers
@@ -130,8 +148,8 @@ export class ContactList {
     this.hitQuery = '';
     /** The selected row: a contact's id, or a hit's (see hitRowId). */
     this.selectedId = null;
-    // Archived contacts are out of the way until you ask for them: their section starts folded.
-    this.collapsed = new Set(['archived']);
+    /** The sections folded away, by id: as the user left them, in this list or any other. */
+    this.collapsed = keptCollapsed() ?? new Set(FIRST_COLLAPSED);
     /** The contacts with the conversations started from them folded away under them, by id. */
     this.folded = keptFolded() ?? new Set();
     /** A contact's name is being typed over, or saved: the list is drawn again once that is over. */
@@ -140,13 +158,21 @@ export class ContactList {
     this.dragging = null;
     this.card = new HoverCard(root, (id) => this.contacts.find((c) => c.id === id));
     root.addEventListener('keydown', (e) => this.#onKey(e));
+    // Folded or unfolded in another window: this one follows. Null is all of storage cleared.
     window.addEventListener('storage', (e) => {
-      if (e.key !== FOLDED && e.key !== null) return;
-      const folded = keptFolded();
-      if (!folded) return;
-      this.folded = folded;
-      this.#foldsKept = true;
-      this.render();
+      const folds = e.key === FOLDED || e.key === null;
+      const sections = e.key === COLLAPSED || e.key === null;
+      const folded = folds && keptFolded();
+      const collapsed = sections && keptCollapsed();
+      if (folded) {
+        this.folded = folded;
+        this.#foldsKept = true;
+      }
+      if (collapsed) {
+        this.collapsed = collapsed;
+        this.#sectionsKept = true;
+      }
+      if (folded || collapsed) this.render();
     });
   }
 
@@ -161,7 +187,7 @@ export class ContactList {
     const ids = new Set(contacts.map((contact) => contact.id));
     const removed = [...this.folded].filter((id) => !ids.has(id));
     for (const id of removed) this.folded.delete(id);
-    if (removed.length) this.#foldsKept = keepFolded(this.folded);
+    if (removed.length) this.#foldsKept = keepIds(FOLDED, this.folded);
     this.render();
   }
 
@@ -264,6 +290,9 @@ export class ContactList {
     const scroll = this.root.scrollTop;
     const focused = document.activeElement?.closest?.(FOLD_BUTTON);
     const focusId = focused && this.root.contains(focused) ? focused.closest('.contact')?.dataset.id : null;
+    // A section's toggle keeps the keyboard too, once the list is drawn again: folded or not.
+    const toggle = document.activeElement?.closest?.(SECTION_TOGGLE);
+    const toggleId = toggle && this.root.contains(toggle) ? toggle.closest('.group')?.dataset.section : null;
     this.root.replaceChildren(
       ...sections.map((section) =>
         this.#section(
@@ -294,6 +323,12 @@ export class ContactList {
         ?.querySelector(focused.classList.contains('contact-fold') ? '.contact-fold' : '.started-count')
         ?.focus({ preventScroll: true });
     }
+    if (toggleId) {
+      $$('.group', this.root)
+        .find((section) => section.dataset.section === toggleId)
+        ?.querySelector(SECTION_TOGGLE)
+        ?.focus({ preventScroll: true });
+    }
   }
 
   /** Reuse a row while typing, unless filtering changed where it sits in its conversation's hierarchy. */
@@ -316,22 +351,46 @@ export class ContactList {
    */
   #section(section, rows, add = null) {
     const pin = section.pinned ? pinMark(section.computer ? THIS_COMPUTER : 'This project') : '';
+    const collapsed = this.collapsed.has(section.id);
+    const name = `${section.label} (${section.members.length})`;
+    // Folded away, it says how much its rows would say is unread, with the count a row wears: it is not opened for
+    // that. Open, its rows say it.
+    const unread = collapsed ? unreadIn(section.members) : 0;
+    const unreadSaid = unread ? unreadInTitle(unread, section.label) : '';
+    // Its arrow and its name are one button, for the keyboard and screen readers. Its + is a button of its own.
     const node = el(
-      html`<section class="group${this.collapsed.has(section.id) ? ' collapsed' : ''}">
+      html`<section class="group${collapsed ? ' collapsed' : ''}" data-section="${section.id}">
         <div class="group-header">
-          ${raw(groupArrow())}<span>${pin}${section.label} (${section.members.length})</span>
+          <button
+            class="group-toggle"
+            type="button"
+            aria-expanded="${collapsed ? 'false' : 'true'}"
+            ${unread ? html`aria-label="${name}, ${unreadSaid}"` : ''}
+          >
+            ${raw(groupArrow())}<span class="group-label">${pin}${name}</span>
+            ${unread ? html`<span class="unread-count group-unread" title="${unreadSaid}" aria-hidden="true">${unread}</span>` : ''}
+          </button>
           ${add && addButton(add.title)}
         </div>
         <div class="group-members"></div>
       </section>`
     );
     const header = node.querySelector('.group-header');
+    // Anywhere on its line folds it, as the arrow does.
     header.addEventListener('click', (e) => {
       // The + is not a wish to fold the section away.
       if (/** @type {HTMLElement} */ (e.target).closest('.contact-add')) return;
-      if (this.collapsed.has(section.id)) this.collapsed.delete(section.id);
-      else this.collapsed.add(section.id);
-      this.render();
+      this.#collapse(section.id);
+    });
+    header.querySelector(SECTION_TOGGLE).addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!['Enter', ' ', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      // Enter and Space press the button, never the selected row's Enter.
+      e.stopPropagation();
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      // As in a tree: Left folds it away, Right brings it back.
+      e.preventDefault();
+      if ((e.key === 'ArrowLeft') !== this.collapsed.has(section.id)) this.#collapse(section.id);
     });
     if (add) header.querySelector('.contact-add').addEventListener('click', add.action);
     // A conversation dragged onto its project's line goes out from under its manager. This computer has none.
@@ -683,7 +742,21 @@ export class ContactList {
     else folded.add(id);
     const ids = new Set(this.contacts.map((contact) => contact.id));
     this.folded = new Set([...folded].filter((id) => ids.has(id)));
-    this.#foldsKept = keepFolded(this.folded);
+    this.#foldsKept = keepIds(FOLDED, this.folded);
+    this.render();
+  }
+
+  /**
+   * Folds section `id` away, or brings it back: in every list, and after a restart, until the user says otherwise.
+   * @param {string} id
+   */
+  #collapse(id) {
+    // Merge other windows' choices before saving, while acting on what this header shows.
+    const collapsed = (this.#sectionsKept && keptCollapsed()) || new Set(this.collapsed);
+    if (this.collapsed.has(id)) collapsed.delete(id);
+    else collapsed.add(id);
+    this.collapsed = collapsed;
+    this.#sectionsKept = keepIds(COLLAPSED, collapsed);
     this.render();
   }
 
