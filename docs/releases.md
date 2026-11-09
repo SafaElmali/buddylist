@@ -1,6 +1,6 @@
 # Releases and updates
 
-**A release is published when you ask for one, not on every push.** Run `npm run release`, or start [Build app](https://github.com/SafaElmali/buddylist/actions/workflows/build-app.yml) on `main` from the Actions page. GitHub Actions then picks the next patch version, tests and packages what is on `main`, records the version and tag in this repository, and publishes the Mac, Windows and Linux installers and update feeds as a [release of the public SafaElmali/buddylist](https://github.com/SafaElmali/buddylist/releases), with its part of the [hand-written changelog](#whats-new) under **What's new**. The website's download links then serve the new installers, and the changelog lists it.
+**Prepare the version in a pull request, then ask for the release.** After that PR is merged, run `npm run release`, or start [Build app](https://github.com/SafaElmali/buddylist/actions/workflows/build-app.yml) on `main` from the Actions page. GitHub Actions tests and packages the dispatched commit using its committed version, creates only its tag, and publishes the Mac, Windows and Linux installers and update feeds as a [release](https://github.com/SafaElmali/buddylist/releases). Its part of the [hand-written changelog](#whats-new) becomes **What's new**. The website lists the version only after publication.
 
 A push or merge to `main` runs lint, tests and the app bundle build on Linux. It does not package a Mac installer. macOS runners are used only for a manual build or release, or a version tag, to keep Actions costs down. Everyone with the app is told about each release, so publish when there is something worth their update.
 
@@ -22,55 +22,60 @@ https://github.com/SafaElmali/buddylist/releases/latest/download/buddylist-mac-a
 
 ## What to do for a normal update
 
-1. Push or merge your changes into `main`, as many as belong in the update. Nothing is published yet.
-2. When `main` is what you want people to have, ask for the release:
+1. Merge the changes that belong in the update. Nothing is published yet.
+2. Start a release prep branch from public `origin/main` and prepare its version:
+
+   ```bash
+   git fetch --no-tags origin main
+   git switch -c release/prep origin/main
+   node scripts/release.js prepare auto
+   ```
+
+   `prepare` reads remote stable tag names and writes `package.json`, `package-lock.json` and the lockfile's root package version together. It creates no commit or tag. It uses an already higher package version, otherwise the next patch after the highest reserved stable tag. For a deliberate minor or major version, use `prepare 1.2.0` instead; it must be at least the next available version.
+
+3. Write that version's notes in `site/changelog.md`. Commit the two manifests and notes, open the prep PR, and merge it after review and CI. A package version or tag alone does not put it on the website.
+4. Ask for the release:
 
    ```bash
    npm run release
    ```
 
-   That runs `gh workflow run build-app.yml --ref main`. The **Run workflow** button on the [Actions page](https://github.com/SafaElmali/buddylist/actions/workflows/build-app.yml), with `main` selected, does the same.
+   This runs `gh workflow run build-app.yml --ref main`. **Run workflow** on the Actions page, selecting `main` and mode `release`, does the same.
 
-3. Watch the run. The `test`, `mac` and `desktop` jobs must pass; `release` then records and publishes the release.
-4. Check [the latest release](https://github.com/SafaElmali/buddylist/releases/latest). Its version is also in the workflow's **Choose release version** step.
+5. Watch `test`, `mac` and `desktop`. After they pass, `release` tags the exact dispatched commit and publishes its installers. Check [the latest release](https://github.com/SafaElmali/buddylist/releases/latest) and the site deployment requested afterwards.
 
-There is no version bump or tag command to run. For example, after `v0.2.1`, the next release is `v0.2.2`, then `v0.2.3`, however many commits went in between.
-
-Leave `main` alone while a release builds. If a commit lands before the release is recorded, the run fails without publishing and has to be started again.
-
-The bot commits the two package version files back to `main` with a message such as `chore: release v0.2.2`. Pull before your next change so your checkout includes that commit. The bot uses GitHub's built-in `GITHUB_TOKEN`; its push does not start another workflow. See [GitHub's workflow-trigger rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow).
+Actions never commits a version or pushes a branch. Every version change goes through the normal PR and required checks. A new dispatch at a commit whose version is already tagged elsewhere fails with **write the next version in a prep PR**. Rerun the original workflow to retry the same commit.
 
 ## What each action does
 
-| Action                                                   | Result                                                                                                         |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Push a feature branch                                    | No public release. Open a pull request to run CI.                                                              |
-| Open or update a pull request                            | Lint, tests and bundle build. Native Windows/Linux installer and UI checks only if it changes packaging.       |
-| Push or merge to `main`                                  | Lint, tests and the app bundle build on Linux for every change. No installer or release.                       |
-| Run `npm run release`, or the workflow by hand on `main` | Choose a version, test, build, tag and publish it. An already released bot commit reuses its existing version. |
-| Run the workflow by hand with `mode=build`               | Test and package an installer without publishing; Actions download retained for one day.                       |
-| Push a matching `v` tag on a commit in `main`            | Test and publish that explicit version, for a release with a version of your choosing.                         |
-| Publish the public release                               | The existing website download link serves the new DMG, and the site is deployed so the changelog lists it.     |
-| Edit website content or the browser demo                 | Run `npm run deploy:site`; a release deploys the website only for its changelog.                               |
-| Publish while someone has an older app installed         | Their copy downloads it and offers **Restart**. Copies of v0.2.7 and earlier only say it is available.         |
+| Action                                             | Result                                                                                                               |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Open or update a pull request                      | Lint, tests and bundle build; native checks when packaging changes.                                                  |
+| Run `node scripts/release.js prepare auto`         | Write the next version into both manifests locally for the prep PR. No publication.                                  |
+| Merge a prep PR to `main`                          | Check the committed version; the site keeps showing only published releases.                                         |
+| Run `npm run release`, or mode `release` on `main` | Build the dispatched commit's version, create its tag if needed, and publish.                                        |
+| Run mode `build`                                   | Package installers without publishing; artifacts last one day.                                                       |
+| Push a matching `v` tag on a commit in `main`      | Test and publish that committed version; an existing tag is never moved.                                             |
+| Publish the release                                | Update the permanent download links and dispatch the site deployment.                                                |
+| Merge website changes                              | Deploy from main when all advertised installers are available; release metadata still comes from published releases. |
 
 ## Versions, commits and concurrent pushes
 
-The package version and stable `vMAJOR.MINOR.PATCH` tags determine the next version. Normally CI increments the highest existing patch version. A package version already higher than every release tag is used as written, so a deliberate minor or major bump is supported. Both package version files must agree.
+The package version must be a stable `MAJOR.MINOR.PATCH`, and both manifests and the lockfile root must agree. The prep command uses numeric version ordering and ignores prerelease tags. Release planning reads the committed version without incrementing or rewriting it. Packaging verifies that it is still using the tested version.
 
-The test and packaging jobs use the same chosen version. Only after tests and all three native builds pass does the release job create a version commit containing changes to `package.json` and `package-lock.json`, tag it, and push both refs atomically. It never force-pushes. The tag therefore identifies the source and package version used by the installer.
+Only after tests and all three native builds pass does the release job create an annotated `v<version>` tag on the dispatched commit. Its annotation includes `Source-Commit`. The only push refspec is `refs/tags/v<version>:refs/tags/v<version>`; automatic extra tags and force updates are disabled. No branch push or main-protection bypass is needed.
 
-For an explicit build or a release, each native runner uploads its installers and update feed as a one-day Actions artifact; a pull request uploads none. The release job collects all three platforms before recording or publishing the version. A failed upload prevents a release; build-only runs tolerate unavailable artifact storage. Release artifacts therefore require available Actions storage.
+A tag already pointing at that commit is a retry and is reused without a push. A tag on a different commit fails clearly: prepare a new version in a PR. If two tag creations race, the same-commit winner is accepted; a different-commit winner is left untouched and fails the run. A missing or rejected tag prevents publication.
 
-If another commit reaches `main` while a release is building, the release stops before creating its version commit and its run fails, so that it is seen. Start it again to release the newer `main`. Releases run one at a time. Checks of `main` run in a separate concurrency group, and a newer push cancels superseded checks. A push cannot cancel a release or take the place of a release that is waiting.
+For an explicit build or release, native runners upload their installers and update feeds as one-day Actions artifacts. The release job collects all three platforms before tagging or publishing. A failed upload prevents a release; build-only runs tolerate unavailable artifact storage.
 
-A retry recognizes the existing version commit and tag for its source. It does not allocate another version for the same release. A published version's assets are never overwritten, and retrying an older draft does not replace a newer version as the latest download.
+New commits may merge while a release builds. They do not change the dispatched commit or the installer being built; that commit must still belong to main's history. Releases and retries run one at a time. Main checks use a separate concurrency group, so a new push cannot cancel a release.
 
-After a tag has been published, later changes ship under a new version. Do not move release tags or replace public assets by hand.
+Retries keep the same version and tag. Published assets are never overwritten. An incomplete draft can resume uploading; publishing an older version never replaces a newer stable version as the latest download. Later changes ship under a new prepared version. Do not move release tags or replace public assets by hand.
 
 ## Credentials and permissions
 
-Publishing from SafaElmali/buddylist uses the workflow's built-in `GITHUB_TOKEN`, with **Contents: write** on that repository. No personal release token is needed there. During migration, releases from the private SafaElmali/buddylist-app repository still use its existing `RELEASES_TOKEN`, scoped to **Contents: read and write** on SafaElmali/buddylist. Do not copy that token to the public repository.
+Publishing uses the source repository's built-in `GITHUB_TOKEN`, with **Contents: write** only on the release job. No personal release token, additional secret or ruleset bypass is needed. Forks cannot run the source repository's publishing job.
 
 Source maps for [error reports](error-reports.md#reading-a-stack) need three more. Without them a release still ships, and its errors are read with minified stacks:
 
@@ -84,13 +89,15 @@ Where an installed app reports its errors and counts its use needs two variables
 
 [Signing and notarization](#signing-and-notarization) needs four secrets and one variable. Without them build-only runs stay ad-hoc signed, but a release fails before packaging.
 
-The `test` job has read-only repository permission. The `release` job has **Contents: write** on this repository, with checkout credentials disabled. Only its **Record version and tag** step supplies `GITHUB_TOKEN` to Git to push the version commit and tag, and **Publish public release** supplies the same built-in token to `gh`. The private repository uses its migration token for that last step only. Repository rules must allow the version push; see [Repository maintenance](../.github/repository-maintenance.md).
+The `test` job has read-only repository permission. Checkout credentials are disabled. Only **Record release tag** supplies `GITHUB_TOKEN` to Git, and it pushes one tag; **Publish public release** supplies the token to `gh`. Main continues to require a PR and passing checks with no Actions exception. See [Repository maintenance](../.github/repository-maintenance.md) for tag protection.
 
 The Sentry token is provided only to the build step, and only for a release: a pull request's build sends no source maps.
 
-After a release, the `changelog` job has **Actions: write**, and only to start [Deploy site](../.github/workflows/deploy-site.yml) on `main`: the version commit is pushed with `GITHUB_TOKEN`, which starts no workflow of its own.
+After publication, `changelog` has **Actions: write** only to dispatch [Deploy site](../.github/workflows/deploy-site.yml) on `main`. A tag pushed with `GITHUB_TOKEN` starts no separate workflow, so this dispatch is explicit.
 
-Site pushes check the latest public release before deploying. If an installer advertised by the page is missing or still uploading, CI validates the site build but keeps the existing site live. The release workflow starts deployment again after publishing all platforms, so merging new download links cannot expose them before the installers exist.
+Before deployment, `scripts/site-downloads.js` checks the latest public release's installers and exports `SITE_RELEASES`: the exact non-draft, stable versions and the current latest version. The site uses this snapshot for its changelog and structured-data version, never the prep PR's `package.json`. Drafts, untagged prepared versions and skipped versions stay absent. Missing installers keep the existing site live; publication requests deployment again.
+
+Offline site builds work without credentials and omit release claims when `SITE_RELEASES` is absent. To preview the release display locally, provide a JSON fixture such as `SITE_RELEASES='{"versions":["1.2.3"],"latest":"1.2.3"}' npm run build:site`. Production metadata comes from the download-check step, not a hand-entered fixture.
 
 No token is bundled into the app or website. Publishing rejects a private repository, since the app and the download link could not read its releases, and publishing in the source repository requires the existing version tag recorded by the release job.
 
@@ -141,15 +148,15 @@ hdiutil verify buddylist-mac-arm64.dmg
 ```
 
 - **Tests or packaging fail:** the current public release stays available. Fix the code, push to `main` and ask for the release again. Transient failures can be rerun.
-- **Main moved:** the run fails at **Stop when main moved** and publishes nothing. Run the release again; it then includes the newer commits.
+- **The version is already tagged on another commit:** prepare the next version in a new PR and merge it before dispatching again. To retry the original commit, rerun its original workflow.
 - **No Mac to build on:** the `mac` job waits about 15 minutes and is cancelled with "The job was not acquired by Runner of type hosted even after multiple attempts" when GitHub has no Apple Silicon runner free. Nothing is published. Rerun the failed jobs later, or build on a Mac of your own: add it as a self-hosted runner of this repository (**Settings → Actions → Runners → New self-hosted runner**, macOS, ARM64) with a label such as `buddylist-mac` (`./config.sh --labels buddylist-mac`), start it with `./run.sh`, and set the repository variable `MAC_RUNNER` to that label. Only the `mac` job then runs there, with the signing secrets; the others stay on GitHub's runners. That Mac needs Xcode, for `notarytool` and `stapler`, and has to stay awake and online until the job is done. Delete the variable to go back to GitHub's Macs.
-- **The version push is rejected:** check repository rules and the release job's write permission. A version commit and tag are pushed together; neither is force-updated.
+- **The tag push is rejected:** check the release job's **Contents: write** permission and tag rules. Creation must be allowed; updates and deletions should be blocked. A retry of a tag already on the same commit does not push it again. Do not add a main bypass or force-update the tag.
 - **Publishing returns HTTP 403:** check that the `release` job still has **Contents: write**, and that **Settings → Actions → General** lets workflows write to the repository, then rerun failed jobs.
 - **An upload fails:** the previous public release remains latest. Rerun failed jobs to reuse the tag and finish the draft upload. A new release may instead ship the fix under a later version.
 - **Actions artifact storage is full:** release installer uploads fail, so the release cannot collect all platforms or publish. Restore available storage, then rerun the failed jobs while the successful artifacts are still available; they expire after one day. If they have expired, rerun all jobs from the same source. Build-only uploads may fail without failing the build. Never bypass collection or replace public assets by hand.
 - **The release was already published:** the publisher leaves it unchanged and succeeds without re-uploading. Check its existing assets.
 
-The package version can be ahead of the public download if its version commit succeeded but uploading failed. Finish the failed publish, or let a later successful `main` release supersede it. Keep [release-notes.md](release-notes.md) accurate as installation requirements change.
+The package version is ahead of the public download between merging the prep PR and publishing. Finish a failed publish by rerunning its original workflow, or prepare a newer version in another PR. Keep [release-notes.md](release-notes.md) accurate as installation requirements change.
 
 ## Getting updates to existing users
 
@@ -192,11 +199,11 @@ The notice and the feed only work while SafaElmali/buddylist is public: a privat
 
 ### What's new
 
-**What's new is written by hand** in [site/changelog.md](../site/changelog.md), for the people who use buddylist: each version under a `## v1.2.3 — 2026-10-12` heading, newest first, in Markdown. Write it before you run the release: a release is the next patch version unless `package.json` says otherwise, so the version after v0.2.11 is v0.2.12.
+**What's new is written by hand** in [site/changelog.md](../site/changelog.md), for the people who use buddylist: each version under a `## v1.2.3 — 2026-10-12` heading, newest first, in Markdown. Write it in the prep PR under the version produced by `prepare`; the release uses that committed version unchanged.
 
 Before publishing, the **Write release notes** step runs `node scripts/release.js notes`. It takes the release's part of the changelog as written, everything under its heading up to the next version, and writes `dist/release-notes.md`: that under **What's new**, over [release-notes.md](release-notes.md). Publishing uses that file. A version the changelog has nothing for is still released, with release-notes.md alone and a warning in the run; write it afterwards, and the changelog page shows it once the site deploys. Its GitHub description stays as published, and can be edited there. A retry of a published release changes nothing, its description included.
 
-The changelog page lists a version once `package.json` on `main` names it, so a version written ahead waits for its release (see [the changelog](landing-page.md#changelog)).
+The changelog page lists only published stable releases, using the deployment's `SITE_RELEASES` snapshot. A merged prep PR alone does not list its version (see [the changelog](landing-page.md#changelog)).
 
 ### Where copies look: one public repository under two names
 

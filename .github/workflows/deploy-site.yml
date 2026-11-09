@@ -22,6 +22,7 @@ on:
       - 'scripts/build-site.js'
       - 'scripts/build-web-preview.js'
       - 'scripts/notices.js'
+      - 'scripts/release.js'
       - 'scripts/site-*.js'
       - 'build/icon-128.png'
       - 'docs/screenshot.png'
@@ -52,6 +53,7 @@ on:
       - 'scripts/build-site.js'
       - 'scripts/build-web-preview.js'
       - 'scripts/notices.js'
+      - 'scripts/release.js'
       - 'scripts/site-*.js'
       - 'build/icon-128.png'
       - 'docs/screenshot.png'
@@ -96,6 +98,7 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Test site metadata, redirects, changelog, docs and forms
         run: node --test test/site-seo.test.js test/site-redirect.test.js test/site-changelog.test.js test/site-docs.test.js test/site-downloads.test.js test/feedback-endpoint.test.js
+      # This also exports SITE_RELEASES for the build: package.json may name an unreleased prep version.
       - name: Check published downloads
         id: downloads
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

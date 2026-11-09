@@ -4,8 +4,10 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   applyVersion,
+  prepareRelease,
   compareVersions,
   nextVersion,
   planRelease,
@@ -64,93 +66,163 @@ test('a build never reserves a release and a manual tag must match a version on 
   assert.throws(() => planRelease(root, 'tag', 'v0.2.1'));
 });
 
-test('a release records the tested version atomically and retries reuse that version', (t) => {
+function prepared(t) {
+  const repo = fixture(t);
+  prepareRelease(repo.root);
+  git(repo.root, 'commit', '-am', 'Prepare release');
+  git(repo.root, 'push', 'origin', 'main');
+  return { ...repo, plan: planRelease(repo.root, 'release') };
+}
+
+test('prepare writes both manifests without committing or tagging, using the next stable version', (t) => {
   const { root, remote } = fixture(t);
-  const plan = planRelease(root, 'auto');
-  assert.equal(plan.tag, 'v0.2.2');
-  applyVersion(root, plan.version);
-  const result = finalizeRelease(root, plan);
-  assert.equal(result.publish, true);
-  assert.equal(git(remote, 'rev-parse', 'main'), result.sha);
-  assert.equal(git(remote, 'rev-parse', 'v0.2.2^{commit}'), result.sha);
-  assert.equal(git(remote, 'show', 'v0.2.2:app.js'), 'new code');
-  assert.deepEqual(git(remote, 'diff', '--name-only', plan.source, result.sha).split('\n').sort(), [
-    'package-lock.json',
-    'package.json',
-  ]);
-  assert.equal(JSON.parse(git(remote, 'show', 'v0.2.2:package.json')).version, '0.2.2');
-  assert.equal(JSON.parse(git(remote, 'show', 'v0.2.2:package-lock.json')).packages[''].version, '0.2.2');
-  assert.equal(planRelease(root, 'auto').tag, plan.tag, 'manual run at bot commit does not bump again');
-  git(root, 'switch', '--detach', plan.source);
-  assert.deepEqual(planRelease(root, 'auto'), plan, 'rerunning all jobs keeps the original version');
-  assert.deepEqual(finalizeRelease(root, plan), result, 'rerunning failed publish does not make another commit');
-  git(root, 'switch', '--detach', result.sha);
-  fs.writeFileSync(path.join(root, 'app.js'), 'next change\n');
-  git(root, 'commit', '-am', 'Next feature');
-  assert.equal(planRelease(root, 'auto').version, '0.2.3');
+  const head = git(root, 'rev-parse', 'HEAD');
+  assert.deepEqual(prepareRelease(root), { version: '0.2.2', tag: 'v0.2.2' });
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json')));
+  const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json')));
+  assert.equal(pkg.version, '0.2.2');
+  assert.equal(lock.version, '0.2.2');
+  assert.equal(lock.packages[''].version, '0.2.2');
+  assert.deepEqual(pkg.dependencies, { example: '1.0.0' });
+  assert.equal(lock.packages.example.version, '1.0.0');
+  assert.equal(git(root, 'rev-parse', 'HEAD'), head);
+  assert.equal(git(remote, 'rev-parse', 'main'), head);
+  assert.equal(git(root, 'tag', '--list', 'v0.2.2'), '');
+  assert.equal(prepareRelease(root).version, '0.2.2', 'an uncommitted preparation is idempotent');
+  assert.equal(prepareRelease(root, '0.3.0').version, '0.3.0');
+  assert.throws(() => prepareRelease(root, '0.2.2'), /0.3.0 or newer/);
+  assert.throws(() => prepareRelease(root, '1.0.0-beta'), /stable/);
 });
 
-test('a newer main commit makes an older completed build skip publication', (t) => {
-  const { root, remote, dir } = fixture(t);
-  const plan = planRelease(root, 'auto');
+test('prepare sees remotely reserved tags without needing them in the local tag namespace', (t) => {
+  const { root, remote } = fixture(t);
+  git(remote, 'tag', 'v0.2.10');
+  assert.equal(git(root, 'tag', '--list', 'v0.2.10'), '');
+  assert.equal(prepareRelease(root, 'auto').version, '0.2.11');
+});
+
+test('the prepare CLI supports explicit versions and packaging only verifies the committed version', (t) => {
+  const { root } = fixture(t);
+  const script = fileURLToPath(new URL('../scripts/release.js', import.meta.url));
+  const command = (...args) =>
+    execFileSync(process.execPath, [script, ...args], {
+      cwd: root,
+      env: { ...process.env, GITHUB_OUTPUT: '' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+      encoding: 'utf8',
+    });
+  assert.equal(JSON.parse(command('prepare', '0.3.0')).version, '0.3.0');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'))).packages[''].version, '0.3.0');
+  const before = git(root, 'diff');
+  command('verify-version', '0.3.0');
+  assert.throws(() => command('verify-version', '0.4.0'));
+  assert.equal(git(root, 'diff'), before, 'verification never rewrites the package files');
+});
+
+test('an unprepared version fails before packaging instead of choosing a new version in CI', (t) => {
+  const { root } = fixture(t);
+  assert.throws(() => planRelease(root, 'release'), /write the next version in a prep PR/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'package.json'))).version, '0.2.1');
+  prepareRelease(root);
+  assert.throws(() => planRelease(root, 'release'), /Command failed/, 'preparation must be committed');
+});
+
+test('finalize pushes only a new tag on the built commit, even with branch updates prohibited', (t) => {
+  const { root, remote, plan } = prepared(t);
+  const commitCount = git(root, 'rev-list', '--count', 'HEAD');
+  // Simulate the proposed tag rules: allow creation, reject updates/deletions and all branches.
+  fs.writeFileSync(
+    path.join(remote, 'hooks', 'pre-receive'),
+    [
+      '#!/bin/sh',
+      'while read old new ref; do',
+      '  [ "$old" = 0000000000000000000000000000000000000000 ] || exit 1',
+      '  [ "$new" != 0000000000000000000000000000000000000000 ] || exit 1',
+      '  [ "$ref" = refs/tags/v0.2.2 ] || exit 1',
+      'done',
+      '',
+    ].join('\n'),
+    { mode: 0o755 }
+  );
+  git(root, 'config', 'push.followTags', 'true');
+  git(root, 'tag', '-a', 'v9.0.0', '-m', 'Unrelated local tag');
+  assert.deepEqual(finalizeRelease(root, plan), { publish: true, sha: plan.source });
+  assert.equal(git(remote, 'rev-parse', 'main'), plan.source);
+  assert.equal(git(remote, 'rev-parse', 'v0.2.2^{commit}'), plan.source);
+  assert.equal(git(remote, 'cat-file', '-t', 'v0.2.2'), 'tag');
+  assert.match(git(remote, 'cat-file', '-p', 'v0.2.2'), new RegExp(`Source-Commit: ${plan.source}`));
+  assert.equal(git(remote, 'tag', '--list', 'v9.0.0'), '');
+  assert.equal(git(root, 'rev-list', '--count', 'HEAD'), commitCount);
+  assert.equal(git(root, 'status', '--porcelain'), '');
+});
+
+test('a retry on the same commit reuses its exact tag and performs no push', (t) => {
+  const { root, remote, plan } = prepared(t);
+  const result = finalizeRelease(root, plan);
+  const tagObject = git(remote, 'rev-parse', plan.tag);
+  fs.writeFileSync(path.join(root, '.git', 'hooks', 'pre-push'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  assert.deepEqual(planRelease(root, 'release'), plan);
+  assert.deepEqual(finalizeRelease(root, plan), result);
+  assert.equal(git(remote, 'rev-parse', plan.tag), tagObject);
+});
+
+test('an existing remote tag on another commit fails clearly and is never changed', (t) => {
+  const { root, remote, plan } = prepared(t);
+  git(remote, 'tag', plan.tag, 'main~1');
+  const original = git(remote, 'rev-parse', plan.tag);
+  assert.throws(() => finalizeRelease(root, plan), /write the next version in a prep PR/);
+  assert.equal(git(remote, 'rev-parse', plan.tag), original);
+  assert.equal(git(remote, 'rev-parse', 'main'), plan.source);
+});
+
+test('main advancing while packaging does not change which commit the release tags', (t) => {
+  const { root, remote, dir, plan } = prepared(t);
   const newer = path.join(dir, 'newer');
   git(dir, 'clone', remote, newer);
   fs.writeFileSync(path.join(newer, 'app.js'), 'newer code\n');
-  git(newer, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-am', 'Newer work');
+  git(newer, '-c', 'user.name=Test', '-c', 'user.email=fake@example.com', 'commit', '-am', 'Newer work');
   git(newer, 'push', 'origin', 'main');
   const sha = git(newer, 'rev-parse', 'HEAD');
-  assert.deepEqual(finalizeRelease(root, plan), { publish: false });
+  assert.deepEqual(finalizeRelease(root, plan), { publish: true, sha: plan.source });
   assert.equal(git(remote, 'rev-parse', 'main'), sha);
-  assert.equal(git(remote, 'tag', '--list', 'v0.2.2'), '');
+  assert.equal(git(remote, 'rev-parse', `${plan.tag}^{commit}`), plan.source);
 });
 
-test('a version tag belonging to another commit is never overwritten', (t) => {
-  const { root, remote } = fixture(t);
-  const plan = planRelease(root, 'auto');
-  git(root, 'tag', 'v0.2.2', 'HEAD~1');
-  git(root, 'push', 'origin', 'refs/tags/v0.2.2');
-  const original = git(remote, 'rev-parse', 'v0.2.2');
-  assert.throws(() => finalizeRelease(root, plan), /belongs to another build/);
-  assert.equal(git(remote, 'rev-parse', 'v0.2.2'), original);
+test('a tag creation race accepts the same built commit and rejects another commit', (t) => {
+  for (const sameCommit of [true, false]) {
+    const { root, remote, plan } = prepared(t);
+    const target = sameCommit ? plan.source : git(root, 'rev-parse', 'HEAD~1');
+    fs.writeFileSync(
+      path.join(root, '.git', 'hooks', 'pre-push'),
+      `#!/usr/bin/env node\nrequire('node:child_process').execFileSync('git', ${JSON.stringify(['--git-dir', remote, 'update-ref', `refs/tags/${plan.tag}`, target])});\n`,
+      { mode: 0o755 }
+    );
+    if (sameCommit) assert.deepEqual(finalizeRelease(root, plan), { publish: true, sha: plan.source });
+    else assert.throws(() => finalizeRelease(root, plan), /write the next version in a prep PR/);
+    assert.equal(git(remote, 'rev-parse', `${plan.tag}^{commit}`), target);
+    assert.equal(git(remote, 'rev-parse', 'main'), plan.source);
+  }
 });
 
-test('main moving during the atomic push leaves neither a stale version commit nor a tag', (t) => {
-  const { root, remote, dir } = fixture(t);
-  const plan = planRelease(root, 'auto');
-  const newer = path.join(dir, 'concurrent');
-  git(dir, 'clone', remote, newer);
-  fs.writeFileSync(path.join(newer, 'app.js'), 'concurrent work\n');
-  git(newer, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-am', 'Concurrent change');
-  const hook = path.join(root, '.git', 'hooks', 'pre-push');
-  fs.writeFileSync(
-    hook,
-    `#!/usr/bin/env node\nrequire('node:child_process').execFileSync('git', ${JSON.stringify(['-C', newer, 'push', 'origin', 'main'])}, {stdio: 'ignore'});\n`,
-    { mode: 0o755 }
-  );
-  assert.deepEqual(finalizeRelease(root, plan), { publish: false });
-  assert.equal(git(remote, 'rev-parse', 'main'), git(newer, 'rev-parse', 'HEAD'));
-  assert.equal(git(remote, 'tag', '--list', plan.tag), '');
-});
-
-test('a permission or repository-rule rejection fails instead of silently skipping', (t) => {
-  const { root, remote } = fixture(t);
-  const plan = planRelease(root, 'auto');
-  fs.writeFileSync(path.join(remote, 'hooks', 'pre-receive'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+test('a permission rejection fails; retrying after it succeeds without another commit', (t) => {
+  const { root, remote, plan } = prepared(t);
+  const hook = path.join(remote, 'hooks', 'pre-receive');
+  fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
   assert.throws(() => finalizeRelease(root, plan));
   assert.equal(git(remote, 'rev-parse', 'main'), plan.source);
   assert.equal(git(remote, 'tag', '--list', plan.tag), '');
+  fs.rmSync(hook);
+  assert.deepEqual(finalizeRelease(root, plan), { publish: true, sha: plan.source });
 });
 
-test('an explicit minor bump can be tagged even when no further version edit is needed', (t) => {
-  const { root, remote } = fixture(t);
-  applyVersion(root, '0.3.0');
-  git(root, 'commit', '-am', 'Prepare minor version');
-  git(root, 'push', 'origin', 'main');
-  const plan = planRelease(root, 'auto');
-  assert.equal(plan.version, '0.3.0');
-  assert.equal(finalizeRelease(root, plan).publish, true);
-  assert.equal(JSON.parse(git(remote, 'show', 'v0.3.0:package.json')).version, '0.3.0');
-  assert.equal(git(remote, 'diff', '--name-only', plan.source, 'v0.3.0'), '');
+test('explicit tag runs require their unchanged tag and a matching version committed on main', (t) => {
+  const { root, remote, plan } = prepared(t);
+  git(root, 'tag', plan.tag);
+  git(root, 'push', 'origin', `refs/tags/${plan.tag}`);
+  const tagged = planRelease(root, 'tag', plan.tag);
+  assert.deepEqual(finalizeRelease(root, tagged), { publish: true, sha: plan.source });
+  git(remote, 'update-ref', '-d', `refs/tags/${plan.tag}`);
+  assert.throws(() => finalizeRelease(root, tagged), /tag disappeared/);
 });
 
 test('a mismatched lockfile fails before any version is changed', (t) => {
@@ -185,7 +257,10 @@ function publisher(t, { releases = [], privateRepo = false, uploadFails = false 
   const calls = [];
   const runGh = (...args) => {
     calls.push(args);
-    if (args[0] === 'api') return JSON.stringify(args.includes('--paginate') ? [releases] : { private: privateRepo });
+    if (args[0] === 'api')
+      return args.includes('--paginate')
+        ? releases.map((release) => JSON.stringify(release)).join('\n')
+        : JSON.stringify({ private: privateRepo });
     if (uploadFails && args[1] === 'upload') throw new Error('upload failed');
     return '';
   };
@@ -193,7 +268,7 @@ function publisher(t, { releases = [], privateRepo = false, uploadFails = false 
     root,
     tag: 'v0.2.2',
     repo: 'owner/buddylist',
-    sourceRepo: 'owner/buddylist-app',
+    sourceRepo: 'owner/buddylist',
     token: 'test-token',
     runGh,
   };
@@ -260,9 +335,9 @@ test('publishing from the public source repository requires its existing tested 
   const p = publisher(t);
   assert.equal(publishRelease({ ...p.options, sourceRepo: 'Owner/Buddylist' }).published, true);
   assert.ok(p.writes()[0].includes('--verify-tag'));
-  const legacy = publisher(t);
-  publishRelease(legacy.options);
-  assert.ok(!legacy.writes()[0].includes('--verify-tag'), 'private-source releases remain usable during migration');
+  const fork = publisher(t);
+  assert.throws(() => publishRelease({ ...fork.options, sourceRepo: 'contributor/buddylist' }), /source repository/);
+  assert.deepEqual(fork.writes(), []);
 });
 
 test('a release missing any platform installer or update feed stays unpublished', (t) => {
@@ -378,12 +453,12 @@ const RUNS = {
 test('only a run started by hand on main, or a version tag, releases: a push to main just builds', () => {
   const mode = (github) => evaluate(expressionAfter('RELEASE_MODE'), github);
   assert.equal(mode(RUNS.pushToMain), 'build');
-  assert.equal(mode(RUNS.manualOnMain), 'auto');
+  assert.equal(mode(RUNS.manualOnMain), 'release');
   assert.equal(mode(RUNS.versionTag), 'tag');
   assert.equal(mode(RUNS.pullRequest), 'build');
   assert.equal(mode(RUNS.manualOnBranch), 'build');
   assert.equal(evaluate(expressionAfter('RELEASE_MODE'), RUNS.manualOnMain, { mode: 'build' }), 'build');
-  assert.equal(evaluate(expressionAfter('RELEASE_MODE'), RUNS.manualOnMain, { mode: 'release' }), 'auto');
+  assert.equal(evaluate(expressionAfter('RELEASE_MODE'), RUNS.manualOnMain, { mode: 'release' }), 'release');
 });
 
 test('macOS packaging runs only for explicit builds and version-tag releases', () => {
@@ -516,21 +591,20 @@ test("the release's What's new is written from the changelog before publishing, 
   assert.doesNotMatch(step, /TOKEN/);
 });
 
-test('the public repo publishes with its own token and the private repo keeps its migration token', () => {
-  const mac = workflow.split('\n  release:\n')[1].split('\n  changelog:\n')[0];
-  const publish = mac.indexOf('- name: Publish public release');
-  const step = mac.slice(publish);
-  assert.match(step, /run: node scripts\/release\.js publish/);
-  const expression = /GH_TOKEN: \$\{\{ (.+) \}\}/.exec(step)[1];
-  const token = (repository, secrets = {}) =>
-    new Function('github', 'secrets', `return ${expression}`)({ repository, token: 'built-in' }, secrets);
-  assert.equal(token('SafaElmali/buddylist', { RELEASES_TOKEN: 'legacy' }), 'built-in');
-  assert.equal(token('SafaElmali/buddylist-app', { RELEASES_TOKEN: 'legacy' }), 'legacy');
-  assert.equal(token('contributor/buddylist'), undefined);
-  assert.doesNotMatch(mac.slice(0, publish), /RELEASES_TOKEN/);
+test('the release job uses its own token, publishes only from the source repo, and never prepares versions', () => {
+  const release = workflow.split('\n  release:\n')[1].split('\n  changelog:\n')[0];
+  const condition = /^ {4}if: (.+)$/m.exec(release)[1];
+  const publishes = (repository) => evaluate(condition, { repository }, {}, { test: { outputs: { tag: 'v0.3.0' } } });
+  assert.equal(publishes('SafaElmali/buddylist'), true);
+  assert.equal(publishes('contributor/buddylist'), false);
+  assert.match(release.slice(release.indexOf('- name: Publish public release')), /GH_TOKEN: \$\{\{ github\.token \}\}/);
+  assert.doesNotMatch(workflow, /RELEASES_TOKEN|release\.js (?:prepare|version) /);
+  assert.equal(workflow.match(/release\.js verify-version /g).length, 2);
+  assert.doesNotMatch(release, /git (?:commit|push)|refs\/heads\/main/);
+  assert.match(release, /node scripts\/release\.js finalize/);
 });
 
-test('a release deploys the site afterwards, so the changelog lists the version its commit names', () => {
+test('a release dispatches the site after publication, so its changelog can include the released version', () => {
   const job = workflow.split('\n  changelog:\n')[1];
   assert.match(job, /^ {4}needs: \[test, release\]$/m);
   assert.match(job, /^ {4}if: needs\.test\.outputs\.tag != ''$/m);
@@ -552,13 +626,6 @@ test('a build without the update feed, in the app or next to the installers, fai
   const { publish } = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).build;
   assert.deepEqual(publish, [{ provider: 'github', owner: 'SafaElmali', repo: 'buddylist' }]);
   assert.equal(RELEASES_REPO, 'SafaElmali/buddylist');
-});
-
-test('a release that was skipped because main moved fails its run', () => {
-  assert.match(
-    workflow,
-    /if: needs\.test\.outputs\.tag != '' && steps\.finalize\.outputs\.publish != 'true'\n\s+run: \|\n(?:.*\n){1,3}?\s+exit 1/
-  );
 });
 
 test('the macOS build signs and notarizes only with a certificate and all three Apple values', (t) => {

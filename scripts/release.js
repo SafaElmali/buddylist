@@ -75,99 +75,82 @@ function tagCommit(root, tag) {
   return git(root, 'rev-parse', `${tag}^{commit}`);
 }
 
-// A retry may start from the original source or from the bot's version commit.
-// Only the two version files may differ from the source that was tested.
-function reusableRelease(root, tag, source) {
-  if (!/^v/.test(tag) || !VERSION.test(tag.slice(1))) return '';
-  const sha = tagCommit(root, tag);
-  if (!sha) return '';
-  if (git(root, 'show', '-s', '--format=%s', sha) !== `chore: release ${tag}`) return '';
-  if (sha !== source && git(root, 'show', '-s', '--format=%P', sha) !== source) return '';
-  const changed = git(root, 'diff', '--name-only', source, sha).split('\n').filter(Boolean);
-  if (changed.some((file) => !manifests.includes(file))) return '';
-  const expected = versionFiles(root, tag.slice(1));
-  if (!manifests.every((file, i) => `${git(root, 'show', `${sha}:${file}`)}\n` === expected[i])) return '';
-  return sha;
+export function prepareRelease(root, requested = 'auto') {
+  const current = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+  versionFiles(root, current);
+  // Read remote tag names without replacing local tags in a checkout that held another history.
+  const tags = git(root, 'ls-remote', '--tags', '--refs', 'origin', 'v*')
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => line.split('\t')[1].replace('refs/tags/', ''));
+  const next = nextVersion(current, tags);
+  const version = requested === 'auto' ? next : requested;
+  assert.ok(compareVersions(version, next) >= 0, `Prepare version ${next} or newer`);
+  applyVersion(root, version);
+  return { version, tag: `v${version}` };
+}
+
+function remoteTagCommit(root, tag) {
+  const refs = new Map(
+    git(root, 'ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`)
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => line.split('\t').reverse())
+  );
+  return refs.get(`refs/tags/${tag}^{}`) || refs.get(`refs/tags/${tag}`) || '';
+}
+
+function checkTag(existing, source, tag) {
+  assert.ok(!existing || existing === source, `${tag} points to another commit; write the next version in a prep PR`);
 }
 
 export function planRelease(root, mode, refName = '') {
-  assert.ok(['auto', 'tag', 'build'].includes(mode), 'Unknown release mode');
+  assert.ok(['release', 'tag', 'build'].includes(mode), 'Unknown release mode');
   const source = git(root, 'rev-parse', 'HEAD');
   const current = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
   versionFiles(root, current);
   if (mode === 'build') return { mode, source, version: current, tag: '' };
-  if (mode === 'tag') {
-    assert.equal(refName, `v${current}`, 'Tag must match the package version');
-    git(root, 'merge-base', '--is-ancestor', source, 'origin/main');
-    return { mode, source, version: current, tag: refName };
-  }
-  const commits = git(root, 'log', '--all', '--format=%H%x09%P%x09%s', '--grep=^chore: release v');
-  for (const line of commits.split('\n')) {
-    const [sha, parent, subject] = line.split('\t');
-    if (sha !== source && parent !== source) continue;
-    const tag = subject?.replace(/^chore: release /, '');
-    if (tag && reusableRelease(root, tag, source)) return { mode, source, version: tag.slice(1), tag };
-  }
-  const version = nextVersion(current, git(root, 'tag', '--list', 'v*').split('\n'));
-  return { mode, source, version, tag: `v${version}` };
+  const tag = `v${current}`;
+  if (mode === 'tag') assert.equal(refName, tag, 'Tag must match the package version');
+  git(root, 'diff', '--exit-code', source, '--', ...manifests);
+  git(root, 'merge-base', '--is-ancestor', source, 'origin/main');
+  checkTag(tagCommit(root, tag), source, tag);
+  return { mode, source, version: current, tag };
 }
 
 export function finalizeRelease(root, { mode, source, version, tag }) {
-  assert.ok(['auto', 'tag'].includes(mode));
+  assert.ok(['release', 'tag'].includes(mode));
   assert.equal(tag, `v${version}`);
   parts(version);
   assert.equal(git(root, 'rev-parse', 'HEAD'), source, 'Checkout changed since testing');
-  git(root, 'fetch', 'origin', 'main', '--tags');
-  if (mode === 'tag') {
-    assert.equal(tagCommit(root, tag), source, 'Release tag moved since testing');
-    git(root, 'merge-base', '--is-ancestor', source, 'origin/main');
-    return { publish: true, sha: source };
-  }
-  const existing = tagCommit(root, tag);
-  if (existing) {
-    assert.equal(reusableRelease(root, tag, source), existing, 'Version tag belongs to another build');
-    return { publish: true, sha: existing };
-  }
-  if (git(root, 'rev-parse', 'origin/main') !== source) {
-    console.log('Main advanced while building; nothing is published. Run the release again.');
-    return { publish: false };
-  }
-  applyVersion(root, version);
-  git(root, 'add', '--', ...manifests);
-  assert.ok(
-    git(root, 'diff', '--cached', '--name-only')
-      .split('\n')
-      .filter(Boolean)
-      .every((file) => manifests.includes(file))
-  );
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version, version);
+  versionFiles(root, version);
+  git(root, 'diff', '--exit-code', source, '--', ...manifests);
+  git(root, 'fetch', '--no-tags', 'origin', 'main');
+  git(root, 'merge-base', '--is-ancestor', source, 'origin/main');
+  const existing = remoteTagCommit(root, tag);
+  checkTag(existing, source, tag);
+  if (existing) return { publish: true, sha: source };
+  assert.notEqual(mode, 'tag', 'Release tag disappeared since testing');
+  const local = tagCommit(root, tag);
+  checkTag(local, source, tag);
   const identity = [
     '-c',
     'user.name=github-actions[bot]',
     '-c',
     'user.email=41898282+github-actions[bot]@users.noreply.github.com',
   ];
-  git(root, ...identity, 'commit', '--allow-empty', '-m', `chore: release ${tag}`);
-  const sha = git(root, 'rev-parse', 'HEAD');
-  git(root, ...identity, 'tag', '-a', tag, '-m', `buddylist ${tag}\n\nSource-Commit: ${source}`);
+  if (!local) git(root, ...identity, 'tag', '-a', tag, source, '-m', `buddylist ${tag}\n\nSource-Commit: ${source}`);
   try {
-    // Never rewrite main or a tag. Both refs must be accepted together.
-    git(root, 'push', '--atomic', 'origin', 'HEAD:refs/heads/main', `refs/tags/${tag}`);
+    // A single creation refspec: no branch push, tag updates, or automatic extra tags.
+    git(root, '-c', 'push.followTags=false', 'push', 'origin', `refs/tags/${tag}:refs/tags/${tag}`);
   } catch (error) {
-    const remote = git(root, 'ls-remote', 'origin', 'refs/heads/main', `refs/tags/${tag}`, `refs/tags/${tag}^{}`);
-    const refs = new Map(
-      remote
-        .split('\n')
-        .filter(Boolean)
-        .map((line) => line.split('\t').reverse())
-    );
-    if (refs.get(`refs/tags/${tag}^{}`) === sha) return { publish: true, sha };
-    if (!refs.has(`refs/tags/${tag}`) && refs.get('refs/heads/main') !== source) {
-      console.log('Main advanced during the push; nothing is published. Run the release again.');
-      return { publish: false };
-    }
+    const pushed = remoteTagCommit(root, tag);
+    checkTag(pushed, source, tag);
+    if (pushed === source) return { publish: true, sha: source };
     throw error;
   }
-  return { publish: true, sha };
+  return { publish: true, sha: source };
 }
 
 /**
@@ -188,14 +171,29 @@ export function writeReleaseNotes({ root, tag }) {
   return { whatsNew: Boolean(notes) };
 }
 
+// Keep CLI output small as releases accumulate: installers' metadata and release bodies
+// are unnecessary here. --paginate applies --jq to each page, emitting one JSON object per line.
+export function releaseMetadata(repo, runGh) {
+  return runGh(
+    'api',
+    '--paginate',
+    `repos/${repo}/releases?per_page=100`,
+    '--jq',
+    '.[] | {tag_name, draft, prerelease}'
+  )
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
 export function publishRelease({ root, tag, repo, sourceRepo, token, runGh }) {
   assert.ok(token, 'Set GH_TOKEN to a token with Contents: write on the releases repository');
   assert.match(repo || '', /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, 'The releases repository is owner/repository');
-  const sameRepo = repo.toLowerCase() === (sourceRepo || '').toLowerCase();
+  assert.equal(repo.toLowerCase(), (sourceRepo || '').toLowerCase(), 'Publish from the source repository');
   assert.equal(tag, `v${parts(tag.slice(1)).join('.')}`);
   const gh = runGh || ((...args) => execFileSync('gh', args, { cwd: root, encoding: 'utf8' }));
   assert.equal(JSON.parse(gh('api', `repos/${repo}`)).private, false, 'Destination must be public');
-  const releases = JSON.parse(gh('api', '--paginate', '--slurp', `repos/${repo}/releases?per_page=100`)).flat();
+  const releases = releaseMetadata(repo, gh);
   const existing = releases.find((release) => release.tag_name === tag);
   if (existing && !existing.draft) {
     console.log(`${tag} is already published; leaving its assets unchanged.`);
@@ -214,7 +212,6 @@ export function publishRelease({ root, tag, repo, sourceRepo, token, runGh }) {
     // This release's own description, when the notes step wrote one.
     const notes = fs.existsSync(path.join(root, RELEASE_NOTES)) ? RELEASE_NOTES : NOTES;
     // finalize already pushed the tested tag here. Never let gh create a different tag at main.
-    // The private source repository still publishes across repositories until migration completes.
     gh(
       'release',
       'create',
@@ -226,7 +223,7 @@ export function publishRelease({ root, tag, repo, sourceRepo, token, runGh }) {
       `buddylist ${tag}`,
       '--notes-file',
       notes,
-      ...(sameRepo ? ['--verify-tag'] : [])
+      '--verify-tag'
     );
   }
   gh('release', 'upload', tag, '--repo', repo, '--clobber', ...assets.map((name) => `dist/${name}`));
@@ -253,10 +250,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   const env = process.env;
   if (command === 'plan') {
     const plan = planRelease(root, argument, env.GITHUB_REF_NAME);
-    if (plan.mode === 'auto') applyVersion(root, plan.version);
     output(plan);
+  } else if (command === 'prepare') {
+    output(prepareRelease(root, argument));
   } else if (command === 'version') {
     applyVersion(root, argument);
+  } else if (command === 'verify-version') {
+    const current = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+    assert.equal(current, argument, 'Build must use the version committed in the prep PR');
+    versionFiles(root, current);
   } else if (command === 'finalize') {
     output(
       finalizeRelease(root, {
@@ -283,6 +285,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
       })
     );
   } else {
-    throw new Error('Expected plan, version, finalize, notes or publish');
+    throw new Error('Expected prepare, plan, version, verify-version, finalize, notes or publish');
   }
 }

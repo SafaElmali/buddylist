@@ -17,7 +17,7 @@ on:
 permissions:
   contents: read
 
-# Manual runs on main release by default, preserving npm run release.
+# Manual runs on main release its committed version, prepared in a merged PR.
 # Choose mode=build to package any branch without publishing or bumping a version.
 #
 # Releases, manual tags and their retries run one at a time. Builds of main have a
@@ -54,7 +54,7 @@ jobs:
         id: plan
         run: node scripts/release.js plan "$RELEASE_MODE"
         env:
-          RELEASE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode != 'build' && github.ref == 'refs/heads/main' && 'auto' || startsWith(github.ref, 'refs/tags/v') && 'tag' || 'build' }}
+          RELEASE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode != 'build' && github.ref == 'refs/heads/main' && 'release' || startsWith(github.ref, 'refs/tags/v') && 'tag' || 'build' }}
       # A pull request is checked out as its merge commit, whose first parent is what it goes into.
       # Labels are read at each push: a label added later builds from the next push.
       - name: Choose installer builds and the phone check
@@ -136,8 +136,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Use the tested version
-        run: node scripts/release.js version "$RELEASE_VERSION"
+      - name: Verify the tested version
+        run: node scripts/release.js verify-version "$RELEASE_VERSION"
         env:
           RELEASE_VERSION: ${{ needs.test.outputs.version }}
       - run: npm ci
@@ -233,8 +233,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Use the tested version
-        run: node scripts/release.js version "$RELEASE_VERSION"
+      - name: Verify the tested version
+        run: node scripts/release.js verify-version "$RELEASE_VERSION"
         shell: bash
         env:
           RELEASE_VERSION: ${{ needs.test.outputs.version }}
@@ -296,7 +296,7 @@ jobs:
 
   release:
     needs: [test, mac, desktop]
-    if: needs.test.outputs.tag != ''
+    if: github.repository == 'SafaElmali/buddylist' && needs.test.outputs.tag != ''
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -315,9 +315,9 @@ jobs:
           pattern: buddylist-*
           merge-multiple: true
           path: dist
-      # Only record a version after tests and packaging pass. GITHUB_TOKEN
-      # is available to Git only in this step; its pushes do not trigger CI.
-      - name: Record version and tag
+      # The prep PR already committed the version. Push only its tested tag, after
+      # every platform passes. GITHUB_TOKEN never pushes a branch or starts tag CI.
+      - name: Record release tag
         if: needs.test.outputs.tag != ''
         id: finalize
         run: |
@@ -329,29 +329,22 @@ jobs:
           RELEASE_SOURCE: ${{ needs.test.outputs.source }}
           RELEASE_VERSION: ${{ needs.test.outputs.version }}
           RELEASE_TAG: ${{ needs.test.outputs.tag }}
-      # Nobody else will publish what was asked for here, so a release that was skipped must not look done.
-      - name: Stop when main moved
-        if: needs.test.outputs.tag != '' && steps.finalize.outputs.publish != 'true'
-        run: |
-          echo '::error::Main moved while this release was building, so nothing was published. Run the release again.'
-          exit 1
       # "What's new": this version's part of site/changelog.md, which is written by hand.
       - name: Write release notes
         if: steps.finalize.outputs.publish == 'true'
         run: node scripts/release.js notes
         env:
           RELEASE_TAG: ${{ needs.test.outputs.tag }}
-      # Public development uses its own token. Keep the cross-repository token only for
-      # releases from the private source repo during migration; forks get neither.
+      # The same repository's existing tag is required; publishing cannot create one at main.
       - name: Publish public release
         if: steps.finalize.outputs.publish == 'true'
         run: node scripts/release.js publish
         env:
-          GH_TOKEN: ${{ github.repository == 'SafaElmali/buddylist' && github.token || secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.test.outputs.tag }}
 
-  # The changelog lists a version once package.json on main names it. The release's version commit
-  # does, but a push with GITHUB_TOKEN starts no workflow, so the site is deployed from here.
+  # Only published releases appear on the site. A tag pushed with GITHUB_TOKEN starts
+  # no workflow, so publishing explicitly requests a site deployment from current main.
   changelog:
     needs: [test, release]
     if: needs.test.outputs.tag != ''
