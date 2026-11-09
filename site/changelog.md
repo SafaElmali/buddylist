@@ -13,6 +13,7 @@ version into package.json and package-lock.json in the release prep PR.
 
 ## v0.7.3
 
+- **Security updates** — buddylist now runs on a newer Electron and updated libraries, with their latest security fixes.
 - **Folded sections stay folded** — A project you folded in the contact list opened again when the list reloaded, after a restart, and in the list beside each conversation window you opened, so with many workers it kept coming back. Now a section stays as you leave it until you open it again: in every list, beside every conversation and after a restart. Folded, it says how much in it is unread, with the orange count a contact wears, so you don’t open it to find out. Its line takes the keyboard too: **Enter** or **Space** folds it, and a screen reader hears whether it is open.
 
 ## v0.7.2 — 2026-11-09
