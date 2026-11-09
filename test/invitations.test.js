@@ -567,15 +567,15 @@ const toolCard = (t, event) => {
 
 const COMPUTER_USE = {
   activity: { kind: 'tool', label: 'MCP tool', source: 'cua_repl' },
-  title: 'Allow Computer Use to use "TikTok LIVE Studio"?',
+  title: 'Allow Computer Use to use "Preview"?',
   canAlways: true,
-  alwaysLabel: 'Allow Computer Use in TikTok LIVE Studio for this conversation',
+  alwaysLabel: 'Allow Computer Use in Preview for this conversation',
   alwaysScope: 'conversation',
 };
 
 test('Always allow says what it covers where that is less, and answers as Always allow does', (t) => {
   const { node, responses, choice } = toolCard(t, COMPUTER_USE);
-  assert.equal(choice('always').textContent, 'Allow Computer Use in TikTok LIVE Studio for this conversation');
+  assert.equal(choice('always').textContent, 'Allow Computer Use in Preview for this conversation');
   assert.ok(!node.textContent.includes('Always allow'));
   assert.equal(choice('allow').textContent, 'Accept');
   assert.equal(choice('deny').textContent, 'Decline');

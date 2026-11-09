@@ -7,7 +7,8 @@ GitHub. See docs/landing-page.md#changelog.
 
 Start a version with "## v1.2.3 — 2026-10-12" (the day can wait) and write what is new under it in
 Markdown, a change a line: "- **What changed** — what it means for you." The page lists a version once
-package.json names it, so write it before running the release.
+its release is published. Write the notes first; `node scripts/release.js prepare auto` writes the
+version into package.json and package-lock.json in the release prep PR.
 -->
 
 ## v0.7.2
