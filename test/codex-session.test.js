@@ -2124,7 +2124,7 @@ test('MCP approval detail is bounded and an empty non-approval form is never acc
 });
 
 // What Computer Use (Codex's cua_repl server) asks before each action in an app, as its computer-use-policy.js does.
-const computerUse = ({ app = 'com.tiktok.livestudio.desktop', name = 'TikTok LIVE Studio', ...extra } = {}) =>
+const computerUse = ({ app = 'com.apple.Preview', name = 'Preview', ...extra } = {}) =>
   mcpApproval({
     serverName: 'cua_repl',
     message: `Allow Computer Use to use "${name}"?`,
@@ -2141,14 +2141,14 @@ const computerUse = ({ app = 'com.tiktok.livestudio.desktop', name = 'TikTok LIV
     ...extra,
   });
 const mcpAccepted = { action: 'accept', content: {}, _meta: null };
-const TIKTOK_FOR_CONVERSATION = 'Allow Computer Use in TikTok LIVE Studio for this conversation';
+const PREVIEW_FOR_CONVERSATION = 'Allow Computer Use in Preview for this conversation';
 
 test('Allow for this conversation answers the same Computer Use question about the same app without a card', async () => {
   const { server, session, of } = await started();
   const first = server.ask('mcpServer/elicitation/request', computerUse(), 301);
   const prompt = of('permission').at(-1);
   assert.equal(prompt.canAlways, true);
-  assert.equal(prompt.alwaysLabel, TIKTOK_FOR_CONVERSATION);
+  assert.equal(prompt.alwaysLabel, PREVIEW_FOR_CONVERSATION);
   assert.equal(prompt.alwaysScope, 'conversation');
   assert.equal(prompt.reason, null, 'a seat that may change things needs no warning beyond the label');
   session.respond(prompt.requestId, { decision: 'always' });
@@ -2219,9 +2219,9 @@ test('Allow for this conversation is offered only where the server lets a sessio
     offered(without((meta) => delete meta.tool_params_display)),
   ]).then((answers) => {
     for (const answer of answers.slice(0, 5)) assert.deepEqual(answer, { canAlways: false, alwaysLabel: undefined });
-    assert.deepEqual(answers[5], { canAlways: true, alwaysLabel: TIKTOK_FOR_CONVERSATION });
+    assert.deepEqual(answers[5], { canAlways: true, alwaysLabel: PREVIEW_FOR_CONVERSATION });
     // No name to show for it: the app's own id.
-    assert.equal(answers[6].alwaysLabel, 'Allow Computer Use in com.tiktok.livestudio.desktop for this conversation');
+    assert.equal(answers[6].alwaysLabel, 'Allow Computer Use in com.apple.Preview for this conversation');
   });
 });
 
@@ -2280,9 +2280,9 @@ test('a read-only seat is told plainly what it allows, and still declines comman
   const { server, session, of } = await started({ contact: { readOnly: true } });
   const first = server.ask('mcpServer/elicitation/request', computerUse());
   const prompt = of('permission').at(-1);
-  assert.equal(prompt.alwaysLabel, TIKTOK_FOR_CONVERSATION);
+  assert.equal(prompt.alwaysLabel, PREVIEW_FOR_CONVERSATION);
   assert.match(prompt.reason, /read-only/);
-  assert.match(prompt.reason, /click and type in TikTok LIVE Studio without asking for the rest of this conversation/);
+  assert.match(prompt.reason, /click and type in Preview without asking for the rest of this conversation/);
   session.respond(prompt.requestId, { decision: 'always' });
   assert.deepEqual(await first, mcpAccepted);
   assert.deepEqual(await server.ask('mcpServer/elicitation/request', computerUse()), mcpAccepted);
