@@ -7630,3 +7630,12 @@ body.shaking .window-body {
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* Under a turn stopped at its plan's limit: Use credits for this turn, and Switch account. */
+.plan-limit-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  white-space: normal;
+}

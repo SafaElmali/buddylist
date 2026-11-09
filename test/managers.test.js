@@ -3063,6 +3063,44 @@ test('urgent group notes respect pauses and stopped rounds, and can be cancelled
   assert.deepEqual(conversations.snapshot(worker.id).waitingNotes, []);
 });
 
+test('a worker stopped at its plan limit holds its manager’s messages, urgent ones too, and the manager is told why', async (t) => {
+  const app = setup(t);
+  const { conversations, managers, sessions, manager } = inTheApp(app);
+  const worker = app.worker('Worker');
+  conversations.send(worker.id, { text: 'Work' });
+  const session = sessions.findLast((one) => one.contact.id === worker.id);
+  let interrupts = 0;
+  session.interrupt = async () => {
+    interrupts += 1;
+  };
+  session.emit({ type: 'state', state: 'working' });
+  session.emit({
+    type: 'result',
+    isError: true,
+    stopped: false,
+    usageLimited: true,
+    limitKind: 'session',
+    planLimit: { kind: 'session', resetsAt: null, when: 'during' },
+    errorText: 'Stopped at the session limit so usage credits aren’t used.',
+    durationMs: 1,
+    costUsd: 0,
+  });
+  session.emit({ type: 'state', state: 'idle' });
+  const sent = session.sent.length;
+  for (const urgent of [false, true]) {
+    const told = await managers.say(manager.id, worker.name, urgent ? 'Do not push' : 'Add docs', urgent);
+    assert.match(told, /Its login is at its plan limit, so it waits until the user lets it use usage credits/);
+  }
+  assert.equal(session.sent.length, sent, 'neither starts it again');
+  assert.equal(interrupts, 0);
+  assert.equal(conversations.snapshot(worker.id).notesHeld, 'plan-limit');
+  // The user's own Send now lets one go.
+  const [first] = conversations.snapshot(worker.id).waitingNotes;
+  await conversations.sendNow(worker.id, first).catch(() => {});
+  assert.equal(conversations.atPlanLimit(worker.id), false);
+  assert.ok(session.sent.length > sent);
+});
+
 test('after the user nudged a worker with a guest, its manager is told its messages wait for the user', async (t) => {
   const app = setup(t);
   const { conversations, managers, sessions, manager } = inTheApp(app);

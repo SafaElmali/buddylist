@@ -460,6 +460,7 @@ test('everything the app counts is listed where people can read it', () => {
     'team removed',
     'manager toggled',
     'schedule ran',
+    'stopped at plan limit',
     ...Object.keys(USED),
   ]) {
     assert.ok(guide.includes(`| \`${event}\``), event);
@@ -582,6 +583,7 @@ test('no other counted request passes on anything it was asked with', async () =
     REQUESTS.projectReveal,
     REQUESTS.accountsSwitchOnLimit,
     REQUESTS.accountsProactive,
+    REQUESTS.accountsStopAtLimit,
     REQUESTS.browserGo,
     REQUESTS.terminalRename,
     REQUESTS.tabOpened,

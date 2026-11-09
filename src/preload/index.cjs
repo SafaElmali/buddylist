@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld('messenger', {
     use: invoke('accounts:use'),
     remove: invoke('accounts:remove'),
     switchOnLimit: invoke('accounts:switch-on-limit'),
+    stopAtLimit: invoke('accounts:stop-at-limit'),
   },
   settings: {
     open: invoke('settings:open'),
@@ -153,6 +154,8 @@ contextBridge.exposeInMainWorld('messenger', {
     closeTab: invoke('chat:close-tab'),
     pin: invoke('chat:pin'),
     interrupt: invoke('chat:interrupt'),
+    useCredits: invoke('chat:use-credits'),
+    switchAccount: invoke('chat:switch-account'),
     sendNow: invoke('chat:send-now'),
     respond: invoke('chat:respond'),
     stopHelper: invoke('chat:stop-helper'),

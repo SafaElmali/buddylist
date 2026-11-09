@@ -1156,6 +1156,14 @@
 .st-account-quota > .st-hint {
   margin: 6px 0 0;
 }
+/* What a Claude login spends past its plan's limits, and whether it stops there instead. */
+.st-account-credits {
+  margin-top: 4px;
+  border-top: 1px solid var(--pane-border-soft);
+}
+.st-account-credits .st-group {
+  margin: 4px 0 0;
+}
 .st-account-card .st-card-head {
   gap: 12px;
 }

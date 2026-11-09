@@ -56,6 +56,25 @@ The status bar and the usage popover over it show the same account: the one the 
 
 Under the limits, **Usage credits** says what the account spent this month once a limit was used up, such as $12.40 of $50, with a bar, or why they are off for the account, such as no credits left or your organization having turned them off. Once a session or weekly limit is used up, it says whether usage credits take over until the limit resets. **See detailed breakdown** adds what is left of the month's cap and when it starts over, on the 1st. Usage credits are set up on claude.ai, by you or your organization's admin.
 
+## Stopping at the plan limit
+
+A Claude account on a team or paid plan can have **usage credits**: once its session or weekly limit is used up, Claude goes on and the credits pay for it, up to a monthly cap. A team member often can't turn them off. **Stop at the plan limit (don’t use usage credits)**, under each Claude account in **Settings → Accounts** beside its **Usage credits**, keeps buddylist's conversations from using them. It is **on by default**, for every account, and holds for every Claude conversation, worker and manager in that account.
+
+- **Before a turn**, buddylist asks Claude how much of the plan is used, as `/usage` does, unless a conversation in the same account heard from Claude in the last minute that the plan still had room. If the session or weekly limit is used up and usage credits aren't known to be off, the turn doesn't start. When Claude can't be asked, the turn goes by the last word on that account: it is stopped only if that was usage credits and the limit hasn't reset since.
+- **During a turn**, Claude says with the first request it serves from usage credits that it is doing so. The turn is stopped right then, as **Stop** would, helpers with it. That one request is already paid for: nothing can tell beforehand that it will cross the limit. A turn Claude starts on its own, such as a check-in, in an account stopped at its limit, is stopped as it starts.
+
+The conversation then says why and when the limit resets:
+
+> Stopped at the session limit so usage credits aren’t used. Resets in 2 hr. **Use credits for this turn** **Switch account**
+
+- **Use credits for this turn** asks first, then sends the stopped message again and lets that one turn use usage credits. The next turn stops at the limit again. Nothing changes the account's setting.
+- **Switch account** opens the account menu. Putting another account in use sends the stopped message again there, in every conversation stopped in the account you left, after a fresh check of the new one.
+- With **Automatically switch accounts at usage limits** on, the conversation goes on in the next account by itself, as it does when a limit turns a message away, and the next account is checked before its turn starts. With **Fallbacks** on, recovery starts as for a reached session or weekly limit, and each fallback entry's own **Paid usage** rule decides; a fallback turn pinned to an account goes by that rule, not by this setting.
+- Messages that waited for the stopped turn wait on. A new message of your own, or **Send now**, tries again with a fresh check. A [project manager](project-managers.md)'s notes to a stopped conversation, and its rounds, never start it again: they wait until you write to it, let it use credits or switch account. The manager is told once that the account is at its plan limit.
+- On a [phone](remote-access.md), the stopped line has the same choices with full access; **Switch account** there puts the next signed-in account in use. With less access, it says to choose on your computer.
+
+Turn the setting off for an account to let its turns go on in usage credits as before, with no checks. Claude accounts without a plan, such as an API key, have no plan limit to stop at.
+
 ## When a limit is reached
 
 When Claude Code turns your message away because the account in use reached a limit, the conversation shows Claude Code's own message, and then an invitation:
@@ -89,7 +108,7 @@ When an agent reports a usage limit, **Invite another agent** in the conversatio
 
 For automatic recovery, open **Settings → Fallbacks**. Turn on **Use fallbacks**, add up to ten targets, and use **Move up / Move down** to choose their order. Each entry selects a service, a model, and (for Claude) an account. **Account currently in use** resolves when recovery starts; a selected account is pinned for that continuation without changing the shared login. Only continuations are pinned: with fallbacks on, every other conversation still moves to the account you put in use. The status bar of a pinned agent shows its pinned account's limits, and its usage popover says a fallback keeps it in that account, not the one in use. A project can inherit this list, override it, or disable it under **Settings → your project → Fallbacks**.
 
-These spending rules apply to turns started through fallback recovery. They do not turn off paid usage in your provider account or cap ordinary conversations and new workers. To prevent charges across your account, use the provider’s own billing controls.
+These spending rules apply to turns started through fallback recovery. Ordinary Claude conversations and new workers are kept from usage credits by **Stop at the plan limit** (see [Stopping at the plan limit](#stopping-at-the-plan-limit)), which is on by default. Neither turns off paid usage in your provider account: to prevent charges there, use the provider’s own billing controls.
 
 Each entry has independent conditions:
 

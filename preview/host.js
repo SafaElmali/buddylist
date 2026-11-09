@@ -957,6 +957,7 @@ const handlers = {
   [REQUESTS.accountsRemove]: () => {},
   [REQUESTS.accountsProactive]: () => {},
   [REQUESTS.accountsSwitchOnLimit]: () => {},
+  [REQUESTS.accountsStopAtLimit]: () => {},
   // A phone reaches the app on a computer, not the preview: Settings says so, and asks for none of these.
   [REQUESTS.remoteInit]: () => null,
   [REQUESTS.remoteUpdate]: () => null,
@@ -1289,6 +1290,9 @@ const handlers = {
     await conversations.interrupt(contactId);
   },
   [REQUESTS.chatSendNow]: (_win, contactId, entryId) => conversations.sendNow(contactId, entryId),
+  // The demo's agents never reach a plan's limit: there is no turn stopped there to let go on.
+  [REQUESTS.chatUseCredits]: () => false,
+  [REQUESTS.chatSwitchAccount]: () => null,
   [REQUESTS.chatRespond]: (_win, contactId, requestId, response) =>
     conversations.respond(contactId, requestId, response),
   [REQUESTS.chatStopHelper]: (_win, contactId, helperId, participantId) =>

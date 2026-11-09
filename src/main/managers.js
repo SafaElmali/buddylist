@@ -72,6 +72,10 @@ import { percentOf } from '../shared/usage.js';
 /** What a card a worker waits on that is no question is, as a manager is told it can't answer it. */
 const APPROVALS = { tool: 'a permission', plan: 'a plan', instructions: 'project instructions' };
 
+/** What a manager hears of a message to a conversation stopped at its plan's limit, so as not to spend usage credits. */
+const PLAN_LIMIT_HELD =
+  'Its login is at its plan limit, so it waits until the user lets it use usage credits, switches account or writes to it';
+
 /** How much of the workers' diffs one look at a worker hands its manager, in characters. */
 export const DIFF_MAX = 40000;
 /** How much of each worker's task and last reply a look at all of them has. */
@@ -126,7 +130,7 @@ export class Managers {
    * @param {Pick<import('./storage/store.js').Store, 'contacts' | 'getContact' | 'addContact' | 'settings'>} deps.store
    * @param {Pick<import('./storage/history.js').History, 'read'>} deps.history
    * @param {Pick<import('./project-settings.js').Projects, 'known' | 'settings' | 'update'>} deps.projects
-   * @param {Pick<import('./conversations.js').Conversations, 'pass' | 'notice' | 'view' | 'end' | 'reset' | 'restoreContact' | 'setModel' | 'inviteAsked' | 'waitingOn' | 'answerFor'> & Partial<Pick<import('./conversations.js').Conversations, 'hurryNote' | 'stopped' | 'switchProvider'>>} deps.conversations
+   * @param {Pick<import('./conversations.js').Conversations, 'pass' | 'notice' | 'view' | 'end' | 'reset' | 'restoreContact' | 'setModel' | 'inviteAsked' | 'waitingOn' | 'answerFor'> & Partial<Pick<import('./conversations.js').Conversations, 'hurryNote' | 'stopped' | 'atPlanLimit' | 'switchProvider'>>} deps.conversations
    * @param {(id: string) => import('../providers/contract.js').ProviderDescriptor} deps.descriptor  a service, by id
    * @param {string[]} deps.worktreesHomes  where contacts' worktrees go, and went before: a project's are in a folder of its name
    * @param {() => void} deps.onContactsChanged  a manager was added, put back on the list, or turned off
@@ -857,8 +861,10 @@ export class Managers {
       );
     }
     const busy = this.conversations.view(worker).status !== 'online';
-    // The user stopped it: what it is sent waits for them, also an urgent message (see Conversations#hurryNote).
+    // The user stopped it: what it is sent waits for them, also an urgent message (see Conversations#hurryNote). As it
+    // does where its agent was stopped at its plan's limit, so as not to spend usage credits.
     const stopped = Boolean(this.conversations.stopped?.(worker.id));
+    const atLimit = Boolean(this.conversations.atPlanLimit?.(worker.id));
     const key = `${manager.id}:${crypto.randomUUID()}`;
     this.conversations.pass(worker.id, {
       // Each its own: several sent while it works are all read.
@@ -869,19 +875,23 @@ export class Managers {
     });
     const delivery = stopped
       ? 'stopped'
-      : urgent
-        ? await this.conversations.hurryNote(worker.id, key)
-        : busy
-          ? 'waiting'
-          : 'sent';
+      : atLimit
+        ? 'plan-limit'
+        : urgent
+          ? await this.conversations.hurryNote(worker.id, key)
+          : busy
+            ? 'waiting'
+            : 'sent';
     const timing =
       delivery === 'stopped'
         ? '. The user stopped it, so it waits until the user writes to it or sends it now'
-        : delivery === 'next-step'
-          ? ', requested through Send now; delivery is at its next step after the current turn is interrupted'
-          : delivery === 'waiting'
-            ? ', and it waits until the worker is free'
-            : '';
+        : delivery === 'plan-limit'
+          ? `. ${PLAN_LIMIT_HELD}`
+          : delivery === 'next-step'
+            ? ', requested through Send now; delivery is at its next step after the current turn is interrupted'
+            : delivery === 'waiting'
+              ? ', and it waits until the worker is free'
+              : '';
     return (
       `${worker.name} has your message${timing}. ` +
       'You are sent its answer: carry on meanwhile, without waiting for it.'

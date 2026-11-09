@@ -19,6 +19,7 @@ import { answeredElsewhere, answeredLine, cardSays } from './cards.js';
 import { draftOf, keepDraft, keepSend, keepWaiting, sendsOf } from './drafts.js';
 import { CONNECTION, UNCONFIRMED } from '../remote/network-ipc.js';
 import { promptCard } from './prompt-cards.js';
+import { planLimitCard } from './plan-limit.js';
 import { homeSections, roleOf, rowNote } from '../../shared/phone-sections.js';
 import {
   canStop,
@@ -69,7 +70,9 @@ const heldMark = (held) =>
     ? 'Held since you stopped: it goes with your next message'
     : held === 'paused'
       ? 'Held: everyone here is paused'
-      : 'Queued';
+      : held === 'plan-limit'
+        ? 'Held at the plan limit: it goes with your next message'
+        : 'Queued';
 /** What a call is to, to tell which call a permission asks about: they carry the same activity. */
 const target = ({ kind, command, path, url, query, label } = /** @type {any} */ ({})) =>
   `${kind}\n${command ?? path ?? url ?? query ?? label ?? ''}`;
@@ -112,7 +115,7 @@ export class ConversationScreen {
   #waiting = { count: 0, inLine: false };
   /** @type {Set<string>} the notes from a manager that wait to be read */
   #waitingNotes = new Set();
-  /** @type {'stopped' | 'paused' | null} why they wait for you, if they do: you stopped the conversation, or paused all */
+  /** @type {'stopped' | 'paused' | 'plan-limit' | null} why they wait for you, if they do: you stopped the conversation, or paused all */
   #notesHeld = null;
   #state = 'idle';
   #stopping = false;
@@ -529,6 +532,15 @@ export class ConversationScreen {
     return el(html`<p class="${className}">${text}</p>`);
   }
 
+  /** What a turn stopped at its plan's limit offers is for the last turn of its agent's: under an earlier one, it goes. */
+  #pruneLimitCards() {
+    const last = new Map();
+    for (const line of this.transcript.querySelectorAll('[data-result-of]'))
+      last.set(/** @type {HTMLElement} */ (line).dataset.resultOf, line);
+    for (const card of this.transcript.querySelectorAll('.ph-plan-limit'))
+      if (card.previousElementSibling !== last.get(/** @type {HTMLElement} */ (card).dataset.speaker)) card.remove();
+  }
+
   /** "Codex: " where there is more than one agent to tell apart, or a guest that left. */
   #by(said) {
     return this.participants.length > 1 || said.speakerName ? `${speakerOf(this.participants, said).name}: ` : '';
@@ -596,13 +608,20 @@ export class ConversationScreen {
           ),
         ];
       }
-      case 'result':
-        return [
-          this.#line(
-            entry.isError && !entry.stopped ? 'ph-error' : 'ph-note',
-            `${this.#by(entry)}${resultLine(entry)}`
-          ),
-        ];
+      case 'result': {
+        const speaker = entry.speaker || this.contactId;
+        const line = this.#line(
+          entry.isError && !entry.stopped ? 'ph-error' : 'ph-note',
+          `${this.#by(entry)}${resultLine(entry)}`
+        );
+        line.dataset.resultOf = speaker;
+        // Once it is in place: an earlier page goes above what is there (see plan-limit.js).
+        queueMicrotask(() => this.#pruneLimitCards());
+        if (!entry.planLimit) return [line];
+        const said = (text, failed = false) =>
+          this.transcript.append(this.#line(failed ? 'ph-error' : 'ph-note', text));
+        return [line, planLimitCard({ contactId: this.contactId, speaker, said })];
+      }
       case 'notice':
         // A manager's note waits to be read as your messages do, and says so under it.
         return [
@@ -881,7 +900,7 @@ export class ConversationScreen {
    * @param {HTMLElement} node
    * @param {boolean} waits
    * @param {boolean} cancellable
-   * @param {'stopped' | 'paused' | null} [held]  a manager's note that waits for you, and why: nothing is at work for
+   * @param {'stopped' | 'paused' | 'plan-limit' | null} [held]  a manager's note that waits for you, and why: nothing is at work for
    *   Send now to interrupt
    */
   #queued(node, waits, cancellable, held = null) {

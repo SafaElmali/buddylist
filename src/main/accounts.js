@@ -30,6 +30,8 @@ export const OWN_LOGIN = 'Terminal login';
  * @property {boolean} switchOnLimit  a conversation goes on in the next one without asking
  * @property {boolean} [proactive] opt in to switching before a new ordinary turn
  * @property {number} [proactiveThreshold] percent used at which a new turn may rotate
+ * @property {string[]} [useCredits] the logins, by id, whose turns go on in usage credits past the plan's limit. Every
+ *   other one stops at the limit (see Stop at the plan limit in Settings > Accounts): left out, all of them do
  */
 
 /**
@@ -44,6 +46,7 @@ export const OWN_LOGIN = 'Terminal login';
  * @property {boolean} inUse
  * @property {object} [quota] last read-only usage snapshot and health
  * @property {string} [proactiveStatus] why the last proactive decision switched or retained the account
+ * @property {boolean} [stopsAtLimit] its turns stop at its plan's limit rather than go on in usage credits
  * @property {boolean} [signedIn]  how it stands, where that was asked
  * @property {string} [sameAs]  an added one that is the same login as a row above it: that row's id, '' for the
  *   user's own. Its limits are that row's, so it is no other account to switch to
@@ -85,6 +88,8 @@ export class Accounts {
   #mutating = new Set();
   #lastChoice = new Map();
   #decisions = new Map();
+  /** @type {Map<string, import('../providers/contract.js').PlanSeen>} what a login's sessions last said of its plan's limit, by provider and login */
+  #planSeen = new Map();
 
   /**
    * @param {object} deps
@@ -228,7 +233,8 @@ export class Accounts {
         return account;
       };
       current();
-      return { current, next: () => null, automatic: () => false, use: () => {} };
+      // A fallback's own paid-usage rules decide what its continuation may spend (see fallback-policy.js).
+      return { current, next: () => null, automatic: () => false, use: () => {}, stopsAtLimit: () => false };
     }
     const current = () => this.#all(id).find((account) => account.id === this.#inUse(id));
     return {
@@ -260,7 +266,34 @@ export class Accounts {
       },
       use: (accountId) => this.use(id, accountId),
       automatic: () => this.#settings(id).switchOnLimit === true,
+      stopsAtLimit: (accountId) => this.stopsAtLimit(id, accountId),
+      planSeen: (accountId, seen) => {
+        const key = JSON.stringify([id, accountId]);
+        if (seen === undefined) return this.#planSeen.get(key) ?? null;
+        this.#planSeen.set(key, seen);
+      },
     };
+  }
+
+  /**
+   * Whether a login's turns stop at its plan's limit rather than go on in usage credits: all of them do, unless the
+   * user said otherwise for one.
+   * @param {string} id  a provider's
+   * @param {string} accountId  '' for the user's own
+   */
+  stopsAtLimit(id, accountId) {
+    return !this.#settings(id).useCredits?.includes(accountId);
+  }
+
+  /**
+   * @param {string} id
+   * @param {string} accountId
+   * @param {boolean} stop  turns in the login stop at its plan's limit; off lets them go on in usage credits
+   */
+  setStopAtLimit(id, accountId, stop) {
+    if (typeof accountId !== 'string' || typeof stop !== 'boolean') throw new Error('Pick an account and on or off.');
+    const others = (this.#settings(id).useCredits ?? []).filter((one) => one !== accountId);
+    this.#save(id, { useCredits: stop ? others : [...others, accountId] });
   }
 
   /** All ordinary Claude sessions share this gate. The dispatch callback runs in the same
@@ -472,6 +505,7 @@ export class Accounts {
         signedIn: quota.signedIn,
         quota,
         proactiveStatus: this.#decisions.get(id) || '',
+        stopsAtLimit: this.stopsAtLimit(id, row.id),
       };
       const twin = firsts.find((one) => sameLogin(one, account));
       if (twin) account.sameAs = twin.id;
@@ -637,9 +671,13 @@ export class Accounts {
     // Signing out took a moment: another account may have been removed or put in use meanwhile.
     const { added, inUse } = this.#settings(id);
     const before = this.#inUse(id);
+    const { useCredits } = this.#settings(id);
+    this.#planSeen.delete(JSON.stringify([id, accountId]));
     this.#save(id, {
       added: added.filter((account) => account.id !== accountId),
       inUse: inUse === accountId ? '' : inUse,
+      // What it was set to do at its plan's limit goes with it.
+      ...(useCredits?.includes(accountId) && { useCredits: useCredits.filter((one) => one !== accountId) }),
     });
     this.#switched(id, before);
   }
