@@ -42,7 +42,7 @@ const card = (markup, id) => markup.slice(markup.indexOf(`id="${id}"`)).split('<
 const notesOf = (markup, id) => card(markup, id).match(/<div class="release-notes">(.*?)<\/div><\/details>/s)[1];
 
 test('the page lists each version in the changelog as a card, with an anchor, its day and how many changes', () => {
-  const markup = changelogMarkup(CHANGELOG, '0.2.10');
+  const markup = changelogMarkup(CHANGELOG, ['0.2.10', '0.2.9', '0.2.8', '0.2.7']);
   assert.deepEqual(ids(markup), ['v0.2.10', 'v0.2.9', 'v0.2.8', 'v0.2.7']);
   // The card's line is its summary: which version, when and how many changes.
   assert.match(
@@ -57,7 +57,7 @@ test('the page lists each version in the changelog as a card, with an anchor, it
 });
 
 test('only the newest version starts open, and a closed one shows the names of its changes', () => {
-  const markup = changelogMarkup(CHANGELOG, '0.2.10');
+  const markup = changelogMarkup(CHANGELOG, ['0.2.10', '0.2.9', '0.2.8', '0.2.7']);
   assert.deepEqual(
     [...markup.matchAll(/<article class="release" id="([^"]+)"><details class="release-fold"( open)?>/g)].map(
       ([, id, open]) => `${id}${open ? ' open' : ''}`
@@ -75,12 +75,12 @@ test('only the newest version starts open, and a closed one shows the names of i
     'Links in messages you send are now clickable'
   );
   assert.equal(changeName('Removed Remove project.... Its + stays.'), 'Removed Remove project...');
-  const linked = changelogMarkup('## v1.0.0\n- Now at [buddylist.dev](https://buddylist.dev/). Two.', '1.0.0');
+  const linked = changelogMarkup('## v1.0.0\n- Now at [buddylist.dev](https://buddylist.dev/). Two.', ['1.0.0']);
   assert.match(linked, /<span class="release-names" aria-hidden="true"><span>Now at buddylist\.dev<\/span>/);
 });
 
 test('a change shows its title and first sentence, with the rest folded under More', () => {
-  const notes = notesOf(changelogMarkup(CHANGELOG, '0.2.9'), 'v0.2.9');
+  const notes = notesOf(changelogMarkup(CHANGELOG, ['0.2.9', '0.2.8', '0.2.7']), 'v0.2.9');
   assert.ok(
     notes.includes(
       [
@@ -93,19 +93,19 @@ test('a change shows its title and first sentence, with the rest folded under Mo
   );
   // One sentence, or a rest too short to be worth a click, is shown whole.
   assert.ok(notes.includes('<li class="change"><p class="change-text">Trim the toolbar</p></li>'));
-  const short = changelogMarkup('## v1.0.0\n- **Undo** — Press ⌘Z. It works.', '1.0.0');
+  const short = changelogMarkup('## v1.0.0\n- **Undo** — Press ⌘Z. It works.', ['1.0.0']);
   assert.ok(short.includes('<strong class="change-title">Undo</strong><p class="change-text">Press ⌘Z. It works.</p>'));
   assert.doesNotMatch(short, /change-fold/);
   // A first sentence with a link isn't put in a summary, where the link couldn't be followed.
   const link =
     '- **Docs** — Read [the guide](https://buddylist.dev/docs/) first. Then it goes on, and on, for long enough to be worth folding away under More.';
-  const linked = changelogMarkup(`## v1.0.0\n${link}`, '1.0.0');
+  const linked = changelogMarkup(`## v1.0.0\n${link}`, ['1.0.0']);
   assert.doesNotMatch(linked, /change-fold/);
   assert.ok(linked.includes('<a href="https://buddylist.dev/docs/">the guide</a>'));
 });
 
 test('smaller fixes are a list, a fix a line, without cutting menu items, shortcuts, versions or links', () => {
-  const notes = notesOf(changelogMarkup(CHANGELOG, '0.2.9'), 'v0.2.9');
+  const notes = notesOf(changelogMarkup(CHANGELOG, ['0.2.9', '0.2.8', '0.2.7']), 'v0.2.9');
   assert.ok(
     notes.includes(
       [
@@ -119,21 +119,21 @@ test('smaller fixes are a list, a fix a line, without cutting menu items, shortc
     )
   );
   // One fix is a line of text, as it was written, not a list of one.
-  const one = changelogMarkup('## v1.0.0\n- **Smaller fixes** — Send works again.', '1.0.0');
+  const one = changelogMarkup('## v1.0.0\n- **Smaller fixes** — Send works again.', ['1.0.0']);
   assert.ok(
     one.includes('<strong class="change-title">Smaller fixes</strong><p class="change-text">Send works again.</p>')
   );
 });
 
 test('what is not a list of changes in a version is its Markdown, shown as written', () => {
-  const notes = notesOf(changelogMarkup(CHANGELOG, '0.2.9'), 'v0.2.9');
+  const notes = notesOf(changelogMarkup(CHANGELOG, ['0.2.9', '0.2.8', '0.2.7']), 'v0.2.9');
   assert.ok(notes.endsWith('</ul>\n<h3>Fixes</h3>\n<p>Read <a href="https://buddylist.dev/#faq">the docs</a>.</p>\n'));
-  const ordered = changelogMarkup('## v1.0.0\n1. First\n2. Second', '1.0.0');
+  const ordered = changelogMarkup('## v1.0.0\n1. First\n2. Second', ['1.0.0']);
   assert.ok(ordered.includes('<ol>\n<li>First</li>\n<li>Second</li>\n</ol>'));
 });
 
 test('every version has a link of its own to jump to, by its anchor', () => {
-  const markup = changelogMarkup(CHANGELOG, '0.2.10');
+  const markup = changelogMarkup(CHANGELOG, ['0.2.10', '0.2.9', '0.2.8', '0.2.7']);
   const nav = markup.match(/<nav class="changelog-versions" aria-label="Versions">(.*?)<\/nav>/s)[1];
   assert.deepEqual(
     [...nav.matchAll(/<a href="#([^"]+)">/g)].map(([, id]) => id),
@@ -146,20 +146,30 @@ test('every version has a link of its own to jump to, by its anchor', () => {
   assert.match(markup, /<p class="changelog-tools" hidden><button type="button" data-fold="open">Expand all<\/button>/);
 });
 
-test('a version written ahead of its release waits until package.json names it', () => {
-  assert.deepEqual(ids(changelogMarkup(CHANGELOG, '0.2.9')), ['v0.2.9', 'v0.2.8', 'v0.2.7']);
+test('only published versions are listed, regardless of the prepared package version', () => {
+  assert.deepEqual(ids(changelogMarkup(CHANGELOG, ['0.2.9', '0.2.8', '0.2.7'])), ['v0.2.9', 'v0.2.8', 'v0.2.7']);
   // Not in the list of versions either, and the newest out is the one open.
-  const out = changelogMarkup('## v0.2.10\n- **Coming** — Soon.\n## v0.2.9 — 2026-10-12\n- Out', '0.2.9');
+  const out = changelogMarkup('## v0.2.10\n- **Coming** — Soon.\n## v0.2.9 — 2026-10-12\n- Out', [
+    '0.2.9',
+    '0.2.8',
+    '0.2.7',
+  ]);
   assert.doesNotMatch(out, /v0\.2\.10|Coming/);
   assert.match(out, /<article class="release" id="v0\.2\.9"><details class="release-fold" open>/);
-  assert.deepEqual(ids(changelogMarkup(CHANGELOG, '0.3.0')), ['v0.2.10', 'v0.2.9', 'v0.2.8', 'v0.2.7']);
-  // By number, not by the letters: 0.2.10 is newer than 0.2.9.
-  assert.deepEqual(ids(changelogMarkup('## v0.2.10\n- x\n## v0.2.9\n- y', '0.2.9')), ['v0.2.9']);
-  assert.match(changelogMarkup(CHANGELOG, '0.2.6'), /No version is out yet/);
+  assert.deepEqual(ids(changelogMarkup(CHANGELOG, ['0.2.10', '0.2.9', '0.2.8', '0.2.7'])), [
+    'v0.2.10',
+    'v0.2.9',
+    'v0.2.8',
+    'v0.2.7',
+  ]);
+  // Publishing a newer version does not publish skipped versions in between.
+  assert.deepEqual(ids(changelogMarkup(CHANGELOG, ['0.2.10', '0.2.8'])), ['v0.2.10', 'v0.2.8']);
+  assert.deepEqual(ids(changelogMarkup('## v0.2.10\n- x\n## v0.2.9\n- y', ['0.2.9', '0.2.8', '0.2.7'])), ['v0.2.9']);
+  assert.match(changelogMarkup(CHANGELOG, []), /No version is out yet/);
 });
 
 test('a version that says nothing links to its downloads, and one without a day has none shown', () => {
-  const markup = changelogMarkup(CHANGELOG, '0.2.10');
+  const markup = changelogMarkup(CHANGELOG, ['0.2.10', '0.2.9', '0.2.8', '0.2.7']);
   const last = markup.slice(markup.indexOf('id="v0.2.7"'));
   assert.ok(
     last.includes(
@@ -170,7 +180,10 @@ test('a version that says nothing links to its downloads, and one without a day 
 });
 
 test('a mistake in the changelog fails the build instead of leaving a version out', () => {
-  assert.throws(() => changelogMarkup('## v0.2.9\n- One\n## Unreleased\n- Two', '0.2.9'), /isn't a version/);
+  assert.throws(
+    () => changelogMarkup('## v0.2.9\n- One\n## Unreleased\n- Two', ['0.2.9', '0.2.8', '0.2.7']),
+    /isn't a version/
+  );
 });
 
 // ---- changes in sentences ----------------------------------------------------------------------

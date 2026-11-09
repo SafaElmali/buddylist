@@ -28,15 +28,6 @@ const shortDate = (day, year = true) =>
     timeZone: 'UTC',
   });
 
-const parts = (version) => version.split('.').map(Number);
-
-/** Whether `version` is out once `current` is: it is no newer. */
-function isOutBy(version, current) {
-  const [mine, theirs] = [parts(version), parts(current)];
-  const differs = mine.findIndex((number, i) => number !== theirs[i]);
-  return differs === -1 || mine[differs] < theirs[differs];
-}
-
 /** A change whose title says it gathers small ones: its sentences are listed one a line. */
 const FIXES = /^(?:smaller|small|minor|other)?\s*fixes$/i;
 /** A change folds only when what it hides is worth a click. */
@@ -212,13 +203,14 @@ const FOLD_ALL =
   '<p class="changelog-tools" hidden><button type="button" data-fold="open">Expand all</button><button type="button" data-fold="close">Collapse all</button></p>';
 
 /**
- * The versions the page lists, in the changelog's order: those out by `current`, the version
- * package.json names. A release names its version there, so one written ahead waits for it.
+ * Only published stable releases, in the changelog's order. Preparing package.json or
+ * creating a tag alone does not publish a version, including gaps between released versions.
  * @param {string} changelog  site/changelog.md
- * @param {string} current    such as "0.2.11"
+ * @param {string[]} published  versions from GitHub's non-draft, stable releases
  */
-export function changelogMarkup(changelog, current) {
-  const shown = changelogEntries(changelog).filter(({ version }) => isOutBy(version, current));
+export function changelogMarkup(changelog, published = []) {
+  const versionsOut = new Set(published);
+  const shown = changelogEntries(changelog).filter(({ version }) => versionsOut.has(version));
   if (!shown.length) return '<p class="changelog-note">No version is out yet.</p>';
   const versions = shown.map((entry, i) => versionMarkup(entry, i === 0)).join('\n');
   return `${versionsNav(shown)}\n<div class="changelog-list">${FOLD_ALL}\n${versions}\n</div>`;
