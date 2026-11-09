@@ -42,6 +42,8 @@ import {
   managerMessage,
   managerName,
   managerSwitchMode,
+  notePutBackNote,
+  noteTakenNote,
   oneLine,
   projectManagerInstructions,
   projectManagerName,
@@ -130,7 +132,7 @@ export class Managers {
    * @param {Pick<import('./storage/store.js').Store, 'contacts' | 'getContact' | 'addContact' | 'settings'>} deps.store
    * @param {Pick<import('./storage/history.js').History, 'read'>} deps.history
    * @param {Pick<import('./project-settings.js').Projects, 'known' | 'settings' | 'update'>} deps.projects
-   * @param {Pick<import('./conversations.js').Conversations, 'pass' | 'notice' | 'view' | 'end' | 'reset' | 'restoreContact' | 'setModel' | 'inviteAsked' | 'waitingOn' | 'answerFor'> & Partial<Pick<import('./conversations.js').Conversations, 'hurryNote' | 'stopped' | 'atPlanLimit' | 'switchProvider'>>} deps.conversations
+   * @param {Pick<import('./conversations.js').Conversations, 'pass' | 'notice' | 'view' | 'end' | 'reset' | 'restoreContact' | 'setModel' | 'inviteAsked' | 'waitingOn' | 'answerFor'> & Partial<Pick<import('./conversations.js').Conversations, 'hurryNote' | 'stopped' | 'atPlanLimit' | 'switchProvider' | 'withdraw'>>} deps.conversations
    * @param {(id: string) => import('../providers/contract.js').ProviderDescriptor} deps.descriptor  a service, by id
    * @param {string[]} deps.worktreesHomes  where contacts' worktrees go, and went before: a project's are in a folder of its name
    * @param {() => void} deps.onContactsChanged  a manager was added, put back on the list, or turned off
@@ -872,6 +874,7 @@ export class Managers {
       line: `${manager.name} says: ${oneLine(said, SAID_MAX)}`,
       note: managerMessage(manager.name, said),
       from: manager.id,
+      said,
     });
     const delivery = stopped
       ? 'stopped'
@@ -896,6 +899,56 @@ export class Managers {
       `${worker.name} has your message${timing}. ` +
       'You are sent its answer: carry on meanwhile, without waiting for it.'
     );
+  }
+
+  /**
+   * The user took a message a manager sent out of a conversation's queue before it was read: to edit it in the message
+   * box and send it as theirs, or dropped. The manager hears so with its next notes, rather than being started for
+   * it, and doesn't take it that its message was read. As does a project manager, of one it sent a manager.
+   * @param {string} contactId  the conversation it waited in
+   * @param {import('./conversations.js').WaitingNote} note
+   * @param {{ edited: boolean }} how
+   */
+  noteTaken(contactId, { key, from, said }, { edited }) {
+    const sender = this.store.getContact(from);
+    const to = this.store.getContact(contactId);
+    // A worker's report to its manager is no message of its own words: nobody waits on it being read.
+    if (!said || !to || !this.oversees(sender)) return;
+    this.conversations.pass(sender.id, {
+      key: `taken:${key}`,
+      line: edited
+        ? `You took its message to ${to.name} to edit before it was read.`
+        : `You cancelled its message to ${to.name} before it was read.`,
+      note: noteTakenNote(to.name, said, { edited }),
+      quiet: true,
+    });
+  }
+
+  /**
+   * A manager's message the user took to edit went back in its queue as it was. A manager that hasn't read that it
+   * was taken hears of neither; one that has hears it waits again, with its next notes.
+   * @param {string} contactId  the conversation it waits in again
+   * @param {import('./conversations.js').WaitingNote} note
+   */
+  notePutBack(contactId, { key, from, said }) {
+    // A project manager's message that went without the user's approval holds what the manager starts again, by its
+    // line as it is back (see startsAtOnce).
+    if (key.startsWith(`${from}:own:`)) {
+      const line = this.history.read(contactId).findLast((entry) => entry.kind === 'notice' && entry.from === from);
+      if (line) this.#unapproved.set(contactId, line.id);
+    }
+    const sender = this.store.getContact(from);
+    const to = this.store.getContact(contactId);
+    if (!said || !to || !this.oversees(sender)) return;
+    const line = `You put its message to ${to.name} back in the queue.`;
+    if (this.conversations.withdraw?.(sender.id, `taken:${key}`))
+      return void this.conversations.notice(sender.id, line);
+    this.conversations.pass(sender.id, {
+      key: `taken:${key}`,
+      line,
+      note: notePutBackNote(to.name, said),
+      quiet: true,
+    });
   }
 
   /**
@@ -1373,6 +1426,7 @@ export class Managers {
       line: `${lead.name} ${yours ? `says, about ${yours}` : worker ? `hands over ${worker.name}’s job` : 'says'}: ${oneLine(said, SAID_MAX)}`,
       note: leadMessage(lead.name, said, { approved, job: report, yours }),
       from: lead.id,
+      said,
     });
     if (!approved) {
       const line = this.history.read(manager.id).findLast((entry) => entry.kind === 'notice' && entry.from === lead.id);
@@ -1451,6 +1505,7 @@ export class Managers {
       line: `${manager.name} reports: ${oneLine(said, SAID_MAX)}`,
       note: reportToLead(manager.name, said),
       from: manager.id,
+      said,
     });
     const owed = this.#owed.get(manager.id);
     for (const [noteKey, one] of owed ?? []) if (one.lead === lead.id) owed?.delete(noteKey);

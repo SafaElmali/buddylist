@@ -149,7 +149,7 @@ test('a waiting manager notice offers Send now and Cancel by id, with escaped te
   const entry = tray.entry(text);
   assert.equal(tray.root.querySelector('img'), null);
   assert.match(entry.textContent, /<img src=x onerror=bad\(\)>/);
-  assert.equal(entry.querySelector('.queue-tray-edit'), null, 'a manager note is not yours to edit');
+  assert.equal(entry.querySelector('.queue-tray-edit'), null, 'a note with no words of its sender’s has no Edit');
   entry.querySelector('.queue-tray-now').click();
   await Promise.resolve();
   await Promise.resolve();
@@ -167,6 +167,33 @@ test('a waiting manager notice offers Send now and Cancel by id, with escaped te
   assert.equal(note.classList.contains('waiting'), false);
   conversation.remove('note');
   assert.equal(root.children.length, 0);
+});
+
+test('a waiting manager message with its sender’s words offers Edit, which hands over the note', async (t) => {
+  page(t);
+  const previousCSS = globalThis.CSS;
+  globalThis.CSS = { escape: (value) => value };
+  t.after(() => {
+    globalThis.CSS = previousCSS;
+  });
+  const tray = trayOf();
+  const calls = [];
+  const conversation = new Conversation(
+    el(html`<div></div>`),
+    { participants: [] },
+    {
+      sendNow: async () => {},
+      cancel: async () => {},
+      edit: async (sent) => calls.push(sent),
+      tray,
+    }
+  );
+  const text = 'shop manager says: Add a test for the empty cart';
+  conversation.addNotice(text, { id: 'note', managerNote: true, words: true });
+  conversation.showWaitingNotes(['note'], 'stopped');
+  tray.entry(text).querySelector('.queue-tray-edit').click();
+  await Promise.resolve();
+  assert.deepEqual(calls, [{ id: 'note', text, managerNote: true, words: true }]);
 });
 
 test('a rejected Send now reports why and leaves the queued button ready for retry', async (t) => {
@@ -323,6 +350,79 @@ for (const fifo of [false, true]) {
     assert.deepEqual(errors, []);
   });
 }
+
+test('a manager’s note read as a turn ends, behind a message of yours in line, moves no earlier message of yours', () => {
+  const store = new MemoryStore();
+  const contact = store.contacts[0];
+  const history = new MemoryHistory();
+  const queue = [];
+  // As Claude's session has it: what is sent during a turn waits in its own line, the next starting once the turn
+  // is over. It says it is idle before it hands the next one over, so a note read then waits behind yours, unnamed.
+  const session = {
+    contact,
+    waiting: 0,
+    busy: false,
+    get queuedIds() {
+      return queue.map((message) => message.id);
+    },
+    send(message) {
+      if (!this.busy) {
+        this.busy = true;
+        this.emit({ type: 'state', state: 'working' });
+        return;
+      }
+      queue.push(message);
+      this.waiting = queue.length;
+      this.emit({ type: 'waiting', count: this.waiting });
+    },
+    finish() {
+      this.emit({ type: 'state', state: 'idle' });
+      const next = queue.shift();
+      this.waiting = queue.length;
+      this.emit({ type: 'waiting', count: this.waiting });
+      this.busy = Boolean(next);
+      if (next) this.emit({ type: 'state', state: 'working' });
+    },
+  };
+  const told = [];
+  const model = new Conversations({
+    store,
+    history,
+    providers: {
+      descriptor: () => descriptor,
+      upgradeHistory: (_provider, entries) => entries,
+      createSession: (_contact, emit) => Object.assign(session, { emit }),
+    },
+    chats: { isFocused: () => true, send: (_id, event) => told.push(event) },
+    notifier: { dismiss() {} },
+    onContactsChanged() {},
+  });
+  const first = model.send(contact.id, { text: 'Work on the coupon code' });
+  const second = model.send(contact.id, { text: 'Add tests for the coupon code' });
+  model.pass(contact.id, { key: 'docs', from: 'manager', line: 'Manager says: docs', note: 'Then the docs' });
+  session.finish();
+  assert.deepEqual(session.queuedIds, [undefined], 'the note waits behind yours, unnamed');
+  const waiting = told.filter((event) => event.type === 'waiting');
+  assert.ok(
+    waiting.every((event) => event.count <= 1),
+    `only yours is counted: ${JSON.stringify(waiting)}`
+  );
+  assert.deepEqual(
+    waiting.flatMap((event) => event.moved ?? []),
+    [second.id],
+    'only the message that waited moves down'
+  );
+  assert.equal(history.read(contact.id)[0].id, first.id, 'the first message stays where it was said');
+  assert.equal(model.snapshot(contact.id).waiting, 0);
+  session.finish();
+  assert.deepEqual(
+    history
+      .read(contact.id)
+      .filter((entry) => entry.kind === 'user')
+      .map((entry) => entry.id),
+    [first.id, second.id]
+  );
+});
 
 test('a message a Stop dropped says it was not sent: as the history kept it, and as the app says so', (t) => {
   const document = page(t);

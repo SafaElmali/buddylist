@@ -438,6 +438,8 @@ function startApp(errorReports, electronUpdater) {
       leadOf: (contact) => managers.leadOf(contact),
       roundCut: (contactId, round) => managers.roundCut(contactId, round),
       questionAsked: (contactId, prompt) => managers.questionAsked(contactId, prompt),
+      noteTaken: (contactId, note, how) => managers.noteTaken(contactId, note, how),
+      notePutBack: (contactId, note) => managers.notePutBack(contactId, note),
     },
     // Before the turn, or during it: never the amounts, nor which account.
     onPlanLimit: ({ when }) => analytics.capture('stopped at plan limit', { provider: 'claude', when }),

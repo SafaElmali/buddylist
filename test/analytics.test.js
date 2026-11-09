@@ -297,14 +297,16 @@ test('every counted request is one a window can make, and has a name', () => {
   for (const channel of Object.keys(COUNTED)) assert.ok(channels.includes(channel), channel);
   const names = Object.values(COUNTED).map((counted) => counted.event);
   // Every way of inviting an agent is one count, so are both ways of opening the working folder and both
-  // ways of continuing a past conversation, and files picked to send are files attached as dropped ones are.
-  // Every other request has a name of its own.
+  // ways of continuing a past conversation, and files picked to send are files attached as dropped ones are. A
+  // manager's message taken to edit is a queued message taken back, as one of yours is. Every other request has a
+  // name of its own.
   const invites = [REQUESTS.chatInviteNew, REQUESTS.chatInviteRole, REQUESTS.chatInviteTeam, REQUESTS.chatInviteAgent];
   for (const invite of invites) assert.equal(COUNTED[invite].event, COUNTED[REQUESTS.chatInvite].event);
   assert.equal(COUNTED[REQUESTS.chatOpenFolder].event, COUNTED[REQUESTS.chatOpenIn].event);
   assert.equal(COUNTED[REQUESTS.historyContinueThere].event, COUNTED[REQUESTS.historyResume].event);
   assert.equal(COUNTED[REQUESTS.chatPickFiles].event, COUNTED[REQUESTS.attached].event);
-  assert.equal(new Set(names).size, names.length - invites.length - 3);
+  assert.equal(COUNTED[REQUESTS.chatTakeNote].event, COUNTED[REQUESTS.chatCancel].event);
+  assert.equal(new Set(names).size, names.length - invites.length - 4);
   for (const name of names) assert.match(name, /^[a-z]+( [a-z]+)+$/);
 });
 
@@ -403,6 +405,8 @@ const NOT_COUNTED = {
     REQUESTS.pickFolder,
     REQUESTS.pickFile,
     REQUESTS.runPickScript,
+    // A manager's message taken to edit, put back in its queue as it was: taking it was counted.
+    REQUESTS.chatPutBackNote,
   ],
   // As it goes: what is typed into a terminal, and the room a page or a pane takes. What opens in
   // the side pane is counted by what it is. Settings going back to what its window had is not:
@@ -1128,6 +1132,18 @@ test('taking back a queued message or renaming a group is counted only when it h
   await analytics.flush();
   assert.deepEqual(events(posts), ['queued message cancelled', 'group renamed']);
   assert.ok(!JSON.stringify(posts).includes('Secret'));
+});
+
+test('a manager’s message taken to edit counts as a queued message taken back, never with what it says', async () => {
+  const { analytics, posts } = setup();
+  const take = (answer) => analytics.counting(REQUESTS.chatTakeNote, () => answer)({}, 'c1', 'note-1');
+  // Read already: nothing was taken.
+  await take(null);
+  await take({ text: 'Add tests for the coupon code', from: 'shop manager' });
+  await analytics.flush();
+  assert.deepEqual(events(posts), ['queued message cancelled']);
+  assert.ok(!JSON.stringify(posts).includes('coupon'));
+  assert.ok(!JSON.stringify(posts).includes('shop manager'));
 });
 
 test('picking an effort level says which kind of agent and which level, only when the agent took it', async () => {

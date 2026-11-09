@@ -29,7 +29,7 @@ import { findWink, playWink, winkTitle } from './winks.js';
 /**
  * A message you sent that can be edited or rewound to: its id in the conversation's history, and what it said.
  * `originals`: its pictures themselves or saved attachment references; old messages may have only previews.
- * @typedef {{ id: string, text: string, pictures?: string[], originals?: string[], managerNote?: boolean }} Sent
+ * @typedef {{ id: string, text: string, pictures?: string[], originals?: string[], managerNote?: boolean, words?: boolean }} Sent
  */
 
 const stamp = (time) => `${formatDate(time)} ${formatTime(time)}`;
@@ -988,7 +988,8 @@ export class Conversation {
     const node = this.line('notice', '', text);
     if (entry.managerNote) {
       node.classList.add('manager-note');
-      this.kept(node, { id: entry.id ?? entry.entryId, text, managerNote: true });
+      // One with words its sender wrote can be taken to edit, while it waits (see trayRow).
+      this.kept(node, { id: entry.id ?? entry.entryId, text, managerNote: true, ...(entry.words && { words: true }) });
     }
     return node;
   }

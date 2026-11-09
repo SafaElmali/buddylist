@@ -1494,6 +1494,13 @@ export function registerIpc({
   // What you said that still waits, taken back: its agent never reads it.
   handle(REQUESTS.chatCancel, (_e, contactId, entryId) => conversations.cancel(contactId, String(entryId || '')));
 
+  // A manager's message that still waits, taken out unread for the message box, to edit and send as yours; and put
+  // back in its queue as it was, where the edit is called off.
+  handle(REQUESTS.chatTakeNote, (_e, contactId, entryId) => conversations.takeNote(contactId, String(entryId || '')));
+  handle(REQUESTS.chatPutBackNote, (_e, contactId, entryId) =>
+    conversations.putBackNote(contactId, String(entryId || ''))
+  );
+
   // A new contact whose conversation is this one up to a reply. The window goes on to it.
   handle(REQUESTS.chatFork, (_e, contactId, entryId) => conversations.fork(contactId, String(entryId || '')));
 
