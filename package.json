@@ -39,7 +39,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.296",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.319",
     "@highlightjs/cdn-assets": "^11.12.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-search": "^0.16.0",
