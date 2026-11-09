@@ -68,6 +68,8 @@ In a conversation window, typing also searches the files of the contact's folder
 
 **Waiting for you** is always on top, however the list is grouped: every contact that needs you to approve something, a favorite too. Its rows say which project each one works on, where the list has more than one. Once you answer, the contact goes back to its project or group. Favorites come next, then pinned projects (see **Pinning** below), and offline and archived contacts stay at the bottom. Your choices are kept when you quit. A project is the repository a contact's worktree is a copy of, or else the folder it works in.
 
+**Folding a section.** Click a section's line to fold its contacts away, and click it again to bring them back. A section stays as you leave it until you open it again: while its contacts work, finish and get replies, as new ones join it, in the list beside every conversation, and after a restart. Fold it in one list and every list folds it. **Archived** starts folded until you open it. From the keyboard, Tab to a section's line and press **Enter** or **Space**, or **Left** to fold it and **Right** to open it. A screen reader hears whether it is open.
+
 **Right-click a project** in a list grouped by project for what can be done with all of it:
 
 - **New contact in this project** is what the **+** next to its name does.

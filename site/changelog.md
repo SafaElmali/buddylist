@@ -11,6 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
+## v0.7.3
+
+- **Folded sections stay folded** — A project you folded in the contact list opened again when the list reloaded, after a restart, and in the list beside each conversation window you opened, so with many workers it kept coming back. Now a section stays as you leave it until you open it again: in every list, beside every conversation and after a restart. Its line takes the keyboard too: **Enter** or **Space** folds it, and a screen reader hears whether it is open.
+
 ## v0.7.2 — 2026-11-09
 
 - **buddylist is open source** — Its code is now public on [GitHub](https://github.com/SafaElmali/buddylist), under the MIT license, in the same place as its releases. Read how it works, build it yourself or send a fix: the contributing guide there says how, and a copy you build counts nothing and reports no errors. The app now ships with the licenses of the open-source code it is made with.

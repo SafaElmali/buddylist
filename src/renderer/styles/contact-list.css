@@ -70,6 +70,28 @@
   text-decoration: underline;
 }
 
+/* Its arrow and its name are one button, for the keyboard, drawn as the line it is on: it takes the line up to
+   the section's +. */
+.group-toggle {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  gap: inherit;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  text-align: left;
+  text-decoration: inherit;
+}
+
+.group-toggle:focus-visible {
+  outline: 1px solid var(--focus-border, #6f97d3);
+  outline-offset: -1px;
+}
+
 .group-arrow {
   width: 9px;
   height: 9px;

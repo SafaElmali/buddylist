@@ -11,9 +11,9 @@ import { CONTACTS_PANE_WIDTH, clampPaneWidth, paneView, widthInAddress } from '.
 import { ContactList } from '../contacts/list.js';
 import { mountSplitter } from './sidebar.js';
 
-// A window that goes on to another contact loads its page again. What the list looked like
-// is kept for the window, so it is the same list after: what was folded, and how far down it was.
-const FOLDED = 'contactsPaneFolded';
+// A window that goes on to another contact loads its page again. How far down the list was is kept
+// for the window, so it is the same list after. What is folded is the contact list's own, in every
+// window and after a restart (see ContactList).
 const SCROLLED = 'contactsPaneScrolled';
 
 function kept(key) {
@@ -119,12 +119,6 @@ export class ContactsPane {
       { click: true }
     );
     this.list.currentId = current;
-    const folded = kept(FOLDED);
-    if (Array.isArray(folded)) this.list.collapsed = new Set(folded);
-    // After the list's own handler, which folds the section or unfolds it.
-    box.addEventListener('click', (e) => {
-      if (/** @type {HTMLElement} */ (e.target).closest('.group-header')) keep(FOLDED, [...this.list.collapsed]);
-    });
     box.addEventListener('scroll', () => keep(SCROLLED, box.scrollTop), { passive: true });
     this.box = box;
     /** Whether the list was put back where it was scrolled to, once it had its contacts. */

@@ -449,3 +449,191 @@ test('bad or unavailable storage never prevents folding, and failed writes keep 
   assert.ok(row('merged'));
   assert.equal(row('started'), null);
 });
+
+// ---- sections folded away: kept for every list, the one beside a conversation too, and after a restart ----
+
+/** A section of the list, by the name on its header: kit for "kit (3)". */
+const sectionOf = (root, label) =>
+  root
+    .querySelectorAll('.group')
+    .find((one) =>
+      new RegExp(`(^|\\s)${label} \\(\\d+\\)`).test(
+        one.querySelector('.group-header').textContent.replace(/\s+/g, ' ').trim()
+      )
+    );
+
+const ARCHIVED_ONE = contact({ id: 'old', name: 'Claude (old banner)', archived: true });
+
+/** A list drawn on a page of its own, as a window or a conversation's pane has it, and its sections by name. */
+function sectionList(t, { contacts = [...CONTACTS, ARCHIVED_ONE], handlers = {}, opts = {} } = {}) {
+  const document = page(t);
+  const root = document.createElement('div');
+  document.body.append(root);
+  const opened = [];
+  const list = new ContactList(root, { ...HANDLERS, open: (one) => opened.push(one.id), ...handlers }, opts);
+  list.setContacts(contacts);
+  return {
+    document,
+    root,
+    list,
+    opened,
+    section: (label) => sectionOf(root, label),
+    header: (label) => sectionOf(root, label)?.querySelector('.group-header'),
+    toggle: (label) => sectionOf(root, label)?.querySelector('.group-toggle'),
+    folded: (label) => sectionOf(root, label)?.classList.contains('collapsed'),
+  };
+}
+
+const keptSections = (kept) => JSON.parse(kept.get('collapsedSections') ?? 'null')?.sort();
+
+test('a folded section stays folded as its contacts change, turn busy, waiting or unread, and as more are added', (t) => {
+  const kept = foldStorage(t);
+  const { root, list, header, folded } = sectionList(t);
+  assert.equal(folded('kit'), false);
+  header('kit').click();
+  assert.equal(folded('kit'), true);
+  assert.deepEqual(keptSections(kept), ['archived', 'project:kit']);
+  const busy = CONTACTS.map((one) => (one.id === 'merged' ? { ...one, status: 'busy', unread: 2 } : one));
+  const added = contact({ id: 'search', name: 'Claude (search)', overseenBy: 'boss' });
+  list.setContacts([...busy, added, ARCHIVED_ONE]);
+  assert.equal(folded('kit'), true, 'a busy one, an unread one and a new one leave it folded');
+  assert.equal(root.querySelector('[data-id="search"]').closest('.group'), sectionOf(root, 'kit'));
+  list.setContacts([...busy.map((one) => (one.id === 'guested' ? { ...one, status: 'away' } : one)), added]);
+  assert.equal(folded('kit'), true, 'one waiting for you goes on top, and leaves it folded');
+  list.setContacts(CONTACTS);
+  list.setCurrent('merged');
+  list.select('merged');
+  list.setQuery('claude');
+  list.setQuery('');
+  list.setView({ ...list.view, sortBy: 'name' });
+  list.setGroups([]);
+  list.setEmptyProjects([]);
+  assert.equal(folded('kit'), true, 'nor does opening, selecting, searching or sorting');
+  assert.equal(folded('notes'), false);
+});
+
+test('a folded section is still folded in a new list: after a reload, a restart, or in another window', (t) => {
+  const kept = foldStorage(t);
+  const first = sectionList(t);
+  first.header('notes').click();
+  const second = sectionList(t);
+  assert.equal(second.folded('notes'), true);
+  assert.equal(second.folded('kit'), false);
+  second.header('notes').click();
+  assert.deepEqual(keptSections(kept), ['archived']);
+  assert.equal(sectionList(t).folded('notes'), false, 'unfolded, it is unfolded in the next one too');
+});
+
+test('archived contacts start folded, and stay as you leave them once you have opened them', (t) => {
+  foldStorage(t);
+  const first = sectionList(t);
+  assert.equal(first.folded('Archived'), true);
+  assert.equal(first.toggle('Archived')?.getAttribute('aria-expanded'), 'false');
+  first.header('Archived').click();
+  assert.equal(first.folded('Archived'), false);
+  assert.equal(sectionList(t).folded('Archived'), false);
+  sectionList(t).header('Archived').click();
+  assert.equal(sectionList(t).folded('Archived'), true);
+});
+
+test('windows share folded sections: folded or unfolded in one, it follows in the others, and both choices are kept', (t) => {
+  const kept = foldStorage(t);
+  const listeners = [];
+  t.mock.method(globalThis.window, 'addEventListener', (name, listener) => {
+    if (name === 'storage') listeners.push(listener);
+  });
+  const tell = (key) => listeners.forEach((listener) => listener({ key }));
+  const main = sectionList(t);
+  const pane = sectionList(t, { opts: { click: true } });
+  main.header('kit').click();
+  pane.header('notes').click();
+  assert.deepEqual(keptSections(kept), ['archived', 'project:kit', 'project:notes'], 'neither wipes the other');
+  tell('collapsedSections');
+  assert.equal(main.folded('notes'), true);
+  assert.equal(pane.folded('kit'), true);
+  pane.header('kit').click();
+  tell('collapsedSections');
+  assert.equal(main.folded('kit'), false);
+  assert.equal(main.toggle('kit').getAttribute('aria-expanded'), 'true');
+  tell('foldedContacts');
+  assert.equal(main.folded('notes'), true, 'a contact folded elsewhere leaves the sections alone');
+  kept.clear();
+  tell(null);
+  assert.equal(main.folded('notes'), false, 'storage cleared: as a new list starts');
+  assert.equal(main.folded('Archived'), true);
+});
+
+test('a section’s header is a button that says whether it is open, and the keyboard folds it as the pointer does', (t) => {
+  const kept = foldStorage(t);
+  const { document, root, list, opened, section, toggle, folded } = sectionList(t);
+  const button = toggle('kit');
+  assert.equal(button?.tagName, 'BUTTON');
+  assert.equal(button.type, 'button');
+  assert.notEqual(button.getAttribute('tabindex'), '-1', 'it is on the way Tab goes');
+  assert.equal(button.getAttribute('aria-expanded'), 'true');
+  assert.match(button.textContent.replace(/\s+/g, ' '), /kit \(3\)/);
+  assert.ok(button.querySelector('.group-arrow'));
+  assert.equal(section('kit').querySelector('.contact-add').closest('.group-toggle'), null, 'the + is no part of it');
+  list.select('notes');
+  button.focus();
+  const shortcuts = [];
+  root.addEventListener('keydown', (e) => {
+    if (e.key === 'k' && e.metaKey) shortcuts.push(e.key);
+  });
+  button.fire('keydown', { key: 'k', metaKey: true });
+  assert.deepEqual(shortcuts, ['k'], 'app shortcuts still reach their handlers');
+  button.fire('keydown', { key: 'Enter' });
+  button.fire('keydown', { key: ' ' });
+  assert.deepEqual(opened, [], 'Enter and Space are the button’s, not the selected row’s');
+  // What a browser does with Enter or Space on a button.
+  button.click();
+  assert.equal(folded('kit'), true);
+  assert.equal(toggle('kit').getAttribute('aria-expanded'), 'false');
+  assert.equal(document.activeElement, toggle('kit'), 'the keyboard stays on it once the list is drawn again');
+  assert.deepEqual(keptSections(kept), ['archived', 'project:kit']);
+  toggle('kit').fire('keydown', { key: 'ArrowLeft' });
+  assert.equal(folded('kit'), true, 'Left leaves a folded one folded');
+  toggle('kit').fire('keydown', { key: 'ArrowRight' });
+  assert.equal(folded('kit'), false);
+  assert.equal(toggle('kit').getAttribute('aria-expanded'), 'true');
+  assert.equal(document.activeElement, toggle('kit'));
+  assert.deepEqual(keptSections(kept), ['archived'], 'kept as a click keeps it');
+  toggle('kit').fire('keydown', { key: 'ArrowRight' });
+  assert.equal(folded('kit'), false, 'Right leaves an open one open');
+  toggle('kit').fire('keydown', { key: 'ArrowLeft' });
+  assert.equal(folded('kit'), true);
+  section('notes').querySelector('.contact-add').click();
+  assert.equal(folded('notes'), false, 'the + is no wish to fold the section away');
+  assert.equal(list.selectedId, 'notes');
+  assert.deepEqual(opened, []);
+});
+
+test('bad or unavailable storage never keeps a section from folding, and archived contacts start folded', (t) => {
+  const kept = foldStorage(t);
+  for (const bad of ['{bad json', '"archived"', '{"project:kit":true}']) {
+    kept.set('collapsedSections', bad);
+    const { folded } = sectionList(t);
+    assert.equal(folded('Archived'), true, `${bad}: as nothing kept`);
+    assert.equal(folded('kit'), false);
+  }
+  kept.set('collapsedSections', JSON.stringify(['project:kit', 5, null, { id: 'x' }]));
+  const listed = sectionList(t);
+  assert.equal(listed.folded('kit'), true, 'what can be read is used');
+  assert.equal(listed.folded('Archived'), false, 'a choice was kept, and archived was not in it');
+  t.mock.method(localStorage, 'setItem', () => {
+    throw new Error('Storage is full');
+  });
+  listed.header('notes').click();
+  assert.equal(listed.folded('notes'), true);
+  kept.set('collapsedSections', '[]');
+  listed.header('kit').click();
+  assert.equal(listed.folded('kit'), false);
+  assert.equal(listed.folded('notes'), true, 'a write that failed leaves this window’s choices as they are');
+  t.mock.method(localStorage, 'getItem', () => {
+    throw new Error('Storage is unavailable');
+  });
+  const without = sectionList(t);
+  assert.equal(without.folded('Archived'), true);
+  without.header('kit').click();
+  assert.equal(without.folded('kit'), true);
+});
