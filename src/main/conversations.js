@@ -373,6 +373,13 @@ export class Conversations {
   #quietNotes = new Map();
   /** A stopped manager's notes wait for the user, also when it has no group turn queue. */
   #stoppedManagers = new Set();
+  /**
+   * The sessions `end` closed while each was still its conversation's: what one says as it closes is kept, but it is
+   * no round that is over and frees the conversation to read notes, as a turn started then would go to it. What it
+   * says once it is no longer the conversation's is nobody's (see #session), whenever its provider says it.
+   * @type {WeakSet<AgentSession>}
+   */
+  #closed = new WeakSet();
   /** hostId -> why its notes wait for the user, as its window was last told (see #notesHeld) */
   #notesTold = new Map();
   /**
@@ -1793,7 +1800,7 @@ export class Conversations {
     const emit = (event) => {
       // A session that was closed, or whose guest has left, has nothing more to say here.
       if (this.#sessions.get(hostId)?.get(speakerId) !== session) return;
-      this.#onEvent(hostId, attributed(event, speakerId, speakerId !== hostId));
+      this.#onEvent(hostId, attributed(event, speakerId, speakerId !== hostId), { closing: this.#closed.has(session) });
     };
     // Whose conversation it answers in decides what it can ask of the app: a guest opens its terminals here too.
     // And it is started with what the project of the folder gives its agents: a guest works in the host's.
@@ -3621,7 +3628,11 @@ export class Conversations {
     for (const key of this.#failures.keys()) if (key.startsWith(`${contactId}:`)) this.#failures.delete(key);
     // First, so that a session closing doesn't give the turn to the next one.
     this.#groups.delete(contactId);
-    for (const session of this.#sessions.get(contactId)?.values() || []) session.close();
+    // Nor, closing beside another one that is idle, start a round on itself (see #closed).
+    for (const session of this.#sessions.get(contactId)?.values() || []) {
+      this.#closed.add(session);
+      session.close();
+    }
     this.#sessions.delete(contactId);
     for (const map of [
       this.#prompts,
@@ -4711,8 +4722,9 @@ export class Conversations {
   /**
    * @param {string} hostId  whose conversation it is
    * @param {SessionEvent & { speaker: string }} event  from the session of `speaker`: the host, or a guest
+   * @param {{ closing?: boolean }} [from]  `closing`: from a session `end` is closing (see #closed)
    */
-  #onEvent(hostId, event) {
+  #onEvent(hostId, event, { closing = false } = {}) {
     const host = this.store.getContact(hostId);
     const who = host && this.#speaker(host, event.speaker);
     if (!who) return;
@@ -4744,7 +4756,7 @@ export class Conversations {
           this.#dropHelpers(hostId, speaker);
           this.#flushReport(host);
         }
-        if (this.#state(hostId) === 'idle') {
+        if (this.#state(hostId) === 'idle' && !closing) {
           this.#roundOver(host);
           this.#flushReport(host);
           // Free again: the notes that came in meanwhile are read now.
