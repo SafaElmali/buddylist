@@ -135,6 +135,7 @@ test('one with commands left running in the background is at work: under its nam
     [row.status, row.doing, row.branch, row.tags.length > 0, row.note],
     ['online', '2 commands running in the background', 'fix/checks', true, '']
   );
+  assert.deepEqual([row.icon, row.iconLabel], ['background', '2 commands running in the background']);
   const team = [contact('idle'), running, contact('cart', { status: 'busy' })];
   assert.deepEqual(
     teamSections(team).map(({ id, members }) => [id, members.map(({ id }) => id)]),
@@ -147,7 +148,11 @@ test('one with commands left running in the background is at work: under its nam
   assert.equal(teamHeading(team, 'shop'), '3 on shop · 2 working');
   // Once they end, it is idle again.
   const ended = { ...running, personalMessage: running.location, inBackground: false };
-  assert.deepEqual([teamRow(ended, NOW).doing, teamSections([ended]).map(({ id }) => id)], ['', ['idle']]);
+  assert.deepEqual(
+    [teamRow(ended, NOW).doing, teamRow(ended, NOW).icon, teamSections([ended]).map(({ id }) => id)],
+    ['', 'online', ['idle']]
+  );
+  assert.equal(teamRow(contact('cart', { status: 'busy' }), NOW).icon, 'busy', 'a busy one wears its own');
 });
 
 test('a section with nobody in it is left out', () => {
@@ -177,6 +182,8 @@ test('at work, a row says under its name what it is doing, and nothing of its br
       id: 'cart',
       name: 'Claude (cart)',
       status: 'busy',
+      icon: 'busy',
+      iconLabel: '',
       when: 'now',
       unread: 2,
       doing: 'Editing cart.js',

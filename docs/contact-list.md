@@ -2,18 +2,20 @@
 
 The contact list works like a status board:
 
-| Status         | Meaning                                                                                                 |
-| -------------- | ------------------------------------------------------------------------------------------------------- |
-| 🟢 **Online**  | Ready.                                                                                                  |
-|                | Also while what it left [in the background](background.md) runs: "A command running in the background". |
-| 🔴 **Busy**    | Working. The status line says on what, such as "Running npm test".                                      |
-|                | Also while its [subagents](subagents.md) work on: "2 subagents at work".                                |
-| 🟠 **Away**    | Waiting for you to approve something.                                                                   |
-| ⚪ **Offline** | Its folder is gone.                                                                                     |
+| Status         | Meaning                                                                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 🟢 **Online**  | Ready.                                                                                                                                           |
+|                | Also while what it left [in the background](background.md) runs, with an arrow going round on its buddy: "2 commands running in the background". |
+| 🔴 **Busy**    | Working. The status line says on what, such as "Running npm test".                                                                               |
+|                | Also while its [subagents](subagents.md) work on: "2 subagents at work".                                                                         |
+| 🟠 **Away**    | Waiting for you to approve something.                                                                                                            |
+| ⚪ **Offline** | Its folder is gone.                                                                                                                              |
 
 A contact with something you have not seen yet is in bold, and its buddy wears the count: replies, requests and errors from a conversation you weren't looking at. Open that conversation, or click into it, and it is read.
 
 A contact's name and its status line share its row, and neither is cut short while the row has room for it. Where both need more than there is, what the contact is doing, such as "Thinking…", gets as much of the row as the name, and where it works gets less: the name matters more. A conversation with guests says what it is doing on its second line instead, before who they are, such as _Running pnpm test · with Codex_, and its name has the first line to itself.
+
+**Still at work in the background.** A contact whose turn is over while commands it left [in the background](background.md) still run stays Online, as you can write to it, but its row doesn't look idle: its buddy wears the [Background](background.md) tab's arrow going round, and its line says what runs, such as "2 commands running in the background", in the colour of what a busy contact is doing. Point at the arrow to read that line, which a narrow row cuts short and a row with pull request tags leaves out; a screen reader reads it too. The list beside a conversation and the manager's Team tab show it the same way. The arrow goes as soon as the last of them ends. A contact that is busy, waiting for you or stopped at its [plan limit](accounts.md#stopping-at-the-plan-limit) shows that instead.
 
 Every conversation window has the list too, on its left: see [Your contacts beside the conversation](conversations.md#your-contacts-beside-the-conversation).
 

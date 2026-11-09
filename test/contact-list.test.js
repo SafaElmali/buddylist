@@ -216,6 +216,15 @@ test('a row under a manager says what it left running in the background as what 
   assert.ok(note('running').classList.contains('doing'), 'shown beside a conversation, as what it is doing');
   assert.match(note('running').textContent, /2 commands running in the background/);
   assert.ok(!note('idle').classList.contains('doing'), 'where an idle one works stays quiet');
+  // Its buddy wears the arrow going round, and says what it means when pointed at and to a screen reader.
+  const badge = rows.running.querySelector('svg.buddy');
+  assert.deepEqual(
+    [badge.getAttribute('data-status'), badge.getAttribute('aria-label'), badge.getAttribute('data-tip')],
+    ['background', '2 commands running in the background', '2 commands running in the background']
+  );
+  assert.equal(badge.getAttribute('aria-hidden'), null);
+  const quiet = rows.idle.querySelector('svg.buddy');
+  assert.deepEqual([quiet.getAttribute('data-status'), quiet.getAttribute('aria-hidden')], ['online', 'true']);
   assert.equal(
     rows.guest.querySelector('.company').textContent.trim(),
     '2 commands running in the background · with Reviewer'

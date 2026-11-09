@@ -16,7 +16,7 @@ A Claude contact can leave things running while it carries on: a **command** sta
 
 Good to know:
 
-- **What runs in the background is not Claude at work.** The contact list shows the contact as Online, with "A command running in the background" under its name, and the status bar says the same: a dev server can run all day.
+- **What runs in the background keeps the contact Online, but not idle.** Its turn is over, so you can write to it, and quitting or restarting to update doesn't wait for it: a dev server can run all day. Its row in the contact list wears this tab's arrow going round on its buddy and says what runs, such as "A command running in the background", in the colour of what a busy contact is doing; the status bar says the same. The manager's Team tab and the phone list it under **Working**. Once the last one ends, the row goes back to what it said before. Stopped at its [plan limit](accounts.md#stopping-at-the-plan-limit), it won't go on once they end, so its row doesn't say it is at work.
 - **A watcher can wake Claude up.** When it reports something, Claude may answer without you sending anything, as it does when a subagent reports.
 - What Claude leaves running ends with its Claude Code: when you quit the app, start a new conversation, or Claude switches accounts. It is then listed as stopped.
 - Only the last 8 KB of what a task printed can be read: that is what Claude Code keeps of it.

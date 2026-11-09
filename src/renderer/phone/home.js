@@ -9,6 +9,7 @@ import { host, yourComputer } from './host.js';
 import { installHint } from './install.js';
 import {
   asks,
+  dotOf,
   folderName,
   homeSections,
   projectLabel,
@@ -91,7 +92,7 @@ const row = (contact, { projectNote = false, depth = 0, led = false, started = 0
       data-id="${contact.id}"
       ${asks(contact) ? 'data-asks' : ''}
     >
-      <span class="ph-avatar ph-${contact.status}">${raw(pictureArt(contact.avatar || 'default'))}</span>
+      <span class="ph-avatar ph-${dotOf(contact)}">${raw(pictureArt(contact.avatar || 'default'))}</span>
       <span class="ph-row-text">
         <span class="ph-row-name"
           ><span class="ph-name">${contact.name}</span>${role ? html`<span class="ph-badge">${role}</span>` : ''}</span

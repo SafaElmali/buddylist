@@ -83,6 +83,13 @@ export function rowNote(contact) {
 }
 
 /**
+ * The dot on a row's picture, by its status: one whose turn is over while what it left running in the background
+ * still runs wears the accent of one at work, as a busy one does.
+ * @param {ContactView} contact
+ */
+export const dotOf = (contact) => (contact.status === 'online' && contact.inBackground ? 'background' : contact.status);
+
+/**
  * A project's manager, and its project manager, wear a badge: "" for anyone else.
  * @param {ContactView} contact
  */

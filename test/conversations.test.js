@@ -5056,6 +5056,29 @@ test('(f) a worker stopped at its plan limit tells its manager once, and the man
   assert.equal(session.sent.at(-1).text, 'keep going\n\ndocs too');
 });
 
+test('(f) stopped at its plan limit, what it left running in the background does not mark it at work', () => {
+  const app = setup();
+  const view = () => app.conversations.view(app.store.getContact(app.contact.id));
+  app.conversations.send(app.contact.id, { text: 'run the checks', images: [] });
+  const { emit } = sessionOf(app, app.contact.id);
+  emit({ type: 'state', state: 'working' });
+  emit({ type: 'background', tasks: [DEV_SERVER] });
+  emit({ type: 'result', isError: false, stopped: false, errorText: '', durationMs: 900, costUsd: 0 });
+  emit({ type: 'state', state: 'idle' });
+  assert.equal(view().inBackground, true);
+  // A turn the task starts as it ends is stopped as it starts, at the limit: nothing goes on once it is done.
+  emit({ type: 'state', state: 'working' });
+  emit({ type: 'result', ...atPlanLimit('before') });
+  emit({ type: 'state', state: 'idle' });
+  assert.deepEqual([view().status, view().inBackground], ['online', false]);
+  // The user lets it go on: it is at work there again.
+  app.conversations.send(app.contact.id, { text: 'go on', images: [] });
+  emit({ type: 'state', state: 'working' });
+  emit({ type: 'result', isError: false, stopped: false, errorText: '', durationMs: 900, costUsd: 0 });
+  emit({ type: 'state', state: 'idle' });
+  assert.equal(view().inBackground, true);
+});
+
 test('(f) Use credits for this turn is the user’s: the stopped session goes on once, and the notes wait for it', () => {
   const app = setup();
   const worker = startedFrom(app, app.contact, 'Claude (worker)');

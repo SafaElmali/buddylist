@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { homeSections, projectLabel, roleOf, rowNote, waitingCount } from '../src/shared/phone-sections.js';
+import { dotOf, homeSections, projectLabel, roleOf, rowNote, waitingCount } from '../src/shared/phone-sections.js';
 import { DEFAULT_LIST_VIEW, listSections } from '../src/shared/list-view.js';
 import {
   answeredLine,
@@ -82,9 +82,14 @@ test('Home lists one with commands left running in the background among the work
     ]
   );
   assert.equal(rowNote(running), '2 commands running in the background');
+  assert.deepEqual(
+    [dotOf(running), dotOf(contact('cart', { status: 'busy' })), dotOf(contact('idle'))],
+    ['background', 'busy', 'online'],
+    'its dot is the accent of one at work'
+  );
   // Once they end, what it said is waiting for you.
   const ended = { ...running, personalMessage: '~/code/shop', inBackground: false };
-  assert.deepEqual([ids(homeSections([ended])[0]), rowNote(ended)], [['checks'], 'Finished']);
+  assert.deepEqual([ids(homeSections([ended])[0]), rowNote(ended), dotOf(ended)], [['checks'], 'Finished', 'online']);
 });
 
 test('the priority sections are always there, empty project sections are omitted, and nobody is in two', () => {

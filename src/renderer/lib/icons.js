@@ -1,5 +1,6 @@
 // All artwork is drawn here as inline SVG (original art in a mid-2000s
 // messenger style). Every call returns fresh markup with unique gradient ids.
+import { escapeHtml } from './dom.js';
 
 let counter = 0;
 const uid = () => `i${++counter}`;
@@ -35,6 +36,7 @@ const INK = 'var(--icon-ink, #3d5578)';
 
 // ---- the buddy (status) icon -------------------------------------------------------
 
+// "background" is not here: it is an online one with a badge of its own (see buddy).
 const STATUS = {
   online: { light: '#a6ec8e', mid: '#4dbb37', dark: '#237a17' },
   busy: { light: '#ff9d8f', mid: '#e1412f', dark: '#9a1c10' },
@@ -46,12 +48,14 @@ const STATUS = {
 const LEAD_STAR = `<path d="M12.4 .2l.88 2.29 2.45.13-1.9 1.54.63 2.37-2.06-1.33-2.06 1.33.63-2.37-1.9-1.54 2.45-.13z" fill="#ffd34d" stroke="#a87b00" stroke-width=".8" stroke-linejoin="round"/>`;
 
 /**
- * The two-tone person, tinted by status, with MSN-ish badges.
+ * The two-tone person, tinted by status, with MSN-ish badges. "background" is an online one with the Background
+ * tab's arrow going round on its badge: its turn is over, and what it left running in the background still runs.
  * @param {string} [status]
  * @param {number} [size]
- * @param {{ lead?: boolean }} [opts]  `lead`: it is a project's manager, and wears a star for it
+ * @param {{ lead?: boolean, label?: string }} [opts]  `lead`: it is a project's manager, and wears a star for it.
+ *   `label`: what the badge means, said when it is pointed at and to a screen reader; none leaves it to the row
  */
-export function buddy(status = 'online', size = 16, { lead = false } = {}) {
+export function buddy(status = 'online', size = 16, { lead = false, label = '' } = {}) {
   const c = STATUS[status] || STATUS.online;
   const g = uid();
   const badge =
@@ -59,8 +63,13 @@ export function buddy(status = 'online', size = 16, { lead = false } = {}) {
       ? `<circle cx="12.3" cy="12.2" r="3.5" fill="#d6312b" stroke="#fff" stroke-width="1"/><rect x="10.3" y="11.6" width="4" height="1.3" rx=".4" fill="#fff"/>`
       : status === 'away'
         ? `<circle cx="12.3" cy="12.2" r="3.5" fill="#f5b51a" stroke="#fff" stroke-width="1"/><path d="M12.3 10.3v2l1.3.9" stroke="#6b4a00" stroke-width="1" fill="none" stroke-linecap="round"/>`
-        : '';
-  return `<svg class="buddy" data-status="${status}"${lead ? ' data-lead' : ''} width="${size}" height="${size}" viewBox="0 0 16 16" aria-hidden="true">
+        : status === 'background'
+          ? `<circle cx="12.3" cy="12.2" r="3.5" fill="${c.mid}" stroke="#fff" stroke-width="1"/><path d="M13.9 12a1.6 1.6 0 1 1-.5-1.2" fill="none" stroke="#fff" stroke-width=".9" stroke-linecap="round"/><path d="M14 10.1v1.3h-1.3" fill="none" stroke="#fff" stroke-width=".9" stroke-linecap="round" stroke-linejoin="round"/>`
+          : '';
+  const said = label
+    ? `role="img" aria-label="${escapeHtml(label)}" data-tip="${escapeHtml(label)}"`
+    : 'aria-hidden="true"';
+  return `<svg class="buddy" data-status="${status}"${lead ? ' data-lead' : ''} width="${size}" height="${size}" viewBox="0 0 16 16" ${said}>
     <defs>${grad(g, [
       [0, c.light],
       [0.55, c.mid],

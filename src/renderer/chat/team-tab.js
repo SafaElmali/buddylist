@@ -121,11 +121,15 @@ export function teamRow(contact, now = Date.now()) {
   const branch = (!working && contact.branch) || '';
   const tags = working ? [] : pullRequestTags(pr);
   const said = contact.personalMessage && contact.personalMessage !== location ? contact.personalMessage : '';
-  const doing = working || Boolean(contact.inBackground);
+  // Its turn over, what it left running in the background still runs: its buddy wears the arrow going round.
+  const background = status === 'online' && Boolean(contact.inBackground);
+  const doing = working || background;
   return {
     id: contact.id,
     name: contact.name,
     status,
+    icon: background ? 'background' : status,
+    iconLabel: background ? said : '',
     when: teamWhen(contact, now),
     unread: contact.unread || 0,
     doing: doing ? said : '',
@@ -147,7 +151,7 @@ export function teamRow(contact, now = Date.now()) {
 }
 
 /** @param {ReturnType<typeof teamRow>} row */
-const rowNode = ({ id, name, status, when, unread, doing, branch, tags, size, note, title }) =>
+const rowNode = ({ id, name, status, icon, iconLabel, when, unread, doing, branch, tags, size, note, title }) =>
   el(
     html`<button
       class="team-row ${status}${unread ? ' unread' : ''}"
@@ -158,7 +162,7 @@ const rowNode = ({ id, name, status, when, unread, doing, branch, tags, size, no
       aria-expanded="false"
       aria-keyshortcuts="Shift+F10"
     >
-      ${raw(buddy(status, 16))}
+      ${raw(buddy(icon, 16, { label: iconLabel }))}
       <span class="team-name">${name}</span>
       <span class="team-end">
         ${when ? html`<span class="team-when${status === 'away' ? ' needs-you' : ''}">${when}</span>` : ''}

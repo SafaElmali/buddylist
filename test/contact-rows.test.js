@@ -36,6 +36,7 @@ test('a contact’s row wears its status, and says where it works or what it is 
   assert.deepEqual(contactRow(claude), {
     look: 'online',
     icon: 'online',
+    iconLabel: '',
     lead: false,
     note: '~/projects/api',
     doing: false,
@@ -149,6 +150,11 @@ test('one with commands left running in the background says so as work going on,
     ['online', '2 commands running in the background', true, false],
     'its turn is over, and still it is at work: not a quiet line like where it works'
   );
+  assert.deepEqual(
+    [row.icon, row.iconLabel],
+    ['background', '2 commands running in the background'],
+    'its buddy wears the arrow going round, and says what it means'
+  );
   // Under a manager it says what runs, not who started it.
   assert.equal(contactRow(running, { startedBy: 'shop manager' }).note, '2 commands running in the background');
   // With guests, on the second line, before who it is with.
@@ -158,14 +164,28 @@ test('one with commands left running in the background says so as work going on,
     [company.note, company.doing, company.below, company.company],
     ['2 commands running in the background', true, true, 'with Reviewer']
   );
-  // A row with tags is its name and its tags, as a busy one is; away from its project, it says which.
+  // A row with tags is its name and its tags, as a busy one is, and its buddy still says it; away from its
+  // project, it says which, and its buddy says what runs.
   const pullRequest = { number: 12, state: 'open', checks: checksOf(0, 0, 2) };
-  assert.equal(contactRow({ ...running, pullRequest }).note, '');
+  const tagged = contactRow({ ...running, pullRequest });
+  assert.deepEqual([tagged.note, tagged.icon], ['', 'background']);
   const elsewhere = contactRow({ ...running, project: 'api' }, { projectNote: true });
-  assert.deepEqual([elsewhere.note, elsewhere.doing, elsewhere.where], ['api', false, true]);
-  // Once they end, it is idle again: where it works, quietly.
+  assert.deepEqual(
+    [elsewhere.note, elsewhere.doing, elsewhere.where, elsewhere.icon],
+    ['api', false, true, 'background']
+  );
+  // Busy, waiting for you or put away, it wears that instead.
+  for (const [more, icon] of [
+    [{ status: 'busy', personalMessage: 'Running npm test' }, 'busy'],
+    [{ status: 'away', personalMessage: 'Waiting for you to approve something' }, 'away'],
+    [{ archived: true }, 'offline'],
+  ]) {
+    const other = contactRow({ ...running, ...more });
+    assert.deepEqual([other.icon, other.iconLabel], [icon, ''], icon);
+  }
+  // Once they end, it is idle again: where it works, quietly, with the online buddy.
   const ended = contactRow({ ...running, personalMessage: claude.location, inBackground: false });
-  assert.deepEqual([ended.note, ended.doing], ['~/projects/api', false]);
+  assert.deepEqual([ended.note, ended.doing, ended.icon, ended.iconLabel], ['~/projects/api', false, 'online', '']);
 });
 
 test('a project’s manager at work leads, and with nothing else to say tells how many it oversees', () => {
@@ -216,6 +236,7 @@ test('an archived contact’s row: the offline buddy, its folder, and nothing to
   const archived = {
     look: 'archived',
     icon: 'offline',
+    iconLabel: '',
     lead: false,
     note: '~/projects/api',
     doing: false,
