@@ -69,7 +69,7 @@ const plan = (session, { credits = true, weekly = 40 } = {}) => ({
     five_hour: { utilization: session, resets_at: resets() },
     seven_day: { utilization: weekly, resets_at: new Date(Date.now() + 72 * HOUR).toISOString() },
     extra_usage: credits
-      ? { is_enabled: true, monthly_limit: 250000, used_credits: 0, utilization: 0, currency: 'USD' }
+      ? { is_enabled: true, monthly_limit: 50000, used_credits: 0, utilization: 0, currency: 'USD' }
       : { is_enabled: false, monthly_limit: null, used_credits: null, utilization: null, disabled_reason: 'off' },
   },
 });

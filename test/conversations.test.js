@@ -5003,7 +5003,7 @@ test('(f) a worker stopped at its plan limit tells its manager once, and the man
     from: app.contact.id,
   });
   assert.equal(session.sent.length, sent, 'no automatic restart');
-  assert.equal(await app.conversations.hurryNote(worker.id, 'm:1'), 'waiting');
+  assert.equal(await app.conversations.hurryNote(worker.id, 'm:1'), 'plan-limit');
   assert.equal(session.sent.length, sent, 'not hurried past the stop either');
   // The user's own message goes, and the notes after it, once it is free.
   app.conversations.send(worker.id, { text: 'go on', images: [] });

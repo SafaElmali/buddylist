@@ -64,6 +64,10 @@ test('notes your Stop holds say so over the entries, and what lets them go; noth
   view.show([queued('m', 'mine')], 'stopped');
   assert.equal(held().hidden, true, 'your own messages are never held');
   assert.equal(heldLine('stopped', 0), '');
+  assert.equal(
+    heldLine('plan-limit', 2),
+    'Held at the plan limit: they go once you use credits, switch account or write to it, or Send now.'
+  );
 });
 
 test('an entry is one line of what you wrote, with all of it to read, and Send now, Edit and Cancel', () => {
