@@ -118,6 +118,10 @@ The conversation stays open for reading, with **Restore** above it. Other chats 
 
 Yes. **Tools > Settings... > Accounts** adds another Claude login, such as a personal one beside your work one, through Claude's sign-in page in your browser. Personal and team accounts can share an email address; choose the organization during sign-in. **Use** there, or **Switch account...** under the usage meter in a conversation, puts one in use for every Claude contact. When the account in use reaches its session or weekly limit, the conversation asks to switch to the next one and sends your message again from there, with everything said so far. **Always allow** switches without asking from then on. Every account shares your Claude Code settings, `CLAUDE.md`, skills and plugins, and switching leaves `claude` in your terminal using the account labeled **Terminal login**. **Disconnect** on that login signs it out in both places; **Remove** signs out and forgets an added account. More in the [accounts guide](accounts.md).
 
+### Will it use my usage credits once I reach a limit?
+
+Not by default. A Claude account on a team or paid plan can go on in usage credits once its session or weekly limit is used up, so buddylist stops a turn there instead: it doesn't start one that would use them, and stops one as soon as Claude says it is. The conversation says which limit and when it resets, with **Use credits for this turn**, which asks first, and **Switch account**. Turn it off for an account with **Stop at the plan limit** in **Settings > Accounts**. More in the [accounts guide](accounts.md#stopping-at-the-plan-limit).
+
 ### Is there a keyboard shortcut to find contacts and actions?
 
 Press **⌘K** on Mac or **Ctrl+K** on Windows and Linux in the contact list or a chat. The command palette searches contacts, the words in your conversations, the files of a chat's folder, the current window's menu actions, what a conversation's buttons do, such as **Invite** and **Create PR**, and the pages of Settings, each project's too. Type a name or a few words, in any order: every word has to match, and words in "quotes" are found side by side. Use the arrow keys and Enter to choose, or Esc to close it. It knows other words for things too, such as `PM` for a project's manager or `shell` for the terminal. Past conversations open in message history, where **Continue** resumes them. When nothing matches, it offers to search all message history for what you typed. More in the [command palette guide](contact-list.md#command-palette).
@@ -185,6 +189,10 @@ No, and a new install doesn't: it starts in the professional look, with the mess
 ### Is there a dark theme?
 
 Yes. **Tools > Theme** in the contact list, or **View > Theme** in a conversation, has **Light**, **Dark** and **Match system**. Dark is Luna at night: the title bars keep their blue and everything under them goes navy. XP's other colour schemes are there too, each by day and at night: **Olive Green**, **Silver**, **Royale** and **Pink**. Every window changes at once, and web pages in the Browser tab follow along.
+
+### Can I read or change its code?
+
+Yes. buddylist is open source under the MIT license, at [github.com/SafaElmali/buddylist](https://github.com/SafaElmali/buddylist), with its releases. The contributing guide there says how to run it from the source, test a change and send it. A copy you build yourself sends no counts and no error reports.
 
 ### Where are my conversations stored?
 
