@@ -1885,3 +1885,91 @@ test('with full access a plan offers every way its agent approves it, and says n
   );
   assert.equal(card().querySelector('.ph-card-held'), null);
 });
+
+// ---- a conversation a manager drafted ----------------------------------------------------------------------
+
+const DRAFTED = 'Round the cart total to two decimals before tax is added.';
+const draftedContacts = () => [
+  contact('lead', { name: 'shop manager', manages: 'shop' }),
+  contact('cart', { name: 'Claude (cart-total)', startedBy: 'lead', draft: DRAFTED }),
+];
+const draftBar = (root) => root.querySelector('.ph-draft-bar');
+
+test('a drafted conversation says who drafted it, with its prompt in the box, and Start and Delete', async (t) => {
+  const { open, root, box, button } = setup(t, { contacts: draftedContacts() });
+  await open('cart');
+  assert.equal(draftBar(root).hidden, false);
+  assert.equal(
+    draftBar(root).querySelector('.ph-draft-text').textContent,
+    'shop manager drafted this. Send to start it, or delete it.'
+  );
+  assert.equal(box().value, DRAFTED);
+  assert.ok(button('Start', draftBar(root)));
+  assert.ok(button('Delete…', draftBar(root)));
+  assert.equal(root.querySelector('.ph-chat-state').textContent, 'Waiting to start');
+  // Its dot is Home's: the colour of what waits for you.
+  assert.match(root.querySelector('.ph-chat-bar .ph-avatar').className, /\bph-draft\b/);
+});
+
+test('Start sends what is in the box, the draft or what was made of it, once', async (t) => {
+  const { open, root, type, button, sent } = setup(t, { contacts: draftedContacts() });
+  await open('cart');
+  type(`${DRAFTED} And add a test.`);
+  button('Start', draftBar(root)).click();
+  button('Start', draftBar(root))?.click();
+  await settle();
+  assert.deepEqual(
+    sent.map(([id, { text }]) => [id, text]),
+    [['cart', `${DRAFTED} And add a test.`]]
+  );
+});
+
+test('Start with the box emptied sends the draft as it was drafted', async (t) => {
+  const { open, root, type, button, sent } = setup(t, { contacts: draftedContacts() });
+  await open('cart');
+  type('');
+  button('Start', draftBar(root)).click();
+  await settle();
+  assert.deepEqual(
+    sent.map(([, { text }]) => text),
+    [DRAFTED]
+  );
+});
+
+test('once started, the bar goes', async (t) => {
+  const contacts = draftedContacts();
+  const { open, root } = setup(t, { contacts });
+  const screen = await open('cart');
+  screen.contactsChanged([contacts[0], { ...contacts[1], draft: null }]);
+  assert.equal(draftBar(root).hidden, true);
+});
+
+for (const level of ['answer', 'read']) {
+  test(`${level === 'answer' ? 'answer only' : 'read only'}: a drafted conversation says so, and has no Start or Delete`, async (t) => {
+    accessFor(t, level);
+    const { open, root, button } = setup(t, { contacts: draftedContacts() });
+    await open('cart');
+    assert.equal(draftBar(root).hidden, false);
+    assert.equal(
+      draftBar(root).querySelector('.ph-draft-text').textContent,
+      'shop manager drafted this. Start it or delete it from your Mac.'
+    );
+    assert.equal(button('Start', draftBar(root)), undefined);
+    assert.equal(button('Delete…', draftBar(root)), undefined);
+  });
+}
+
+test('changed to full access, a drafted conversation gains Start and Delete', async (t) => {
+  accessFor(t, 'read');
+  const { open, root, button } = setup(t, { contacts: draftedContacts() });
+  const screen = await open('cart');
+  setAccess('full');
+  screen.accessChanged();
+  assert.ok(button('Start', draftBar(root)));
+});
+
+test('a conversation nobody drafted for you has no bar', async (t) => {
+  const { open, root } = setup(t, { contacts: [contact('a', { draft: 'Issue #1: Fix login' })] });
+  await open('a');
+  assert.equal(draftBar(root).hidden, true);
+});

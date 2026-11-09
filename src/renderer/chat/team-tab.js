@@ -8,6 +8,7 @@ import { el, html, raw } from '../lib/dom.js';
 import { shortAgo } from '../lib/format.js';
 import { buddy, listIcon, smallIcon, tagIcon } from '../lib/icons.js';
 import { shownPullRequest, unreadTitle } from '../contacts/rows.js';
+import { WAITING_TO_START, waitingToStart } from '../../shared/drafted.js';
 import { inTeamOf, ledBy } from '../../shared/managers.js';
 import { pullRequestLine, pullRequestSize, pullRequestTags } from '../../shared/pull-request-text.js';
 import { closeMenu, openMenu } from '../lib/menu.js';
@@ -22,9 +23,18 @@ const ROOM = 300;
 const TICK_MS = 60000;
 
 /**
+ * One an agent drafted, which waits for you to start it (see shared/drafted.js). Its folder gone, it is offline.
+ * @param {{ status: string, draft?: string | null, startedBy?: string | null, archived?: boolean }} one
+ */
+const drafted = (one) => one.status === 'online' && waitingToStart(one);
+
+/** How far up the tab one goes: the ones waiting on an answer from you, then the ones waiting for you to start them. */
+const needsYou = (one) => (one.status === 'away' ? 2 : drafted(one) ? 1 : 0);
+
+/**
  * The conversations a manager oversees, as its manager hears from them: every other one in its project's
- * section, the archived ones aside (see inTeamOf). The ones waiting for you come first, then the ones at work
- * most lately.
+ * section, the archived ones aside (see inTeamOf). The ones waiting for you come first, those that wait on an answer
+ * before those drafted for you to start, then the ones at work most lately.
  * @template {{ id: string, project?: string, archived?: boolean, manages?: string, status: string, lastActive?: number | null }} C
  * @param {C} manager
  * @param {C[]} contacts  every contact, as the contact list has them
@@ -33,9 +43,7 @@ const TICK_MS = 60000;
 export const teamOf = (manager, contacts) =>
   contacts
     .filter((one) => inTeamOf(manager, one))
-    .sort(
-      (a, b) => Number(b.status === 'away') - Number(a.status === 'away') || (b.lastActive ?? 0) - (a.lastActive ?? 0)
-    );
+    .sort((a, b) => needsYou(b) - needsYou(a) || (b.lastActive ?? 0) - (a.lastActive ?? 0));
 
 /**
  * Who a manager's Team tab lists: the conversations it oversees (see teamOf), or for a project manager the managers
@@ -62,12 +70,19 @@ export function crewOf(manager, contacts) {
 }
 
 /**
- * What the end of a row says: that it waits for you, or else when it was last at work. '' for one never at work.
+ * What the end of a row says: that it waits for you, or else when it was last at work. '' for one never at work, and
+ * for one drafted for you to start: its section and the line under its name say it waits.
  * @param {{ status: string, lastActive?: number | null }} contact
  * @param {number} [now]
  */
 export const teamWhen = (contact, now = Date.now()) =>
-  contact.status === 'away' ? 'Needs you' : contact.lastActive ? shortAgo(contact.lastActive, now) : '';
+  contact.status === 'away'
+    ? 'Needs you'
+    : drafted(contact)
+      ? ''
+      : contact.lastActive
+        ? shortAgo(contact.lastActive, now)
+        : '';
 
 /**
  * At work: busy, or with its turn over and what it left running in the background still running.
@@ -75,11 +90,14 @@ export const teamWhen = (contact, now = Date.now()) =>
  */
 const atWork = (one) => one.status === 'busy' || Boolean(one.inBackground);
 
-/** The tab's sections, in their order, by the status of the ones in them: as the contact list's buddies say it. */
+/**
+ * The tab's sections, in their order, by the status of the ones in them: as the contact list's buddies say it. One
+ * drafted for you to start needs you too.
+ */
 const SECTIONS = [
-  { id: 'waiting', label: 'Needs you', has: (one) => one.status === 'away' },
+  { id: 'waiting', label: 'Needs you', has: (one) => one.status === 'away' || drafted(one) },
   { id: 'working', label: 'Working', has: atWork },
-  { id: 'idle', label: 'Idle', has: (one) => one.status === 'online' && !atWork(one) },
+  { id: 'idle', label: 'Idle', has: (one) => one.status === 'online' && !atWork(one) && !drafted(one) },
   { id: 'offline', label: 'Offline', has: (one) => one.status === 'offline' },
 ];
 
@@ -123,17 +141,20 @@ export function teamRow(contact, now = Date.now()) {
   const said = contact.personalMessage && contact.personalMessage !== location ? contact.personalMessage : '';
   // Its turn over, what it left running in the background still runs: its buddy wears the arrow going round.
   const background = status === 'online' && Boolean(contact.inBackground);
-  const doing = working || background;
+  // Drafted for you to start: it says so under its name, as what needs you is said, and wears it on its buddy. Its
+  // branch is the one made up for it, renamed once it starts.
+  const waiting = drafted(contact);
+  const doing = working || background || waiting;
   return {
     id: contact.id,
     name: contact.name,
     status,
-    icon: background ? 'background' : status,
-    iconLabel: background ? said : '',
+    icon: waiting ? 'draft' : background ? 'background' : status,
+    iconLabel: waiting ? WAITING_TO_START : background ? said : '',
     when: teamWhen(contact, now),
     unread: contact.unread || 0,
-    doing: doing ? said : '',
-    branch,
+    doing: waiting ? WAITING_TO_START : doing ? said : '',
+    branch: waiting ? '' : branch,
     tags,
     size: working ? null : pullRequestSize(pr),
     note: doing || branch || tags.length ? '' : said,

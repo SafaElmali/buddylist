@@ -37,7 +37,7 @@ const INK = 'var(--icon-ink, #3d5578)';
 
 // ---- the buddy (status) icon -------------------------------------------------------
 
-// "background" is not here: it is an online one with a badge of its own (see buddy).
+// "background" and "draft" are not here: each is an online one with a badge of its own (see buddy).
 const STATUS = {
   online: { light: '#a6ec8e', mid: '#4dbb37', dark: '#237a17' },
   busy: { light: '#ff9d8f', mid: '#e1412f', dark: '#9a1c10' },
@@ -51,6 +51,7 @@ const LEAD_STAR = `<path d="M12.4 .2l.88 2.29 2.45.13-1.9 1.54.63 2.37-2.06-1.33
 /**
  * The two-tone person, tinted by status, with MSN-ish badges. "background" is an online one with the Background
  * tab's arrow going round on its badge: its turn is over, and what it left running in the background still runs.
+ * "draft" is an online one with a play mark on an amber badge: an agent drafted it, and it waits for you to start it.
  * @param {string} [status]
  * @param {number} [size]
  * @param {{ lead?: boolean, label?: string }} [opts]  `lead`: it is a project's manager, and wears a star for it.
@@ -66,7 +67,9 @@ export function buddy(status = 'online', size = 16, { lead = false, label = '' }
         ? `<circle cx="12.3" cy="12.2" r="3.5" fill="#f5b51a" stroke="#fff" stroke-width="1"/><path d="M12.3 10.3v2l1.3.9" stroke="#6b4a00" stroke-width="1" fill="none" stroke-linecap="round"/>`
         : status === 'background'
           ? `<circle cx="12.3" cy="12.2" r="3.5" fill="${c.mid}" stroke="#fff" stroke-width="1"/><path d="M13.9 12a1.6 1.6 0 1 1-.5-1.2" fill="none" stroke="#fff" stroke-width=".9" stroke-linecap="round"/><path d="M14 10.1v1.3h-1.3" fill="none" stroke="#fff" stroke-width=".9" stroke-linecap="round" stroke-linejoin="round"/>`
-          : '';
+          : status === 'draft'
+            ? `<circle cx="12.3" cy="12.2" r="3.5" fill="#f5b51a" stroke="#fff" stroke-width="1"/><path d="M11.4 10.6l2.5 1.6-2.5 1.6z" fill="#6b4a00"/>`
+            : '';
   const said = label
     ? `role="img" aria-label="${escapeHtml(label)}" data-tip="${escapeHtml(label)}"`
     : 'aria-hidden="true"';

@@ -109,6 +109,8 @@ export const REQUESTS = Object.freeze({
   chatUseCredits: 'chat:use-credits',
   chatSwitchAccount: 'chat:switch-account',
   chatSendNow: 'chat:send-now',
+  chatStartDraft: 'chat:start-draft',
+  chatDeleteDraft: 'chat:delete-draft',
   chatRespond: 'chat:respond',
   chatStopHelper: 'chat:stop-helper',
   chatStopBackground: 'chat:stop-background',

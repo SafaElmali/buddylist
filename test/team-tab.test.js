@@ -394,3 +394,41 @@ for (const look of ['professional', 'messenger']) {
     assert.equal(document.body.querySelector('.popup'), null);
   });
 }
+
+const DRAFTED = { startedBy: 'm', draft: 'Round the cart total.' };
+
+test('one a manager drafted needs you to start it: it is under Needs you, after the ones that wait on an answer', () => {
+  const team = teamOf(manager, [
+    contact('idle', { lastActive: NOW - 60 * MINUTE }),
+    contact('cart', { ...DRAFTED }),
+    contact('waits', { status: 'away', lastActive: NOW - 9 * MINUTE }),
+    contact('busy', { status: 'busy', lastActive: NOW - MINUTE }),
+  ]);
+  assert.deepEqual(
+    team.map(({ id }) => id),
+    ['waits', 'cart', 'busy', 'idle']
+  );
+  assert.deepEqual(
+    teamSections(team).map(({ id, members }) => [id, members.map(({ id }) => id)]),
+    [
+      ['waiting', ['waits', 'cart']],
+      ['working', ['busy']],
+      ['idle', ['idle']],
+    ]
+  );
+});
+
+test('a drafted one’s row says it waits to start under its name, and nothing at its end: its section says it', () => {
+  const row = teamRow(contact('cart', { ...DRAFTED, branch: 'cart-total', location: '~/w/shop/cart-total' }), NOW);
+  assert.deepEqual(
+    [row.icon, row.iconLabel, row.when, row.doing, row.branch, row.note],
+    ['draft', 'Waiting to start', '', 'Waiting to start', '', '']
+  );
+  assert.equal(teamWhen(contact('cart', { ...DRAFTED }), NOW), '');
+  // Started: a row like any other.
+  const started = teamRow(contact('cart', { startedBy: 'm', draft: null, branch: 'cart-total' }), NOW);
+  assert.deepEqual([started.icon, started.doing, started.branch], ['online', '', 'cart-total']);
+  // Its folder gone: offline, as any.
+  const gone = teamRow(contact('cart', { ...DRAFTED, status: 'offline' }), NOW);
+  assert.deepEqual([gone.icon, gone.doing], ['offline', '']);
+});

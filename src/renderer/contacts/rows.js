@@ -11,6 +11,7 @@ import {
   pullRequestTags,
 } from '../../shared/pull-request-text.js';
 import { placesOf, searchTerms } from '../../shared/search.js';
+import { WAITING_TO_START, waitingToStart } from '../../shared/drafted.js';
 
 /**
  * A contact with conversations that contain what was searched for, as `api.history.search` gives it.
@@ -101,7 +102,8 @@ export const startedByNote = (name) => (name ? `started by ${name}` : '');
  *   tags: (ReturnType<typeof pullRequestTags>[number] & ReturnType<typeof tagAction>)[],
  *   tagsTitle: string, size: ReturnType<typeof pullRequestSize>, buttons: ReturnType<typeof nextStepButtons> }}
  *   `look`: the row's class. `icon`: the buddy it wears: "background" for one whose turn is over while what it
- *   left running in the background still runs. `iconLabel`: what that buddy says when pointed at and to a screen
+ *   left running in the background still runs, "draft" for a conversation an agent drafted that waits for you to
+ *   start it. `iconLabel`: what that buddy says when pointed at and to a screen
  *   reader, which the note may be cut short of or leave out beside tags; empty for any other. `lead`: it is a
  *   project's manager at work, which leads its section and looks it. `note`: what follows the name; empty for none.
  *   `doing`: the note says what it is busy with, or left running in the background. `where`: it says which project,
@@ -152,7 +154,9 @@ export function contactRow(contact, { projectNote = false, team = 0, startedBy =
   // busy one does (beside a conversation, where where it works is left out, it is still said), and worn on its
   // buddy, which a row with tags or cut short still shows. Busy or waiting for you, it says that instead.
   const inBackground = status === 'online' && Boolean(contact.inBackground);
-  const doing = !project && (status === 'busy' || status === 'away' || inBackground);
+  // An agent drafted it, and it waits for you to start it: said as what needs you is, and worn on its buddy.
+  const drafted = status === 'online' && waitingToStart(contact);
+  const doing = !project && (status === 'busy' || status === 'away' || inBackground || drafted);
   const company = companyOf(contact);
   // A row with tags is its name and its tags, nothing in between: they are what to see at a glance.
   // Which project it is, for a row away from its project's, goes between them all the same. A manager
@@ -160,13 +164,14 @@ export function contactRow(contact, { projectNote = false, team = 0, startedBy =
   // under it says who started it, as it is no longer drawn under that one.
   const note =
     project ||
+    (drafted && WAITING_TO_START) ||
     (tags.length
       ? ''
       : (idle && lead && overseesNote(team, Boolean(contact.leads))) || (idle && startedByNote(startedBy)) || said);
   return {
     look: status,
-    icon: inBackground ? 'background' : status,
-    iconLabel: inBackground ? contact.personalMessage : '',
+    icon: drafted ? 'draft' : inBackground ? 'background' : status,
+    iconLabel: drafted ? WAITING_TO_START : inBackground ? contact.personalMessage : '',
     lead,
     note,
     doing,

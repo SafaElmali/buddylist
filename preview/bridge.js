@@ -209,6 +209,8 @@ window.messenger = {
     useCredits: invoke('chat:use-credits'),
     switchAccount: invoke('chat:switch-account'),
     sendNow: invoke('chat:send-now'),
+    startDraft: invoke('chat:start-draft'),
+    deleteDraft: invoke('chat:delete-draft'),
     respond: invoke('chat:respond'),
     stopHelper: invoke('chat:stop-helper'),
     stopBackground: invoke('chat:stop-background'),

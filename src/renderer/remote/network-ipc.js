@@ -76,6 +76,7 @@ const WRITES = new Set([
   REQUESTS.chatPutBackNote,
   REQUESTS.chatUseCredits,
   REQUESTS.chatSwitchAccount,
+  REQUESTS.chatDeleteDraft,
 ]);
 /**
  * The contact list, put together from what the Mac sends a page that takes it as patches (see host.js): whole first,

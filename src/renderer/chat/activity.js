@@ -9,10 +9,12 @@ import { viewPictures } from '../lib/picture-viewer.js';
 import { fileTitle } from './files.js';
 import { speakerOf } from './participants.js';
 import { planFileOf } from './plans.js';
+import { draftCard, paintDraftCard } from './draft-card.js';
 import { activityStatus, clipLines, isDoing } from '../../shared/activity-text.js';
 import { describeActivity, outcomeOf } from '../lib/activity-line.js';
 import { searchTerms } from '../../shared/search.js';
 import { knownTodos } from '../../shared/todo-handoff.js';
+import { startedConversation } from '../../shared/app-tools.js';
 
 // What a call is said as, by the phone too (see lib/activity-line.js).
 export { describeActivity, outcomeOf };
@@ -383,13 +385,17 @@ export class ActivityLines {
    *   line of a call that left something running there links to it
    * @param {Pick<import('./plans.js').Plans, 'addFile' | 'showFile' | 'refreshFile'>} [tabs.plans]  the plans: the
    *   line of a call that wrote to a plan kept in a file links to its tab, and so does its run's, put away
+   * @param {{ contact: (id: string) => any, start: (id: string) => Promise<unknown>, open: (id: string) => void }} [tabs.drafts]
+   *   the conversations an agent here drafted for the user: a card under the run of the call that drafted one says
+   *   how it stands, with Start while it waits (see draft-card.js)
    */
-  constructor(conversation, ctx, { helpers, background, plans } = {}) {
+  constructor(conversation, ctx, { helpers, background, plans, drafts } = {}) {
     this.conversation = conversation;
     this.ctx = ctx;
     this.helpers = helpers;
     this.background = background;
     this.plans = plans;
+    this.drafts = drafts;
     /** @type {Map<string, { line: ActivityLine, step: Step, fold: Fold, helper?: string }>} the calls still going on, by tool id */
     this.pending = new Map();
     /** @type {Fold | null} the run the next call joins, while nothing else has been said since */
@@ -438,7 +444,10 @@ export class ActivityLines {
       this.fold = activity.kind === 'todo' ? null : fold;
     }
     if (fromHistory) {
-      if (tool.output !== undefined) line.settle(tool);
+      if (tool.output !== undefined) {
+        line.settle(tool);
+        this.#draftCard(fold, activity, tool);
+      }
     } else {
       line.wait();
       this.pending.set(tool.toolId, { line, step, fold, helper: tool.helper });
@@ -453,6 +462,7 @@ export class ActivityLines {
     this.conversation.keepPinned(() => {
       call.step.pictures = result.pictures;
       call.line.settle(result);
+      this.#draftCard(call.fold, call.step.activity, result);
       this.#over(toolId);
       // The plan it wrote to is in its file now.
       if (call.step.plan) this.plans.refreshFile(call.step.plan);
@@ -464,6 +474,29 @@ export class ActivityLines {
       }
     });
     this.#tick();
+  }
+
+  /**
+   * A conversation an agent drafted with this call gets a card under the call's run: under the run, not among its
+   * steps, for one put away to show it too. One card for each: a call asked again with the same request names the
+   * same conversation, and the card under the first says how it stands.
+   * @param {Fold} fold
+   * @param {Activity} activity
+   * @param {{ output?: string, isError?: boolean }} result
+   */
+  #draftCard(fold, activity, { output, isError }) {
+    if (!this.drafts || isError || activity.kind !== 'app' || activity.action !== 'conversation' || activity.started)
+      return;
+    const drafted = startedConversation(output);
+    if (!drafted || this.conversation.root.querySelector(`.draft-card[data-id="${drafted.id}"]`)) return;
+    fold.node.append(draftCard(drafted, this.drafts));
+  }
+
+  /** The cards of the conversations drafted here say how each stands now, as the contact list has it. */
+  refreshDrafts() {
+    if (!this.drafts) return;
+    for (const node of this.conversation.root.querySelectorAll('.draft-card'))
+      paintDraftCard(node, this.drafts.contact(node.dataset.id));
   }
 
   /** Lines restored from history that never got a result just look finished. */

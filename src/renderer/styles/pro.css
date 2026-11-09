@@ -773,6 +773,13 @@
     mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='6.4' cy='5.2' r='2.7'/><path d='M1.4 14.2c.3-3.2 2.3-5 5-5 1 0 1.8.2 2.5.7a4.8 4.8 0 0 0-1.5 4.3z'/><path d='M14.7 12.4a2.6 2.6 0 1 1-.9-2' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round'/><path d='M14.9 8.9v1.9h-1.9' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   }
 
+  /* Drafted by an agent, waiting for you to start it: the buddy a little aside, with a play mark at its shoulder, in
+     the colour of what waits for you. */
+  & svg.buddy[data-status='draft'] {
+    background: var(--away);
+    mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='6.4' cy='5.2' r='2.7'/><path d='M1.4 14.2c.3-3.2 2.3-5 5-5 1 0 1.8.2 2.5.7a4.8 4.8 0 0 0-1.5 4.3z'/><path d='M10.4 8.6l5 3.1-5 3.1z'/></svg>");
+  }
+
   /* A project's manager: the same buddy, a little aside, with a star over its shoulder. */
   & svg.buddy[data-lead] {
     mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='5.8' cy='6.4' r='2.5'/><path d='M1.2 14.4c.3-3 2.1-4.7 4.6-4.7s4.3 1.7 4.6 4.7z'/><path d='M12.2 .2l.97 2.47 2.64.16-2.04 1.68.66 2.56-2.23-1.42-2.23 1.42.66-2.56-2.04-1.68 2.64-.16z'/></svg>");
@@ -2192,6 +2199,29 @@
     margin-left: 22px;
   }
 
+  /* A conversation the agent drafted, under the call that drafted it: a card as wide as reads well. */
+  & .draft-card {
+    gap: 8px;
+    margin: 6px 0 2px 22px;
+    padding: 5px 6px 5px 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    font-size: 13px;
+  }
+
+  & .draft-card-name {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  & .draft-card-state {
+    color: var(--text-dim);
+  }
+
+  & .draft-card[data-state='waiting'] .draft-card-state {
+    color: var(--warn);
+  }
+
   & .event.result .line > svg {
     color: var(--ok);
   }
@@ -2304,6 +2334,7 @@
       'archived archived archived archived' auto
       'pins pins pins pins' auto
       'talk talk talk talk' minmax(0, 1fr)
+      '. draft draft .' auto
       '. queue queue .' auto
       '. box box .' auto
       '. tools send .' auto
@@ -2320,6 +2351,21 @@
 
   & .archived-bar {
     grid-area: archived;
+  }
+
+  /* A drafted conversation's box stands over the message box, as wide as it is. */
+  & .draft-bar {
+    grid-area: draft;
+    min-width: 0;
+    min-height: 40px;
+    margin: 0 0 8px;
+    padding: 5px 6px 5px 14px;
+    gap: 12px;
+    border-color: var(--warn-border);
+    border-radius: 10px;
+    background: var(--warn-bg);
+    color: var(--warn);
+    font-size: 12.5px;
   }
 
   & .pin-bar {

@@ -41,6 +41,8 @@ import { answeringParticipants } from '../../shared/send-targets.js';
 import { ActivityLines } from './activity.js';
 import { AgentsTab } from './agents-tab.js';
 import { ArchivedBar, READING_ACTIONS, archiveChangedSince } from './archived-bar.js';
+import { DraftBar } from './draft-bar.js';
+import { waitingToStart } from '../../shared/drafted.js';
 import { BriefTab } from './brief-tab.js';
 import { TeamTab, teamOf } from './team-tab.js';
 import { workerHandoverDialog } from '../contacts/worker-handover-dialog.js';
@@ -262,6 +264,24 @@ const archivedBar = new ArchivedBar($('#archived-bar'), {
   history: () => api.history.open(ctx.contactId),
 });
 
+// Over the box of a conversation an agent drafted: who did, with Start, and Delete, which takes its worktree along.
+const draftBar = new DraftBar($('#draft-bar'), {
+  start: () => startDraft(),
+  remove: () => deleteContactDialog(ctx.contact, { remove: true }),
+});
+
+/**
+ * Start on a conversation an agent drafted, on the bar over its box or asked for by the card under the line of the
+ * agent that drafted it (see ACTIONS): what is in the box goes as Send sends it, the draft or what you made of it. A
+ * box emptied meanwhile gets the draft back first. Whether anything was sent.
+ */
+function startDraft() {
+  if (!waitingToStart(ctx.contact)) return false;
+  if (!composer.input.value.trim()) composer.setDraft(ctx.contact.draft);
+  composer.submit();
+  return true;
+}
+
 /** Enter the read-only state without navigating away from any tab change already in progress. */
 function showArchiveState() {
   document.body.classList.toggle('archived-chat', archived());
@@ -466,7 +486,14 @@ const brief = new BriefTab(sidePane, {
     return ctx.web ? null : () => api.settings.open({ section: 'manager', contactId: ctx.contactId });
   },
 });
-const activities = new ActivityLines(conversation, ctx, { helpers, background, plans });
+// A conversation an agent here drafted has a card under the call that drafted it: Start sends its first message, and
+// its name shows it here, as a row of the Team tab does.
+const drafts = {
+  contact: (id) => ctx.contacts.find((one) => one.id === id),
+  start: (id) => api.chat.startDraft(id),
+  open: (id) => api.chat.switch(id),
+};
+const activities = new ActivityLines(conversation, ctx, { helpers, background, plans, drafts });
 const todos = new Todos(conversation, ctx, {
   send: (text) => send({ text, images: [] }),
   error: (text) => conversation.addError(text),
@@ -1917,6 +1944,8 @@ const ACTIONS = {
   terminal: () => terminals.showing || terminals.toggle(),
   changes: () => changes.show(),
   pullRequest: () => pullRequest.press(),
+  // Start, on the card under the line of the agent that drafted this conversation: as the bar over the box starts it.
+  start: () => startDraft(),
 };
 
 /**
@@ -2771,6 +2800,7 @@ async function main() {
   contacts.setEmptyProjects(emptyProjects);
   contacts.setView(data.settings);
   ctx.contacts = everyone;
+  draftBar.show(data.contact, everyone);
   contacts.setContacts(everyone);
   showContacts(everyone);
   tabs.offerNew(tabsOffered());
@@ -2938,6 +2968,8 @@ async function main() {
     const stackChanged = moved || JSON.stringify(next.pullRequest) !== JSON.stringify(ctx.contact.pullRequest);
     const stackWasOffered = prStackOffered();
     ctx.contact = { ...ctx.contact, ...next };
+    draftBar.show(ctx.contact, all);
+    activities.refreshDrafts();
     if (archiveChanged) {
       voice?.cancel();
       closeMenu();

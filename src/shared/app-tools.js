@@ -193,6 +193,26 @@ export const answerText = (answer) =>
   String(answer?.own_answer ?? '').trim() || names(Array.isArray(answer?.options) ? answer.options : []).join(', ');
 
 /**
+ * How what an agent is told of a conversation it started names that conversation, for it to reach it by: its id.
+ * @param {string} id
+ */
+export const conversationIdLine = (id) => ` Conversation ID: ${id}.`;
+
+/**
+ * The conversation a call of start_conversation started or drafted, read back from what its agent was told (see
+ * main/app-tools.js): its id, and its name as it was then. Null for an answer that names none, such as an error.
+ * @param {unknown} output
+ * @returns {{ id: string, name: string } | null}
+ */
+export function startedConversation(output) {
+  const text = String(output ?? '');
+  const id = /Conversation ID: ([\w-]+)\./.exec(text)?.[1];
+  if (!id) return null;
+  const name = /^(.+?) (?:has started|is in the user’s contact list)/.exec(text)?.[1] ?? '';
+  return { id, name };
+}
+
+/**
  * What an agent asked the app for, as an activity.
  * @param {string} tool   one of APP_TOOLS
  * @param {Record<string, any>} [input]  what it was called with
