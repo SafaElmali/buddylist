@@ -69,41 +69,48 @@ export function crewOf(manager, contacts) {
 export const teamWhen = (contact, now = Date.now()) =>
   contact.status === 'away' ? 'Needs you' : contact.lastActive ? shortAgo(contact.lastActive, now) : '';
 
+/**
+ * At work: busy, or with its turn over and what it left running in the background still running.
+ * @param {{ status: string, inBackground?: boolean }} one
+ */
+const atWork = (one) => one.status === 'busy' || Boolean(one.inBackground);
+
 /** The tab's sections, in their order, by the status of the ones in them: as the contact list's buddies say it. */
 const SECTIONS = [
-  { id: 'waiting', label: 'Needs you', status: 'away' },
-  { id: 'working', label: 'Working', status: 'busy' },
-  { id: 'idle', label: 'Idle', status: 'online' },
-  { id: 'offline', label: 'Offline', status: 'offline' },
+  { id: 'waiting', label: 'Needs you', has: (one) => one.status === 'away' },
+  { id: 'working', label: 'Working', has: atWork },
+  { id: 'idle', label: 'Idle', has: (one) => one.status === 'online' && !atWork(one) },
+  { id: 'offline', label: 'Offline', has: (one) => one.status === 'offline' },
 ];
 
 /**
  * The team in its sections: the ones that need you, the ones at work, the idle ones, and the ones whose folder
  * is gone. Each keeps the order it is in (see teamOf), and a section with nobody in it is left out.
- * @template {{ status: string }} C
+ * @template {{ status: string, inBackground?: boolean }} C
  * @param {C[]} team
  * @returns {{ id: string, label: string, members: C[] }[]}
  */
 export const teamSections = (team) =>
-  SECTIONS.map(({ id, label, status }) => ({ id, label, members: team.filter((one) => one.status === status) })).filter(
+  SECTIONS.map(({ id, label, has }) => ({ id, label, members: team.filter(has) })).filter(
     ({ members }) => members.length
   );
 
 /**
  * What the head of the tab says: how many it oversees, on which project, and how many of them are at work.
- * @param {{ status: string }[]} team
+ * @param {{ status: string, inBackground?: boolean }[]} team
  * @param {string} project
  */
 export function teamHeading(team, project) {
-  const working = team.filter((one) => one.status === 'busy').length;
+  const working = team.filter(atWork).length;
   return `${team.length} on ${project}${working ? ` · ${working} working` : ''}`;
 }
 
 /**
  * What a row shows, and so what it is drawn again for. Under its name, at work it says what it is doing.
  * Otherwise it says its branch, and how big its pull request is and how that stands, as the contact list's
- * tags say it; with neither, what its line in the contact list says. Never the folder it works in: that is
- * the same for every worktree but its number, and is in the row's tooltip.
+ * tags say it; with neither, what its line in the contact list says. With its turn over and what it left running
+ * in the background still running, it says that under its name, over its branch and pull request. Never the
+ * folder it works in: that is the same for every worktree but its number, and is in the row's tooltip.
  * @param {any} contact  as the contact list has it, with `branch`: the one its folder is on, if known
  * @param {number} now
  */
@@ -114,17 +121,18 @@ export function teamRow(contact, now = Date.now()) {
   const branch = (!working && contact.branch) || '';
   const tags = working ? [] : pullRequestTags(pr);
   const said = contact.personalMessage && contact.personalMessage !== location ? contact.personalMessage : '';
+  const doing = working || Boolean(contact.inBackground);
   return {
     id: contact.id,
     name: contact.name,
     status,
     when: teamWhen(contact, now),
     unread: contact.unread || 0,
-    doing: working ? said : '',
+    doing: doing ? said : '',
     branch,
     tags,
     size: working ? null : pullRequestSize(pr),
-    note: working || branch || tags.length ? '' : said,
+    note: doing || branch || tags.length ? '' : said,
     // A long branch is cut short on the row: the tooltip has all of it.
     title: [
       `Show ${contact.name}’s conversation here`,

@@ -122,6 +122,34 @@ test('the team is in sections: the ones that need you, the ones at work, the idl
   );
 });
 
+test('one with commands left running in the background is at work: under its name it says so, beside its branch and pull request', () => {
+  const running = contact('checks', {
+    personalMessage: '2 commands running in the background',
+    inBackground: true,
+    location: '~/.buddylist/worktrees/shop/shop-3',
+    branch: 'fix/checks',
+    pullRequest: PULL_REQUEST,
+  });
+  const row = teamRow(running, NOW);
+  assert.deepEqual(
+    [row.status, row.doing, row.branch, row.tags.length > 0, row.note],
+    ['online', '2 commands running in the background', 'fix/checks', true, '']
+  );
+  const team = [contact('idle'), running, contact('cart', { status: 'busy' })];
+  assert.deepEqual(
+    teamSections(team).map(({ id, members }) => [id, members.map(({ id }) => id)]),
+    [
+      ['working', ['checks', 'cart']],
+      ['idle', ['idle']],
+    ],
+    'not among the idle ones'
+  );
+  assert.equal(teamHeading(team, 'shop'), '3 on shop · 2 working');
+  // Once they end, it is idle again.
+  const ended = { ...running, personalMessage: running.location, inBackground: false };
+  assert.deepEqual([teamRow(ended, NOW).doing, teamSections([ended]).map(({ id }) => id)], ['', ['idle']]);
+});
+
 test('a section with nobody in it is left out', () => {
   assert.deepEqual(
     teamSections([contact('a'), contact('b')]).map(({ id }) => id),

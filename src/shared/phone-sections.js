@@ -6,7 +6,7 @@ import { THIS_COMPUTER } from './projects.js';
 /**
  * What is read from a contact's view (see Conversations.view).
  * @typedef {{ id: string, name: string, status: string, unread?: number, prompt?: { kind: string, title: string } | null,
- *   archived?: boolean, manages?: string, leads?: boolean, lastActive?: number, personalMessage?: string,
+ *   archived?: boolean, manages?: string, leads?: boolean, lastActive?: number, personalMessage?: string, inBackground?: boolean,
  *   location?: string, project?: string, place?: string, oversees?: boolean, overseenBy?: string,
  *   ledBy?: string, startedBy?: string, tabOf?: string }} ContactView
  */
@@ -27,8 +27,11 @@ const newestFirst = (a, b) => (b.lastActive || 0) - (a.lastActive || 0);
 /** It asked you something, and waits for the answer. */
 export const asks = (contact) => Boolean(contact.prompt) || contact.status === 'away';
 
-/** Its turn is over, with what it said unread. */
-const finishedUnread = (contact) => (contact.unread || 0) > 0 && contact.status !== 'busy';
+/** At work: busy, or with its turn over and what it left running in the background still running. */
+const atWork = (contact) => contact.status === 'busy' || Boolean(contact.inBackground);
+
+/** Its turn is over, with what it said unread, and nothing it left running in the background still runs. */
+const finishedUnread = (contact) => (contact.unread || 0) > 0 && !atWork(contact);
 
 /**
  * Waiting for you and Working come first, even when empty. Each contact appears once: the remaining contacts
@@ -42,7 +45,7 @@ export function homeSections(views) {
   const asking = listed.filter(asks).sort(newestFirst);
   const finished = listed.filter((contact) => !asks(contact) && finishedUnread(contact)).sort(newestFirst);
   const placed = new Set([...asking, ...finished]);
-  const working = listed.filter((contact) => !placed.has(contact) && contact.status === 'busy').sort(newestFirst);
+  const working = listed.filter((contact) => !placed.has(contact) && atWork(contact)).sort(newestFirst);
   for (const contact of working) placed.add(contact);
   return [
     { id: 'waiting', label: 'Waiting for you', members: [...asking, ...finished] },

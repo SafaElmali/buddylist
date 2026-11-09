@@ -141,6 +141,33 @@ test('a contact with guests says what it is busy with on its second line, before
   assert.equal(contactRow({ ...claude, guests, status: 'busy', archived: true }).below, false);
 });
 
+test('one with commands left running in the background says so as work going on, wherever it is drawn', () => {
+  const running = { ...claude, personalMessage: '2 commands running in the background', inBackground: true };
+  const row = contactRow(running);
+  assert.deepEqual(
+    [row.look, row.note, row.doing, row.below],
+    ['online', '2 commands running in the background', true, false],
+    'its turn is over, and still it is at work: not a quiet line like where it works'
+  );
+  // Under a manager it says what runs, not who started it.
+  assert.equal(contactRow(running, { startedBy: 'shop manager' }).note, '2 commands running in the background');
+  // With guests, on the second line, before who it is with.
+  const guests = [{ id: 'c2', name: 'Reviewer' }];
+  const company = contactRow({ ...running, guests });
+  assert.deepEqual(
+    [company.note, company.doing, company.below, company.company],
+    ['2 commands running in the background', true, true, 'with Reviewer']
+  );
+  // A row with tags is its name and its tags, as a busy one is; away from its project, it says which.
+  const pullRequest = { number: 12, state: 'open', checks: checksOf(0, 0, 2) };
+  assert.equal(contactRow({ ...running, pullRequest }).note, '');
+  const elsewhere = contactRow({ ...running, project: 'api' }, { projectNote: true });
+  assert.deepEqual([elsewhere.note, elsewhere.doing, elsewhere.where], ['api', false, true]);
+  // Once they end, it is idle again: where it works, quietly.
+  const ended = contactRow({ ...running, personalMessage: claude.location, inBackground: false });
+  assert.deepEqual([ended.note, ended.doing], ['~/projects/api', false]);
+});
+
 test('a project’s manager at work leads, and with nothing else to say tells how many it oversees', () => {
   const manager = { ...claude, name: 'Manager', oversees: true };
   const row = contactRow(manager, { team: 6 });

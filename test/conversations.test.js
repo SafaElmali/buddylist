@@ -3817,6 +3817,48 @@ test('what runs in the background comes before check-ins and the pull request, a
   );
 });
 
+test('a contact whose line is what it left running in the background is marked at work there, until it ends', () => {
+  const { conversations, contact, sessions, store } = setup();
+  const view = () => conversations.view(store.getContact(contact.id));
+  conversations.send(contact.id, { text: 'run the checks', images: [] });
+  const { emit } = sessions[0];
+  emit({ type: 'state', state: 'idle' });
+  assert.equal(view().inBackground, false, 'with nothing running, it is idle');
+  emit({ type: 'state', state: 'working' });
+  const checks = { ...DEV_SERVER, id: 'task-2', label: 'Run the checks', command: 'npm test' };
+  emit({ type: 'background', tasks: [DEV_SERVER, checks] });
+  assert.equal(view().inBackground, false, 'while it answers, its line says what it does now');
+
+  emit({ type: 'state', state: 'idle' });
+  assert.deepEqual(
+    [view().status, view().personalMessage, view().inBackground],
+    ['online', '2 commands running in the background', true],
+    'its turn is over, and its line is what still runs'
+  );
+
+  emit({ type: 'check-ins', checkIns: [CHECK_CI] });
+  assert.equal(view().inBackground, true, 'what runs comes before when it checks back');
+
+  const done = (task) => ({ ...task, status: 'done', ended: 5000 });
+  emit({ type: 'background', tasks: [done(DEV_SERVER), done(checks)] });
+  assert.equal(view().inBackground, false, 'once they end, its line is the one it had');
+  assert.notEqual(view().personalMessage, '2 commands running in the background');
+});
+
+test('one waiting for you is not marked at work in the background, whatever runs there', () => {
+  const { conversations, contact, sessions, store } = setup();
+  conversations.send(contact.id, { text: 'run the checks', images: [] });
+  const { emit } = sessions[0];
+  emit({ type: 'state', state: 'idle' });
+  emit({ type: 'background', tasks: [DEV_SERVER] });
+  emit({ type: 'state', state: 'waiting' });
+  const view = conversations.view(store.getContact(contact.id));
+  assert.deepEqual(
+    [view.status, view.personalMessage, view.inBackground],
+    ['away', 'Waiting for you to approve something', false]
+  );
+});
+
 test('what ran in the background goes with the conversation it ran in', () => {
   const { conversations, contact, sessions, store, chats } = setup();
   conversations.send(contact.id, { text: 'start the dev server', images: [] });

@@ -102,7 +102,8 @@ export const startedByNote = (name) => (name ? `started by ${name}` : '');
  *   tagsTitle: string, size: ReturnType<typeof pullRequestSize>, buttons: ReturnType<typeof nextStepButtons> }}
  *   `look`: the row's class. `icon`: the buddy it wears. `lead`: it is a project's manager at work, which
  *   leads its section and looks it. `note`: what follows the name; empty for none.
- *   `doing`: the note says what it is busy with. `where`: it says which project, even beside tags.
+ *   `doing`: the note says what it is busy with, or left running in the background. `where`: it says which project,
+ *   even beside tags.
  *   `below`: what it is busy with goes on the second line, before `company`: a conversation with guests has that
  *   line anyway, and there it has the line's width, not what the name leaves of the first.
  *   `unread`: how much in its conversation you have not seen yet, as the menu bar counts it.
@@ -144,7 +145,9 @@ export function contactRow(contact, { projectNote = false, team = 0, startedBy =
       : contact.personalMessage;
   // Nothing else to say: only where it works.
   const idle = said === contact.location;
-  const doing = !project && (status === 'busy' || status === 'away');
+  // What it left running in the background is work going on too, said as what a busy one does: beside a
+  // conversation, where where it works is left out, it is still said.
+  const doing = !project && (status === 'busy' || status === 'away' || Boolean(contact.inBackground));
   const company = companyOf(contact);
   // A row with tags is its name and its tags, nothing in between: they are what to see at a glance.
   // Which project it is, for a row away from its project's, goes between them all the same. A manager

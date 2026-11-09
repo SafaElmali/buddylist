@@ -200,6 +200,28 @@ test('next steps keep their glyphs, accessible names and tips when narrow rows h
   }
 });
 
+test('a row under a manager says what it left running in the background as what it is doing, beside a conversation too', (t) => {
+  const running = contact({
+    id: 'running',
+    name: 'Claude (checks)',
+    overseenBy: 'boss',
+    personalMessage: '2 commands running in the background',
+    inBackground: true,
+  });
+  const idle = contact({ id: 'idle', name: 'Claude (idle)', overseenBy: 'boss' });
+  const withGuest = { ...running, id: 'guest', name: 'Claude (guest)', guests: [{ id: 'g3', name: 'Reviewer' }] };
+  // The list beside a conversation hides a note that is not .doing or .where: where a contact works.
+  const rows = draw(t, {}, [manager, running, idle, withGuest]);
+  const note = (id) => rows[id].querySelector('.pm');
+  assert.ok(note('running').classList.contains('doing'), 'shown beside a conversation, as what it is doing');
+  assert.match(note('running').textContent, /2 commands running in the background/);
+  assert.ok(!note('idle').classList.contains('doing'), 'where an idle one works stays quiet');
+  assert.equal(
+    rows.guest.querySelector('.company').textContent.trim(),
+    '2 commands running in the background · with Reviewer'
+  );
+});
+
 test('a chat tab is drawn a level under its conversation, without the tags they share, in a manager’s team or not', (t) => {
   const pullRequest = {
     number: 9,

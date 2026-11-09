@@ -66,6 +66,27 @@ test('Home lists who waits first, asking before finished, then who works, then d
   assert.deepEqual(ids(sections[4]), ['archived']);
 });
 
+test('Home lists one with commands left running in the background among the working, saying so, not as finished', () => {
+  const running = contact('checks', {
+    unread: 1,
+    lastActive: 30,
+    personalMessage: '2 commands running in the background',
+    inBackground: true,
+  });
+  const sections = homeSections([contact('idle'), running, contact('cart', { status: 'busy', lastActive: 10 })]);
+  assert.deepEqual(
+    sections.slice(0, 2).map((section) => [section.id, ids(section)]),
+    [
+      ['waiting', []],
+      ['working', ['checks', 'cart']],
+    ]
+  );
+  assert.equal(rowNote(running), '2 commands running in the background');
+  // Once they end, what it said is waiting for you.
+  const ended = { ...running, personalMessage: '~/code/shop', inBackground: false };
+  assert.deepEqual([ids(homeSections([ended])[0]), rowNote(ended)], [['checks'], 'Finished']);
+});
+
 test('the priority sections are always there, empty project sections are omitted, and nobody is in two', () => {
   assert.deepEqual(
     homeSections([]).map((section) => section.members.length),
