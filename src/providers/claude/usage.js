@@ -149,6 +149,43 @@ export function toExtra(answer) {
   return { on: true, currency: extra.currency || 'USD', used, limit, ...(limit !== null && { percent }) };
 }
 
+/** Claude Code's names of the plan's limits, as the app's: one that is no session or week is the plan's. */
+const limitKindOf = (rateLimitType) =>
+  rateLimitType === 'five_hour' ? 'session' : /^seven_day(_opus|_sonnet)?$/.test(rateLimitType) ? 'weekly' : 'plan';
+
+/**
+ * Whether what Claude Code says of the plan's limits (`rate_limit_info`) is that its requests are served from usage
+ * credits now: the limit is used up, and they are paid for past it. Claude Code says so with the first request that
+ * is, as it does whenever the limits change. Null while the plan covers them, and where a used-up limit turns them
+ * away instead, with usage credits off: that is Claude Code's own limit message, and costs nothing.
+ * @param {import('@anthropic-ai/claude-agent-sdk').SDKRateLimitInfo | undefined} info
+ * @returns {{ kind: 'session' | 'weekly' | 'plan', resetsAt: number | null } | null}
+ */
+export function creditsStop(info) {
+  if (info?.isUsingOverage !== true && info?.overageInUse !== true) return null;
+  return { kind: limitKindOf(info.rateLimitType), resetsAt: fromSeconds(info.resetsAt) };
+}
+
+/**
+ * Whether the next turn would be paid for in usage credits, by what /usage says now: its session or weekly limit is
+ * used up, and credits are not known to be off. With both used up, it goes on in the plan once the later one starts
+ * over. Null while the plan has room, or Claude Code would turn the turn away itself.
+ * @param {import('@anthropic-ai/claude-agent-sdk').SDKControlGetUsageResponse | null} answer
+ * @param {number} [now]
+ * @returns {{ kind: 'session' | 'weekly', resetsAt: number | null } | null}
+ */
+export function planLimitOf(answer, now = Date.now()) {
+  if (toExtra(answer)?.on === false) return null;
+  const used = toLimits(answer).filter(
+    ({ kind, percent, resetsAt }) => kind !== 'model' && percent >= 100 && !(resetsAt && resetsAt <= now)
+  );
+  if (!used.length) return null;
+  const { kind, resetsAt } = used.reduce((later, one) =>
+    (one.resetsAt ?? Infinity) > (later.resetsAt ?? Infinity) ? one : later
+  );
+  return { kind, resetsAt };
+}
+
 /**
  * Whose login the limits are of: its email address and organization, where Claude Code says. One email can be
  * signed in to a personal plan and an organization's: the organization tells them apart. '' where it doesn't say,

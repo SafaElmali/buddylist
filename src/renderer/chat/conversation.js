@@ -19,6 +19,7 @@ import { markTags, TAG_CLASS, taggable, tagNode } from './conversation-tags.js';
 import { actionRow, copyAction } from './message-actions.js';
 import { QueueTray } from './queue-tray.js';
 import { limitSuggestion } from './limit-suggestion.js';
+import { planLimitChoices } from './plan-limit.js';
 import { byline, sentMarks, speakerOf } from './participants.js';
 import { addWorked, forkAction } from './reply-actions.js';
 import { findWink, playWink, winkTitle } from './winks.js';
@@ -169,7 +170,7 @@ export class Conversation {
   #waitingTo = null;
   /** Whether they wait in line for a turn, as last told (see showWaiting). */
   #inLine = false;
-  /** @type {'stopped' | 'paused' | null} why a manager's notes that wait wait for you, as last told (see showWaitingNotes) */
+  /** @type {'stopped' | 'paused' | 'plan-limit' | null} why a manager's notes that wait wait for you, as last told (see showWaitingNotes) */
   #notesHeld = null;
   /** @type {Map<string, HTMLElement>} participant id -> its newest reply in the turn it is in, to say under it how long that took */
   #turnReply = new Map();
@@ -200,7 +201,11 @@ export class Conversation {
    *   `openTag`: what a click on a conversation a message tags does, with that conversation's id. Without it,
    *   as in the message history, nothing is marked as a tag
    */
-  constructor(root, ctx, { copy, rewind, edit, fork, sendNow, cancel, invite, switchManager, openTag, tray } = {}) {
+  constructor(
+    root,
+    ctx,
+    { copy, rewind, edit, fork, sendNow, cancel, invite, switchManager, planLimit, openTag, tray } = {}
+  ) {
     this.root = root;
     this.ctx = ctx;
     this.copy = copy;
@@ -211,6 +216,7 @@ export class Conversation {
     this.fork = fork;
     this.invite = invite;
     this.switchManager = switchManager;
+    this.planLimit = planLimit;
     this.openTag = openTag;
     // What waits is not among the lines: it is in the tray over the message box, until it is read.
     this.tray =
@@ -990,7 +996,7 @@ export class Conversation {
   /**
    * Manager notes have explicit identities; they do not consume the user's queued-message count.
    * @param {string[]} [ids]
-   * @param {'stopped' | 'paused' | null} [held]  why they wait for you, if they do: the tray says so
+   * @param {'stopped' | 'paused' | 'plan-limit' | null} [held]  why they wait for you, if they do: the tray says so
    */
   showWaitingNotes(ids = [], held = null) {
     this.#notesHeld = held;
@@ -1047,9 +1053,24 @@ export class Conversation {
     const reply = this.#turnReply.get(session);
     this.#turnReply.delete(session);
     if (reply && durationMs > 0) addWorked(reply, durationMs);
+    // What a turn stopped at the plan's limit offers is for the last one of its agent's: one after it says what came of it.
+    const speaker = result.speaker || '';
+    for (const old of this.root.querySelectorAll('.plan-limit-choices'))
+      if (old.closest('.event')?.dataset.speaker === speaker) old.remove();
     if (stopped) return this.line('result', '', `${who}Stopped.`);
     if (result.usageLimited) {
       const node = this.line('result error', smallIcon.warn(), `${who}${errorText || 'Usage limit reached.'}`);
+      if (result.planLimit && this.planLimit) {
+        node.dataset.speaker = speaker;
+        this.keepPinned(() =>
+          node.querySelector('.line > span').append(
+            planLimitChoices({
+              useCredits: () => this.planLimit.useCredits(result),
+              switchAccount: (anchor) => this.planLimit.switchAccount(anchor, result),
+            })
+          )
+        );
+      }
       if (this.invite)
         this.keepPinned(() =>
           node

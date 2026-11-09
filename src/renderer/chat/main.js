@@ -150,6 +150,7 @@ import { NowLines } from './now.js';
 import { Todos } from './todos.js';
 import { keepUnsent, takeUnsent } from './unsent.js';
 import { ContextMeter, openAccountMenu } from './usage.js';
+import { USE_CREDITS_QUESTION } from './plan-limit.js';
 import { openLinksInBrowser, renderEntries } from './transcript.js';
 import { Microphone, noMicrophone, VoiceClips } from './voice.js';
 import { findKeyLabel, isFindKey } from '../../shared/terminal.js';
@@ -225,6 +226,19 @@ const conversation = new Conversation($('#conversation'), ctx, {
   fork: (id) => forkFrom(id),
   invite,
   switchManager: () => api.settings.open({ section: 'manager', contactId: ctx.contactId }),
+  // Under a turn stopped at its plan's limit: that turn in usage credits, once the user says so, or another account.
+  planLimit: {
+    useCredits: async ({ speaker }) => {
+      if (!(await confirmDialog(USE_CREDITS_QUESTION, { ok: 'Use Credits' }))) return;
+      if (!(await api.chat.useCredits(ctx.contactId, speaker || ctx.contactId)))
+        conversation.addError('That turn isn’t stopped at the limit any more.');
+    },
+    switchAccount: (anchor, { speaker }) =>
+      openAccountMenu(
+        anchor,
+        ctx.participants.find((one) => one.id === (speaker || ctx.contactId))?.provider ?? ctx.provider
+      ),
+  },
   // In a project's manager's conversation, a conversation it oversees that a message tags shows here, as a row
   // of its Team tab does.
   openTag: (id) => api.chat.switch(id),

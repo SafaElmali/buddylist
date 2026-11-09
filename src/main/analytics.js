@@ -53,6 +53,12 @@ function agentOf({ store }, contactId) {
   return contact ? { provider: contact.provider } : {};
 }
 
+/** What `about` says of a request that did something, as its answer says: one that found nothing to do isn't counted. */
+const whenDone =
+  (about) =>
+  (answered, ...asked) =>
+    answered.answer ? about(answered, ...asked) : null;
+
 /** A name in one lower-case word, like the ones the app gives services and effort levels: nothing else it could be goes along. */
 const oneWord = (name) => typeof name === 'string' && /^[a-z]+$/.test(name);
 
@@ -583,6 +589,15 @@ export const COUNTED = Object.freeze({
   [REQUESTS.accountsRemove]: { event: 'account removed', about: accountsOf },
   [REQUESTS.accountsProactive]: { event: 'proactive switching toggled', about: switchToggled },
   [REQUESTS.accountsSwitchOnLimit]: { event: 'switch without asking toggled', about: switchToggled },
+  // Stop at the plan limit, beside an account's Usage credits: which service, and on or off. Never which account.
+  [REQUESTS.accountsStopAtLimit]: {
+    event: 'plan limit stop toggled',
+    about: (answered, name, _account, on) => switchToggled(answered, name, on),
+  },
+  // Under a turn stopped at its plan's limit: Use credits for this turn, once it was let go on, and Switch account on
+  // a phone, once another was put in use. No amounts, nor which account.
+  [REQUESTS.chatUseCredits]: { event: 'usage credits used once', about: whenDone(agentOf) },
+  [REQUESTS.chatSwitchAccount]: { event: 'switched at plan limit', about: whenDone(agentOf) },
   // Settings > Remote access. Never the password, the code, a device's name or where it is.
   [REQUESTS.remoteUpdate]: { event: 'remote access changed', about: remoteChanged },
   [REQUESTS.remotePassword]: { event: 'remote password set' },

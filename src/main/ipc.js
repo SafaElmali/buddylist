@@ -479,6 +479,9 @@ export function registerIpc({
     accounts.setProactive(String(id), on === true, threshold)
   );
   handle(REQUESTS.accountsSwitchOnLimit, (_e, id, on) => accounts.setSwitchOnLimit(String(id), on === true));
+  handle(REQUESTS.accountsStopAtLimit, (_e, id, accountId, on) =>
+    accounts.setStopAtLimit(String(id), String(accountId ?? ''), on === true)
+  );
 
   // ---- remote access ---------------------------------------------------------------------
   // Settings > Remote access: a phone, anywhere, through Tailscale (see remote/access.js). Asked only by this
@@ -1516,6 +1519,15 @@ export function registerIpc({
   });
 
   handle(REQUESTS.chatSendNow, (_e, contactId, entryId) => conversations.sendNow(contactId, entryId));
+
+  // A turn stopped at its plan's limit, so as not to spend usage credits: the user lets it use them this once, or puts
+  // the next account in use, where it goes on. In a conversation with guests, `participantId` says whose turn.
+  handle(REQUESTS.chatUseCredits, (_e, contactId, participantId) =>
+    conversations.useCredits(contactId, participantId || contactId)
+  );
+  handle(REQUESTS.chatSwitchAccount, (_e, contactId, participantId) =>
+    conversations.switchAccount(contactId, participantId || contactId)
+  );
 
   handle(REQUESTS.chatRespond, (_e, contactId, requestId, response) =>
     conversations.respond(contactId, requestId, response)

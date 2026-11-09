@@ -421,6 +421,46 @@ test('automatic switching is off until enabled in Settings, persists, and can be
   assert.equal(restarted.switchFor('claude').automatic(), false);
 });
 
+test('every login stops at its plan limit until the user lets one use usage credits, which persists', () => {
+  const { accounts, store, fake, root } = setUp();
+  const logins = accounts.switchFor('claude');
+  assert.equal(logins.stopsAtLimit(''), true, 'on by default');
+  assert.equal(logins.stopsAtLimit('acc-1'), true);
+  assert.equal(store.settings.accounts?.claude?.useCredits, undefined, 'nothing saved for the default');
+  accounts.setStopAtLimit('claude', 'acc-1', false);
+  assert.deepEqual(store.settings.accounts.claude.useCredits, ['acc-1']);
+  assert.equal(logins.stopsAtLimit('acc-1'), false);
+  assert.equal(logins.stopsAtLimit(''), true, 'each login its own');
+  const restarted = new Accounts({ store, ops: () => fake.ops, root });
+  assert.equal(restarted.switchFor('claude').stopsAtLimit('acc-1'), false);
+  accounts.setStopAtLimit('claude', 'acc-1', true);
+  assert.deepEqual(store.settings.accounts.claude.useCredits, []);
+  assert.equal(logins.stopsAtLimit('acc-1'), true);
+  assert.throws(() => accounts.setStopAtLimit('claude', 'acc-1', 'off'));
+});
+
+test('a fallback pinned to an account keeps its own paid-usage rules, and the login’s sessions share what they saw', () => {
+  const { accounts } = setUp();
+  assert.equal(accounts.switchFor('claude', '').stopsAtLimit(''), false);
+  const one = accounts.switchFor('claude');
+  const other = accounts.switchFor('claude');
+  assert.equal(one.planSeen(''), null);
+  const seen = { at: 5, stop: { kind: 'session', resetsAt: 10 } };
+  one.planSeen('', seen);
+  assert.deepEqual(other.planSeen(''), seen);
+  assert.equal(other.planSeen('acc-1'), null, 'by login');
+});
+
+test('a removed account’s choice to use usage credits goes with it', async () => {
+  const { accounts, store } = setUp({ emails: ['work@example.com'] });
+  await accounts.add('claude', 'claudeai');
+  const [{ id }] = store.settings.accounts.claude.added;
+  accounts.setStopAtLimit('claude', id, false);
+  accounts.setStopAtLimit('claude', '', false);
+  await accounts.remove('claude', id);
+  assert.deepEqual(store.settings.accounts.claude.useCredits, ['']);
+});
+
 test('missing or malformed saved preferences do not opt into automatic switching', () => {
   for (const switchOnLimit of [undefined, null, false, 'false', 'true', 1]) {
     const { accounts } = setUp({ settings: { claude: { added: [], inUse: '', switchOnLimit } } });

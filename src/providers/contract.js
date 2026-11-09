@@ -232,7 +232,7 @@
  *   { type: 'tool-result', toolId: string, isError: boolean, declined: boolean, output: string, pictures?: string[], stopped?: true, skipped?: true, durationMs?: number } |
  *   ({ type: 'permission', requestId: string } & PermissionRequest) |
  *   { type: 'permission-resolved', requestId: string, decision: PermissionResponse['decision'], answers?: Record<string, string> } |
- *   { type: 'result', isError: boolean, stopped: boolean, errorText: string, usageLimited?: true, limitKind?: 'session' | 'weekly', failureKind?: 'unavailable' | 'offline', durationMs: number, costUsd: number } |
+ *   { type: 'result', isError: boolean, stopped: boolean, errorText: string, usageLimited?: true, limitKind?: 'session' | 'weekly', planLimit?: PlanLimitStop, failureKind?: 'unavailable' | 'offline', durationMs: number, costUsd: number } |
  *   { type: 'session-reset' } |
  *   { type: 'context', used: number, size: number } |
  *   { type: 'limits', limits: UsageLimit[], account?: string } |
@@ -395,6 +395,26 @@
  */
 
 /**
+ * A turn stopped at its plan's limit so that usage credits are not spent on it, where its login stops there (see
+ * `stopsAtLimit` on {@link AccountSwitch}): kept from starting (`before`), or stopped once its provider said it was
+ * served from them (`during`). The result says it is a limit reached, with `planLimit`, and what it says in
+ * `errorText`. The session waits, with what was sent it meanwhile, until the user writes again, lets the turn use
+ * credits (`useCredits` on {@link AgentSession}) or puts another account in use.
+ * @typedef {Object} PlanLimitStop
+ * @property {'session' | 'weekly' | 'plan'} kind  the limit used up
+ * @property {number | null} resetsAt  when it starts over, in milliseconds since 1970
+ * @property {'before' | 'during'} when
+ */
+
+/**
+ * What a login's sessions last said of its plan's limit: when, and whether its turns are paid for in usage credits
+ * past it (`stop`), as of then.
+ * @typedef {Object} PlanSeen
+ * @property {number} at
+ * @property {{ kind: 'session' | 'weekly' | 'plan', resetsAt: number | null } | null} stop
+ */
+
+/**
  * What `/context` and `/usage` show in a terminal.
  * @typedef {Object} Usage
  * @property {ContextUsage} context
@@ -457,6 +477,11 @@
  * @property {(session: object) => (() => void)} [watch] register an ordinary session for safe-boundary coordination
  * @property {(session: object, dispatch: () => void, valid: () => boolean) => void} [beforeTurn] optional proactive gate; absent for pinned fallbacks
  * @property {() => boolean} automatic  whether a session goes on in the next one without asking
+ * @property {(id: string) => boolean} [stopsAtLimit]  whether turns in a login stop at its plan's limit rather than
+ *   go on in usage credits (see {@link PlanLimitStop}). False for a fallback pinned to an account: its own paid-usage
+ *   rules decide
+ * @property {(id: string, seen?: PlanSeen) => PlanSeen | null | void} [planSeen]  what a login's sessions last said
+ *   of its plan's limit, shared by all of them; with `seen`, says it
  */
 
 /**
@@ -474,6 +499,8 @@
  *   since. From a provider that says `rewind` or `cancelQueued`, whose messages are sent with an id
  * @property {(requestId: string, response: PermissionResponse) => void} respond
  * @property {() => Promise<void>} interrupt
+ * @property {() => boolean} [useCredits]  lets the turn stopped at its plan's limit go on in usage credits, once (see
+ *   {@link PlanLimitStop}): whether there was one. From a provider whose sessions stop there
  * @property {(toolId: string) => Promise<void>} stopHelper  stops one helper, named by the `toolId` of the call
  *   that started it. The turn it was asked in goes on
  * @property {(id: string) => Promise<void>} stopBackground  stops one of its {@link BackgroundTask}s. The agent

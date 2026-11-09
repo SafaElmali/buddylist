@@ -30,7 +30,7 @@ export const trayCount = (count) => `${count} queued`;
 
 /**
  * Why a manager's notes wait for you, where they do, and what lets them go: said after the count.
- * @param {'stopped' | 'paused' | null | undefined} held  as main says (see #notesHeld in conversations.js)
+ * @param {'stopped' | 'paused' | 'plan-limit' | null | undefined} held  as main says (see #notesHeld in conversations.js)
  * @param {number} notes  how many of the entries are a manager's notes
  */
 export function heldLine(held, notes) {
@@ -38,6 +38,8 @@ export function heldLine(held, notes) {
   const they = notes === 1 ? 'it goes' : 'they go';
   if (held === 'stopped') return `Held since you stopped: ${they} with your next message, or Send now.`;
   if (held === 'paused') return `Everyone here is paused: ${they} once you resume an agent or mention one.`;
+  if (held === 'plan-limit')
+    return `Held at the plan limit: ${they} once you use credits, switch account or write to it, or Send now.`;
   return '';
 }
 
@@ -136,7 +138,7 @@ export class QueueTray {
    * Draws what waits now: an entry stays as it was drawn while nothing about it changed, and one that was just
    * queued is read out. The focus, where it was in the tray, stays on the same button of an entry still here.
    * @param {Queued[]} queued  oldest first
-   * @param {'stopped' | 'paused' | null} [held]  why a manager's notes among them wait for you, if they do
+   * @param {'stopped' | 'paused' | 'plan-limit' | null} [held]  why a manager's notes among them wait for you, if they do
    */
   show(queued, held = null) {
     const rows = queued.map((one) => trayRow(one, this.on.participants()));

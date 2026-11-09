@@ -5,7 +5,7 @@
 import { api } from '../lib/api.js';
 import { el, errorText, html } from '../lib/dom.js';
 import { button, choice, row, toggle } from './controls.js';
-import { accountName, limitLabel, resetText } from '../../shared/usage.js';
+import { accountName, extraUsageText, limitLabel, resetText } from '../../shared/usage.js';
 import { freshQuota, knownWindow, quotaAge, shownWindows } from '../../shared/account-quota.js';
 
 /** @typedef {import('../../main/accounts.js').AccountView} AccountView */
@@ -68,6 +68,32 @@ export function quotaDetails(account) {
       ? ` Retry after ${new Date(quota.retryAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`
       : '';
   area.append(el(html`<p class="st-hint">${health} · ${quotaAge(quota)}${detail ? ` · ${detail}` : ''}${retry}</p>`));
+  return area;
+}
+
+/**
+ * What a Claude login spends past its plan's limits, and whether its turns stop there instead (see PlanLimitStop in
+ * providers/contract.js). Only on the login's first row: a copy listed below it is the same login.
+ * @param {AccountView & { quota?: { extra?: import('../../providers/contract.js').ExtraUsage } }} account
+ * @param {(stop: boolean) => Promise<void>} save
+ */
+export function creditsDetails(account, save) {
+  const area = el('<div class="st-account-credits"></div>');
+  const extra = account.quota?.extra;
+  area.append(
+    el(
+      html`<div class="st-quota-window">
+        <span>Usage credits</span>
+        <span class="st-quota-figure">${extra ? extraUsageText(extra) : 'Unknown'}</span>
+      </div>`
+    ),
+    toggle({
+      label: 'Stop at the plan limit (don’t use usage credits)',
+      hint: 'On by default. A turn that would use usage credits once the session or weekly limit is used up doesn’t start, or stops as soon as Claude says it is using them. Its conversation offers to use them for that turn or switch account. Applies to every conversation, worker and manager in this account.',
+      checked: account.stopsAtLimit !== false,
+      onChange: save,
+    })
+  );
   return area;
 }
 
@@ -158,6 +184,15 @@ function accountsCard(provider, { settings, said }) {
             );
           }
           line.append(quotaDetails(account));
+          if (provider.id === 'claude' && account.sameAs === undefined)
+            line.append(
+              creditsDetails(account, (stop) =>
+                api.accounts.stopAtLimit(provider.id, account.id, stop).then(
+                  () => said('Saved.'),
+                  (err) => said(errorText(err), true)
+                )
+              )
+            );
           return line;
         }),
         ...(accounts.some((account) => account.own && account.signedIn)

@@ -238,3 +238,17 @@ export function resetText(resetsAt, now = Date.now()) {
   const day = when.toLocaleDateString([], { weekday: 'short' });
   return `Resets ${day} ${when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
 }
+
+/** What the limits a turn can be stopped at are called (see planLimitText). */
+const STOP_LIMITS = { session: 'session limit', weekly: 'weekly limit', plan: 'plan limit' };
+
+/**
+ * What a turn stopped at its plan's limit says, so that usage credits are not spent on it: "Stopped at the session
+ * limit so usage credits aren’t used. Resets in 2 hr."
+ * @param {{ kind: 'session' | 'weekly' | 'plan', resetsAt: number | null }} stop
+ * @param {number} [now]
+ */
+export function planLimitText({ kind, resetsAt }, now = Date.now()) {
+  const resets = resetText(resetsAt, now);
+  return `Stopped at the ${STOP_LIMITS[kind] || STOP_LIMITS.plan} so usage credits aren’t used.${resets ? ` ${resets}.` : ''}`;
+}

@@ -254,6 +254,10 @@ const lastTodos = (entries, speaker) =>
       ?.activity
   );
 
+/** What a manager is told of a conversation it oversees stopped at its plan's limit, besides what the stop says. */
+const PLAN_LIMIT_WAITS =
+  'Its login is at its plan limit: what is sent to it waits until the user lets it use usage credits, switches account or writes to it.';
+
 export class Conversations {
   /** @type {Map<string, Map<string, AgentSession>>} hostId -> Map(participant id -> its session there) */
   #sessions = new Map();
@@ -344,6 +348,12 @@ export class Conversations {
   #stoppedManagers = new Set();
   /** hostId -> why its notes wait for the user, as its window was last told (see #notesHeld) */
   #notesTold = new Map();
+  /**
+   * The conversations whose agent was stopped at its plan's limit, so as not to spend usage credits: what is passed on
+   * to it waits for the user, who writes to it, lets it use credits or puts another account in use. A manager's note
+   * or round never starts it again.
+   */
+  #atPlanLimit = new Set();
   /** The conversations whose agent is answering such notes: what it says to them is no news for the one above */
   #noted = new Set();
   /** hostId -> the notes its agent read since its last round was over, by key: what that round answered */
@@ -418,6 +428,8 @@ export class Conversations {
    *   Accounts.loginOf); the user's own ('') when left out
    * @param {Managing} [deps.managing]  what the project managers have to do with conversations (see main/managers.js);
    *   none when left out
+   * @param {(about: { when: 'before' | 'during' }) => void} [deps.onPlanLimit]  a turn was stopped at its plan's limit,
+   *   so as not to spend usage credits: for analytics.js to count
    */
   constructor({
     store,
@@ -442,6 +454,7 @@ export class Conversations {
       oversees: () => false,
       managerOf: () => null,
     },
+    onPlanLimit = () => {},
   }) {
     this.store = store;
     this.history = history;
@@ -459,6 +472,7 @@ export class Conversations {
     this.suggestReplies = suggestReplies;
     this.loginOf = loginOf;
     this.managing = managing;
+    this.onPlanLimit = onPlanLimit;
   }
 
   // ---- views for the windows ---------------------------------------------------------
@@ -1807,6 +1821,7 @@ export class Conversations {
     const target = recipient && requestRecipients(text, participants, recipient, contact.answerOrder);
     if (target?.blocked) return { blocked: target.blocked, participants };
     this.#stoppedManagers.delete(contactId);
+    this.#atPlanLimit.delete(contactId);
     this.#cancelRecovery(contactId);
     this.#limited.delete(contactId);
     // The message it was given to start with has been sent, or something else was said instead.
@@ -1901,6 +1916,8 @@ export class Conversations {
    * @param {string} [entryId]  only this queued message; omitted keeps FIFO
    */
   async sendNow(contactId, entryId, { acknowledgeNote = false } = {}) {
+    // The user's own Send now lets what waited at the plan's limit go, as a message of theirs does.
+    if (!acknowledgeNote) this.#atPlanLimit.delete(contactId);
     const pending = this.#sendingNow.get(contactId);
     if (pending) {
       if (entryId !== undefined && entryId !== pending.entryId)
@@ -3228,6 +3245,39 @@ export class Conversations {
         if (this.store.getContact(speakerId)?.provider === provider) session.accountSwitched?.();
       }
     }
+    // What waited at the plan's limit of the one before goes on in this one.
+    for (const hostId of [...this.#atPlanLimit]) {
+      if (this.store.getContact(hostId)?.provider !== provider) continue;
+      this.#atPlanLimit.delete(hostId);
+      if (['idle', 'offline'].includes(this.#state(hostId))) this.#readNotes(hostId);
+    }
+  }
+
+  /**
+   * The user lets the turn a participant was stopped in at its plan's limit go on in usage credits: that one turn, sent
+   * again by its session. What waits for it goes on after, and the next turn is stopped as before.
+   * @param {string} hostId
+   * @param {string} [speakerId]  the participant's; the host's when left out
+   * @returns {boolean}  whether there was a turn stopped there to let go on
+   */
+  /**
+   * The user puts the next account in use from a turn a participant was stopped in at its plan's limit, as Accept does
+   * at a limit: the stopped turn goes on there, and what waited goes on after (see accountSwitched).
+   * @param {string} hostId
+   * @param {string} [speakerId]
+   * @returns {string | null}  the name of the account in use now; null where there was no stop, or no other account
+   */
+  switchAccount(hostId, speakerId = hostId) {
+    return this.#sessions.get(hostId)?.get(speakerId)?.switchAccount?.() ?? null;
+  }
+
+  useCredits(hostId, speakerId = hostId) {
+    const session = this.#sessions.get(hostId)?.get(speakerId);
+    if (!session?.useCredits?.()) return false;
+    if (speakerId === hostId) this.#atPlanLimit.delete(hostId);
+    this.#notice(hostId, 'Usage credits may be used for this turn.');
+    this.#tellWaiting(hostId);
+    return true;
   }
 
   /** Keeps what a participant's session goes by: on the contact for the host, on its guest entry for a guest. */
@@ -4157,7 +4207,11 @@ export class Conversations {
     if (!this.#hearsOf(parent, contact)) return;
     const unsuccessful = result.stopped || result.isError;
     if (unsuccessful) {
-      const outcome = result.stopped ? 'Turn stopped.' : `Turn failed: ${result.errorText || 'something went wrong'}`;
+      const outcome = result.planLimit
+        ? `${result.errorText} ${PLAN_LIMIT_WAITS}`
+        : result.stopped
+          ? 'Turn stopped.'
+          : `Turn failed: ${result.errorText || 'something went wrong'}`;
       reply = [outcome, reply].filter(Boolean).join('\n\n');
     } else reply ||= asked ? 'The turn requested user input.' : held;
     if (!reply) return;
@@ -4334,14 +4388,25 @@ export class Conversations {
 
   /**
    * Why the notes that wait for a conversation are not read once its agents are free, if any wait and they aren't:
-   * everyone here is paused, or the user stopped it (see `stopped`).
+   * everyone here is paused, its agent was stopped at its plan's limit (see `atPlanLimit`), or the user stopped it
+   * (see `stopped`).
    * @param {string} hostId
-   * @returns {'paused' | 'stopped' | undefined}
+   * @returns {'paused' | 'plan-limit' | 'stopped' | undefined}
    */
   #notesHeld(hostId) {
     if (![...(this.#waitingNotes.get(hostId)?.values() ?? [])].some((note) => !note.session)) return undefined;
     if (this.#nobodyAnswers(hostId)) return 'paused';
+    if (this.#atPlanLimit.has(hostId)) return 'plan-limit';
     return this.stopped(hostId) ? 'stopped' : undefined;
+  }
+
+  /**
+   * Whether a conversation's agent was stopped at its plan's limit, so as not to spend usage credits: what is passed on
+   * to it waits until the user writes to it, lets it use credits or puts another account in use.
+   * @param {string} contactId
+   */
+  atPlanLimit(contactId) {
+    return this.#atPlanLimit.has(contactId);
   }
 
   /**
@@ -4350,6 +4415,8 @@ export class Conversations {
    */
   async hurryNote(hostId, key) {
     if (this.stopped(hostId)) return 'stopped';
+    // Nor past a stop at the plan's limit: only the user lets it go on.
+    if (this.#atPlanLimit.has(hostId)) return 'plan-limit';
     const entry = [...(this.#waitingNotes.get(hostId) ?? [])].findLast(([, note]) => note.key === key);
     return entry ? this.sendNow(hostId, entry[0], { acknowledgeNote: true }) : 'sent';
   }
@@ -4440,7 +4507,7 @@ export class Conversations {
     // Send now may report idle while its interrupted turn is still unwinding. The selected note
     // already belongs to the provider's queue; ordinary notes must not pass it or lose their identity.
     if ([...(this.#waitingNotes.get(hostId)?.values() ?? [])].some((note) => note.session)) return;
-    if (this.#stoppedManagers.has(hostId)) return;
+    if (this.#stoppedManagers.has(hostId) || this.#atPlanLimit.has(hostId)) return;
     const notes = this.#notes.get(hostId);
     const host = this.store.getContact(hostId);
     if (!notes?.size || !host || host.archived) return;
@@ -4748,11 +4815,17 @@ export class Conversations {
           stopped: event.stopped,
           errorText: event.errorText,
           ...(event.usageLimited && { usageLimited: true }),
+          // Stopped at the plan's limit: its window offers to let it use usage credits, or switch account.
+          ...(event.planLimit && { planLimit: event.planLimit }),
           durationMs: event.durationMs,
           costUsd: event.costUsd,
           ...by,
         });
         if (reply && !event.stopped && !event.isError) this.#suggest(host, reply, result.id);
+        if (event.planLimit) {
+          if (who === host) this.#atPlanLimit.add(hostId);
+          this.onPlanLimit({ when: event.planLimit.when });
+        }
         // A turn often ends with a push: the folder's pull request is worth another look.
         this.pullRequests.lookSoon(host.cwd);
         // A stopped or failed round is not ready for a changed-file review. Its starter still hears the outcome.
