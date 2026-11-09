@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { page } from './fixtures/dom.js';
 import { el, html } from '../src/renderer/lib/dom.js';
-import { QueueTray, trayCount, trayRow } from '../src/renderer/chat/queue-tray.js';
+import { QueueTray, heldLine, trayCount, trayRow } from '../src/renderer/chat/queue-tray.js';
 import { outputBlock } from '../src/shared/terminal-mentions.js';
 
 const PLANNER = { id: 'planner', name: 'Planner' };
@@ -46,6 +46,25 @@ function tray(t, { participants = [PLANNER], sendNow, cancel, edit } = {}) {
 }
 
 // ---- what each entry says ------------------------------------------------------------------------
+
+test('notes your Stop holds say so over the entries, and what lets them go; nothing is said of yours', (t) => {
+  const { root, view } = tray(t);
+  const held = () => root.querySelector('.queue-tray-held');
+  const note = (id) => queued(id, `Manager says: ${id}`, { managerNote: true });
+  view.show([note('a'), note('b'), note('c')], 'stopped');
+  assert.equal(root.querySelector('.queue-tray-count').textContent, '3 queued');
+  assert.equal(held().hidden, false);
+  assert.equal(held().textContent, 'Held since you stopped: they go with your next message, or Send now.');
+  view.show([note('a')], 'stopped');
+  assert.equal(held().textContent, 'Held since you stopped: it goes with your next message, or Send now.');
+  view.show([note('a')], 'paused');
+  assert.equal(held().textContent, 'Everyone here is paused: it goes once you resume an agent or mention one.');
+  view.show([note('a')], null);
+  assert.equal(held().hidden, true, 'one that only waits for the agent to be free says nothing more');
+  view.show([queued('m', 'mine')], 'stopped');
+  assert.equal(held().hidden, true, 'your own messages are never held');
+  assert.equal(heldLine('stopped', 0), '');
+});
 
 test('an entry is one line of what you wrote, with all of it to read, and Send now, Edit and Cancel', () => {
   const row = trayRow(queued('a', '  can we tell alifya\n\nwhat is left   what can be tested now?  '), [PLANNER]);

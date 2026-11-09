@@ -1777,6 +1777,20 @@
   height: 12px;
 }
 
+/* Why a manager's notes wait for you, and what lets them go: after the count, in the tray's own words. */
+.queue-tray-held {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-weight: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-tray-held::before {
+  content: '· ';
+}
+
 /* Three entries show; more scroll, so the message box stays where it is. */
 .queue-tray-list {
   max-height: 72px;

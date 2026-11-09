@@ -12,6 +12,7 @@ package.json names it, so write it before running the release.
 
 ## v0.7.2
 
+- **Manager messages you stopped are no longer stuck** — After you stopped a worker with a guest, such as a reviewer, the messages its manager sent waited in the tray, and **Send now** on one said no agent was ready to take it. **Send now** now gives that message to the worker at once, and the others wait until you write. The tray says why they wait: “Held since you stopped: they go with your next message, or Send now.” Your next message still reads them all, in the order they came, and each only once. Your Stop still holds them, an urgent one too, and the manager is told so. The phone says the same, with **Send now**.
 - **Allow Computer Use in an app for the conversation** — When Codex uses Computer Use, it asks before each action in an app, so a card such as “Allow Computer Use to use "TikTok LIVE Studio"?” came back on every call. The card now has a third choice, **Allow Computer Use in TikTok LIVE Studio for this conversation**, and later calls in that app go ahead without asking. It covers only that app and that Codex, and ends when its session does, after a Stop or a restart; another app still asks. A read-only Codex, such as a guest in a manager’s conversation, is offered it too, and its card says plainly that Codex could then click and type in that app; its commands and file changes stay declined. On a phone it needs full access, as **Always allow** does.
 
 ## v0.7.1 — 2026-11-07

@@ -578,6 +578,25 @@ test('a queued message offers Cancel first, then Interrupt and send, as buttons'
   assert.equal(mine.querySelector('.ph-queued span').textContent, 'Queued');
 });
 
+test('a manager note your Stop holds says so, and offers Send now: nothing is at work to interrupt', async (t) => {
+  const { open, root } = setup(t, { state: 'idle' });
+  const screen = await open('a');
+  screen.heard({ type: 'notice', text: 'Manager says: ship the export today', managerNote: true, entryId: 'n1' });
+  const note = root.querySelector('.ph-manager-note');
+  const mark = () => [
+    note.querySelector('.ph-queued span').textContent,
+    ...note.querySelectorAll('.ph-queued button').map((one) => one.textContent.trim()),
+  ];
+  screen.heard({ type: 'waiting-notes', ids: ['n1'] });
+  assert.deepEqual(mark(), ['Queued', 'Cancel', 'Interrupt and send']);
+  screen.heard({ type: 'waiting-notes', ids: ['n1'], held: 'stopped' });
+  assert.deepEqual(mark(), ['Held since you stopped: it goes with your next message', 'Cancel', 'Send now']);
+  screen.heard({ type: 'waiting-notes', ids: ['n1'], held: 'paused' });
+  assert.equal(mark()[0], 'Held: everyone here is paused');
+  screen.heard({ type: 'waiting-notes', ids: [] });
+  assert.equal(note.querySelector('.ph-queued').hidden, true, 'read: it holds nothing any more');
+});
+
 test('what waits is counted over the message box, a tap away from the oldest, however far it scrolled up', async (t) => {
   const { open, root } = setup(t, { state: 'working' });
   const screen = await open('a');

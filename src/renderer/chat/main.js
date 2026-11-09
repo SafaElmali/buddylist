@@ -988,6 +988,7 @@ function drawConversation({
   waitingIds,
   waitingTo,
   waitingNotes,
+  notesHeld,
   inLine,
   suggestions: replies,
   nextMessage,
@@ -997,7 +998,7 @@ function drawConversation({
   shared.changed();
   // What you sent that is not read yet.
   conversation.showWaiting(waiting, Boolean(inLine), [], waitingIds, waitingTo);
-  conversation.showWaitingNotes(waitingNotes);
+  conversation.showWaitingNotes(waitingNotes, notesHeld);
   // ↑ in the message box brings back what you said in it, also before the window was closed.
   composer.recall.add(...sentMessages(history));
   activities.settleAll();
@@ -2002,7 +2003,7 @@ function onSessionEvent(event) {
       conversation.dropped(event.dropped);
       break;
     case 'waiting-notes':
-      conversation.showWaitingNotes(event.ids);
+      conversation.showWaitingNotes(event.ids, event.held);
       break;
     case 'context':
       setContext({ used: event.used, size: event.size }, event.speaker);

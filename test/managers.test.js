@@ -3063,6 +3063,32 @@ test('urgent group notes respect pauses and stopped rounds, and can be cancelled
   assert.deepEqual(conversations.snapshot(worker.id).waitingNotes, []);
 });
 
+test('after the user nudged a worker with a guest, its manager is told its messages wait for the user', async (t) => {
+  const app = setup(t);
+  const { conversations, managers, sessions, manager } = inTheApp(app);
+  const worker = app.worker('Worker');
+  const guest = app.worker('Guest', { provider: 'codex' });
+  conversations.invite(worker.id, guest.id);
+  conversations.send(worker.id, { text: 'Work' });
+  const session = sessions.findLast((one) => one.contact.id === worker.id);
+  let interrupts = 0;
+  session.interrupt = async () => {
+    interrupts += 1;
+  };
+  await conversations.interrupt(worker.id);
+  session.emit({ type: 'result', isError: false, stopped: true, errorText: '', durationMs: 1, costUsd: 0 });
+  session.emit({ type: 'state', state: 'idle' });
+  const sent = session.sent.length;
+  for (const urgent of [false, true]) {
+    const told = await managers.say(manager.id, worker.name, urgent ? 'Do not push' : 'Add docs', urgent);
+    assert.match(told, /The user stopped it, so it waits until the user writes to it or sends it now\./);
+  }
+  assert.equal(session.sent.length, sent, 'neither restarts the round the user stopped');
+  assert.equal(interrupts, 1, 'and nothing is interrupted for them');
+  assert.equal(conversations.snapshot(worker.id).waitingNotes.length, 2);
+  assert.equal(conversations.snapshot(worker.id).notesHeld, 'stopped');
+});
+
 test('an urgent group note preserves messages queued before the worker gained a guest', async (t) => {
   const app = setup(t);
   const { conversations, managers, sessions, manager } = inTheApp(app);
