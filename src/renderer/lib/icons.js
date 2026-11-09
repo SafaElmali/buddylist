@@ -1,5 +1,6 @@
 // All artwork is drawn here as inline SVG (original art in a mid-2000s
 // messenger style). Every call returns fresh markup with unique gradient ids.
+// The app's own icon is the exception: a picture, drawn by `npm run icon` (see appIcon).
 import { escapeHtml } from './dom.js';
 
 let counter = 0;
@@ -85,7 +86,33 @@ export function buddy(status = 'online', size = 16, { lead = false, label = '' }
   </svg>`;
 }
 
-/** Small app mark for title bars: two buddies, you and Claude. */
+/**
+ * The sizes the windows show the app's icon at: a title bar and the toast at 16, Help > About and the welcome
+ * wizard at 48. `npm run icon` (scripts/make-icon.js) draws each, and each at twice it.
+ */
+export const APP_ICON_SIZES = [16, 48];
+
+/**
+ * The app icon's picture at `size`, and the one of twice its pixels, by their way from a window's page: every page
+ * is in src/renderer/, and so is pictures/.
+ * @param {number} size  one of APP_ICON_SIZES
+ * @returns {[string, string]}
+ */
+export const appIconFiles = (size) => [`pictures/app-icon-${size}.png`, `pictures/app-icon-${size}@2x.png`];
+
+/**
+ * The app's own icon at `size`, as its installers give it: sharp on a screen of twice the pixels too.
+ * @param {number} size  one of APP_ICON_SIZES
+ */
+export function appIcon(size) {
+  const [picture, twice] = appIconFiles(size);
+  return `<img src="${picture}" srcset="${twice} 2x" width="${size}" height="${size}" alt="" />`;
+}
+
+/**
+ * The old mark, two buddies, you and Claude, for what draws the app without its pictures at hand: the website's
+ * pictures of it, the browser preview's desktop and the feature videos.
+ */
 export function appMark(size = 16) {
   const a = uid();
   const b = uid();

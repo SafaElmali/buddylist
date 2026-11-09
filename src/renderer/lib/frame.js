@@ -3,7 +3,7 @@
 // the messenger has a classic menu bar under the title, and the professional look one ☰ in the title bar.
 import { api } from './api.js';
 import { $, el, escapeHtml } from './dom.js';
-import { appMark, windowGlyph } from './icons.js';
+import { appIcon, windowGlyph } from './icons.js';
 import { closeMenu, isMenuOpen, openMenu } from './menu.js';
 import { nativeMenus } from '../../shared/native-menus.js';
 import { windowTitle } from '../../shared/titles.js';
@@ -52,7 +52,7 @@ export function mountFrame({ title, menus = [], maximizable = true, pinnable = f
   ].filter(Boolean);
   titlebar.innerHTML = `
     ${menus.length ? `<button class="titlebar-menu" type="button" aria-label="Menu" title="Menu" aria-haspopup="menu" tabindex="-1">${windowGlyph.menu()}</button>` : ''}
-    <span class="titlebar-icon">${appMark(16)}</span>
+    <span class="titlebar-icon">${appIcon(16)}</span>
     <span class="titlebar-text"></span>
     ${tools.length ? `<span class="titlebar-tools">${tools.join('')}</span>` : ''}
     <span class="titlebar-controls">

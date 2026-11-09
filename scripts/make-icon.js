@@ -4,11 +4,13 @@
 //                      build/icon-128.png, the same for the landing page and the browser preview
 //                      site/apple-touch-icon.png, the icon on an iPhone's home screen
 //                      src/renderer/phone/icons/, the phone app's, as a home screen has it (see phone/manifest.webmanifest)
-//                      src/renderer/onboarding/pictures/app-icon*.png, the welcome wizard's mark, at its size and twice it
+//                      src/renderer/pictures/app-icon-*.png, the windows' own: a title bar's, the toast's, About's and the
+//                      welcome wizard's, at the size each shows it and twice it
 import { app, BrowserWindow } from 'electron';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
+import { APP_ICON_SIZES, appIconFiles } from '../src/renderer/lib/icons.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const art = fs.readFileSync(path.join(ROOT, 'build', 'icon-art.png')).toString('base64');
@@ -19,9 +21,6 @@ const TOUCH_SIZE = 180;
 /** The sizes a phone's home screen asks a web app for. */
 const PHONE_SIZES = [192, 512];
 const PHONE_ICONS = 'src/renderer/phone/icons';
-/** The welcome wizard's mark, as wide as onboarding.html shows it, and the copy for a screen of twice the pixels. */
-const MARK_SIZE = 48;
-const MARK = 'src/renderer/onboarding/pictures/app-icon';
 // The tile is inset and rounded like the other icons in the Dock.
 const TILE = { inset: 96, size: 832, radius: 220 };
 // How much of the tile's width and height the artwork may take.
@@ -84,8 +83,15 @@ app.whenReady().then(async () => {
     ...Object.fromEntries(
       PHONE_SIZES.map((size) => [`${PHONE_ICONS}/icon-${size}.png`, icon.resize({ width: size, height: size })])
     ),
-    [`${MARK}.png`]: icon.resize({ width: MARK_SIZE, height: MARK_SIZE }),
-    [`${MARK}@2x.png`]: icon.resize({ width: MARK_SIZE * 2, height: MARK_SIZE * 2 }),
+    // Each as wide as the windows show it, and the copy for a screen of twice the pixels.
+    ...Object.fromEntries(
+      APP_ICON_SIZES.flatMap((size) =>
+        appIconFiles(size).map((file, times) => [
+          `src/renderer/${file}`,
+          icon.resize({ width: size * (times + 1), height: size * (times + 1) }),
+        ])
+      )
+    ),
   };
   fs.mkdirSync(path.join(ROOT, PHONE_ICONS), { recursive: true });
   for (const [file, image] of Object.entries(outputs)) {
