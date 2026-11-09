@@ -1275,6 +1275,8 @@ const handlers = {
   },
   [REQUESTS.chatRewind]: (_win, contactId, entryId) => conversations.rewind(contactId, String(entryId || '')),
   [REQUESTS.chatCancel]: (_win, contactId, entryId) => conversations.cancel(contactId, String(entryId || '')),
+  [REQUESTS.chatTakeNote]: (_win, contactId, entryId) => conversations.takeNote(contactId, String(entryId || '')),
+  [REQUESTS.chatPutBackNote]: (_win, contactId, entryId) => conversations.putBackNote(contactId, String(entryId || '')),
   [REQUESTS.chatFork]: (_win, contactId, entryId) => conversations.fork(contactId, String(entryId || '')),
   [REQUESTS.chatAddTab]: (_win, contactId, providerId) => conversations.addTab(contactId, String(providerId || '')),
   // As in ipc.js: the window goes on to another of its tabs before the one it shows is archived.

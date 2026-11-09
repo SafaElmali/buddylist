@@ -83,8 +83,9 @@ export class Composer {
   #height;
   /**
    * The message you sent that the box has, to send again in its place, while it has one: its id, what the
-   * box had before it, and whether it is on its way.
-   * @type {{ id: string, before: { text: string, attachments: Composer['attachments'], files: string[], outputs: OutputCard[] }, sending: boolean } | null}
+   * box had before it, and whether it is on its way. Or, with `note`, a manager's message taken out of the queue to
+   * edit, which goes as yours, and back in the queue where the edit is called off (see editNote).
+   * @type {{ id: string, before: { text: string, attachments: Composer['attachments'], files: string[], outputs: OutputCard[] }, sending: boolean, note?: { from: string } } | null}
    */
   #editing = null;
   /**
@@ -97,11 +98,14 @@ export class Composer {
    * @param {{ contact: any, participants: import('../../providers/contract.js').Participant[], myColor: string, settings: Record<string, any>, web: boolean }} ctx
    *   `contact`: the host, whose folder the files you send are named from. `settings`: the app's, as they are now
    * @param {object} handlers
-   * @param {(message: { text: string, images: { mediaType: string, data: string, preview: string | null }[] }) => void} handlers.send
-   *   `preview`: what the conversation shows of a picture (see picture-preview.js)
+   * @param {(message: { text: string, images: { mediaType: string, data: string, preview: string | null }[] }) => unknown} handlers.send
+   *   `preview`: what the conversation shows of a picture (see picture-preview.js). Whether it was sent, where the box
+   *   waits to hear (see editNote)
    * @param {(id: string, message: { text: string, images: { mediaType: string, data: string, preview: string | null }[] }) => Promise<boolean>} handlers.edit
    *   sends a message in place of the one you sent as `id`: whether it was
    * @param {(id: string | null) => void} handlers.editing  the message being edited changed: null once none is
+   * @param {(id: string) => void} [handlers.putBack]  a manager's message taken to edit goes back in its queue, as it
+   *   was: the edit was called off
    * @param {() => void} handlers.stop  stops whoever is at work, as Stop in Send's place does
    * @param {() => void} handlers.nudge
    * @param {() => Promise<void>} [handlers.attach] opens the same picker as Send Files
@@ -694,6 +698,24 @@ export class Composer {
     return this.#editing?.id ?? null;
   }
 
+  /** Whether the message being edited is a manager's, taken out of the queue (see editNote). */
+  get editingNote() {
+    return Boolean(this.#editing?.note);
+  }
+
+  /**
+   * What the box had before a message was brought in to edit, put away until the edit is over. Another message
+   * brought in instead keeps it: what the box had before either comes back. A manager's message it had goes back in
+   * its queue.
+   */
+  #putAway() {
+    const editing = this.#editing;
+    if (editing?.note) this.handlers.putBack?.(editing.id);
+    return (
+      editing?.before ?? { text: this.typed, attachments: this.attachments, files: this.files, outputs: this.outputs }
+    );
+  }
+
   /**
    * Brings a message you sent into the box, to change and send again in its place: its words, its
    * pictures, and what terminals printed for it, as it was sent. What the box had, files too, is put away
@@ -701,13 +723,7 @@ export class Composer {
    * @param {import('./conversation.js').Sent} sent
    */
   edit({ id, text, pictures, originals = [] }) {
-    // Another message brought in instead: what the box had before either comes back.
-    const before = this.#editing?.before ?? {
-      text: this.typed,
-      attachments: this.attachments,
-      files: this.files,
-      outputs: this.outputs,
-    };
+    const before = this.#putAway();
     this.recall.sending();
     this.#editing = { id, before, sending: false };
     const said = splitOutputs(text);
@@ -720,8 +736,36 @@ export class Composer {
     this.focus();
   }
 
-  /** The edit is over, sent or called off: the box has what it had before the message was brought in. */
+  /**
+   * Brings a manager's message taken out of the queue into the box (see takeNote in conversations.js), to change and
+   * send as yours: a message of your own, as any you send. What the box had is put away until the edit is over.
+   * Called off, the manager's message goes back in its queue as it was.
+   * @param {{ id: string, text: string, from: string }} note  `from`: who sent it, by name
+   */
+  editNote({ id, text, from }) {
+    const before = this.#putAway();
+    this.recall.sending();
+    this.#editing = { id, before, sending: false, note: { from } };
+    this.attachments = [];
+    this.files = [];
+    this.outputs = [];
+    this.#renderAttachments();
+    this.#fill(text);
+    this.#showEditing();
+    this.focus();
+  }
+
+  /**
+   * The edit is called off: the box has what it had before the message was brought in. A manager's message goes back
+   * in its queue.
+   */
   stopEditing() {
+    if (this.#editing?.note) this.handlers.putBack?.(this.#editing.id);
+    this.#endEdit();
+  }
+
+  /** The edit is over, sent or called off: the box has what it had before the message was brought in. */
+  #endEdit() {
     const editing = this.#editing;
     if (!editing) return;
     this.#editing = null;
@@ -751,14 +795,24 @@ export class Composer {
     this.focus();
   }
 
-  /** Sends the message being edited in place of the one it was. One that couldn't be stays, to try again. */
+  /**
+   * Sends the message being edited in place of the one it was; a manager's, as a message of yours. One that couldn't
+   * be stays, to try again.
+   */
   async #sendEdit(message) {
     const editing = this.#editing;
     if (editing.sending) return;
+    // A command is no message: it takes the place of a manager's no more than of one of yours (see editMessage).
+    if (editing.note && message.text.startsWith('/')) {
+      this.handlers.notice('A command can’t take the place of a message. Send it on its own.');
+      return;
+    }
     editing.sending = true;
-    const sent = await this.handlers.edit(editing.id, message).catch(() => false);
+    const sent = await Promise.resolve()
+      .then(() => (editing.note ? this.handlers.send(message) : this.handlers.edit(editing.id, message)))
+      .catch(() => false);
     editing.sending = false;
-    if (sent && this.#editing === editing) this.stopEditing();
+    if (sent && this.#editing === editing) this.#endEdit();
   }
 
   /** Over the box, while a message is being edited: which, what sending it does, and the way out. */
@@ -772,15 +826,27 @@ export class Composer {
         return;
       }
       const who = this.ctx.participants[0]?.name || 'Your contact';
+      // A manager's message says whose it was, and goes back in its queue where the edit is called off.
+      const { note } = editing;
       bar.replaceChildren(
         el(
           html`<span class="editing-what"
             >${raw(smallIcon.pencil())}<span
-              ><b>Editing your message.</b> ${who} forgets it and everything after it once you send it.</span
+              >${
+                note
+                  ? html`<b>Editing ${note.from || 'a manager'}’s message.</b> It goes as yours once you send it.`
+                  : html`<b>Editing your message.</b> ${who} forgets it and everything after it once you send it.`
+              }</span
             ></span
           >`
         ),
-        el(html`<button class="link editing-cancel" type="button" title="Esc">Cancel</button>`)
+        el(
+          note
+            ? html`<button class="link editing-cancel" type="button" title="Back in the queue, as it was (Esc)">
+                Put back
+              </button>`
+            : html`<button class="link editing-cancel" type="button" title="Esc">Cancel</button>`
+        )
       );
       bar.querySelector('button').addEventListener('click', () => {
         this.stopEditing();

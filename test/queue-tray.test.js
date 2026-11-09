@@ -97,7 +97,7 @@ test('files, terminal output and pictures it carries show apart from its words',
   assert.equal(trayRow(queued('p', '', { pictures: ['a'] }), [PLANNER]).preview, 'A picture');
 });
 
-test('in a group each entry says who it is for, and a manager note offers no Edit', () => {
+test('in a group each entry says who it is for', () => {
   const both = [PLANNER, REVIEWER];
   assert.equal(trayRow(queued('a', 'hi', { to: ['reviewer'] }), both).to, 'to Reviewer');
   assert.equal(trayRow(queued('a', 'hi', { to: ['planner', 'reviewer'] }), both).to, 'to everyone');
@@ -106,8 +106,34 @@ test('in a group each entry says who it is for, and a manager note offers no Edi
     'to Planner and Reviewer'
   );
   assert.equal(trayRow(queued('a', 'hi', { to: ['gone'] }), both).to, '', 'one that left is not named');
-  const note = trayRow(queued('n', 'Manager says: stop', { managerNote: true }), both);
-  assert.deepEqual([note.canSend, note.canEdit, note.canCancel], [true, false, true]);
+});
+
+/** A manager's note that waits, as Conversation.queued() has it: `words` where it carries what its sender wrote. */
+const note = (id, text, words = true) => ({
+  ...queued(id, text, { managerNote: true }),
+  sent: { id, text, managerNote: true, ...(words && { words: true }) },
+});
+
+test('a manager’s message can be edited before it is read; a note with no words of its sender’s only dropped', () => {
+  const said = trayRow(note('n', 'shop manager says: Add tests for the coupon code'), [PLANNER, REVIEWER]);
+  assert.deepEqual([said.canSend, said.canEdit, said.canCancel], [true, true, true]);
+  const report = trayRow(note('r', 'Claude (cart) changed 2 files: done', false), [PLANNER]);
+  assert.deepEqual([report.canSend, report.canEdit, report.canCancel], [true, false, true]);
+  const unkept = trayRow({ ...note('n', 'shop manager says: hi'), sent: undefined }, [PLANNER]);
+  assert.equal(unkept.canEdit, false, 'not before it is kept');
+});
+
+test('Edit on a manager’s message says it goes as yours, and hands the note over, held or not', async (t) => {
+  const { view, button, calls } = tray(t);
+  view.show([note('a', 'shop manager says: Add tests'), note('b', 'shop manager says: Then docs')], 'stopped');
+  const edit = button(1, 'edit');
+  assert.equal(edit.textContent.trim(), 'Edit');
+  assert.equal(edit.title, 'Take it into the message box, to change and send as yours');
+  assert.equal(edit.getAttribute('aria-label'), 'Edit: shop manager says: Then docs');
+  assert.equal(button(0, 'cancel').title, 'Drop this manager message before it is delivered');
+  edit.click();
+  await settle();
+  assert.deepEqual(calls, [['edit', 'b']]);
 });
 
 test('one not kept yet can do nothing until it is, and one that cannot be taken back only Send now', () => {

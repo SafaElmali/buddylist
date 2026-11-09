@@ -149,6 +149,8 @@ contextBridge.exposeInMainWorld('messenger', {
     edit: invoke('chat:edit'),
     rewind: invoke('chat:rewind'),
     cancel: invoke('chat:cancel'),
+    takeNote: invoke('chat:take-note'),
+    putBackNote: invoke('chat:put-back-note'),
     fork: invoke('chat:fork'),
     addTab: invoke('chat:add-tab'),
     closeTab: invoke('chat:close-tab'),

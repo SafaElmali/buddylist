@@ -99,6 +99,8 @@ export const REQUESTS = Object.freeze({
   chatEdit: 'chat:edit',
   chatRewind: 'chat:rewind',
   chatCancel: 'chat:cancel',
+  chatTakeNote: 'chat:take-note',
+  chatPutBackNote: 'chat:put-back-note',
   chatFork: 'chat:fork',
   chatAddTab: 'chat:add-tab',
   chatCloseTab: 'chat:close-tab',

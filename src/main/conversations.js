@@ -201,6 +201,21 @@ export function promptView(prompt) {
  *   was stopped or went wrong, after its host's agent read the notes `read` names, by key
  * @property {(contactId: string, prompt: { requestId: string, speaker?: string, questions?: import('../providers/contract.js').Question[] }) => void} [questionAsked]
  *   an agent in a conversation asks on a card of questions, and waits for the answer
+ * @property {(contactId: string, note: WaitingNote, how: { edited: boolean }) => void} [noteTaken]  the user took a
+ *   note out of a conversation's queue before it was read: to edit it and send it as theirs, or dropped
+ * @property {(contactId: string, note: WaitingNote) => void} [notePutBack]  one taken to edit went back in its queue
+ */
+
+/**
+ * A note another conversation passed on, waiting for this one's agent with a line in its window (see `pass`).
+ * @typedef {Object} WaitingNote
+ * @property {string} key
+ * @property {string} text  what the agent is sent
+ * @property {string} line  what the window shows
+ * @property {string} from  the contact it is from
+ * @property {string} [said]  the words its sender wrote, which the user may take to edit
+ * @property {AgentSession} [session]  the provider's queue it is in, once Send now handed it over
+ * @property {boolean} [sending]
  */
 
 /**
@@ -341,9 +356,21 @@ export class Conversations {
   #notes = new Map();
   /**
    * Manager notices that can still be hurried or cancelled, by their history id.
-   * @type {Map<string, Map<string, { key: string, text: string, session?: import('../providers/contract.js').AgentSession, sending?: boolean }>>}
+   * @type {Map<string, Map<string, WaitingNote>>}
    */
   #waitingNotes = new Map();
+  /**
+   * hostId -> Map(history id -> note): the manager's messages the user took out of the queue to edit in the message
+   * box, kept as they were to go back in it where the edit is called off (see takeNote)
+   * @type {Map<string, Map<string, WaitingNote>>}
+   */
+  #notesAside = new Map();
+  /**
+   * hostId -> the keys of its notes that are news without being anything to act on: they wait for a note that starts
+   * its agent, and are read with it (see `quiet` in pass)
+   * @type {Map<string, Set<string>>}
+   */
+  #quietNotes = new Map();
   /** A stopped manager's notes wait for the user, also when it has no group turn queue. */
   #stoppedManagers = new Set();
   /** hostId -> why its notes wait for the user, as its window was last told (see #notesHeld) */
@@ -1009,6 +1036,7 @@ export class Conversations {
       type: 'notice',
       text,
       ...(extra.managerNote && { entryId: entry.id, managerNote: true }),
+      ...(extra.words && { words: true }),
     });
     return entry;
   }
@@ -2031,24 +2059,9 @@ export class Conversations {
   async cancel(contactId, entryId) {
     const note = this.#waitingNotes.get(contactId)?.get(entryId);
     if (note) {
-      if (note.sending) return false;
-      if (note.session) {
-        // Remove it from tracking before the provider emits its smaller queue: cancellation is no delivery.
-        this.#waitingNotes.get(contactId).delete(entryId);
-        if (!(await note.session.cancel(entryId))) {
-          this.#waitingNotes.get(contactId).set(entryId, note);
-          this.#syncWaitingNotes(contactId);
-          return false;
-        }
-      } else {
-        this.#notes.get(contactId)?.delete(note.key);
-        this.#waitingNotes.get(contactId).delete(entryId);
-        this.#groups.get(contactId)?.turns.cancelNote(entryId);
-      }
-      this.history.remove(contactId, entryId);
-      this.onHistoryChanged(contactId);
-      this.#tellWaitingNotes(contactId);
-      this.#tellWaiting(contactId);
+      if (!(await this.#dropNote(contactId, entryId, note))) return false;
+      // Whoever sent it doesn't take it as read.
+      this.managing.noteTaken?.(contactId, note, { edited: false });
       return true;
     }
     const said = this.history.read(contactId).find((entry) => entry.id === entryId);
@@ -2068,6 +2081,69 @@ export class Conversations {
     this.history.remove(contactId, entryId);
     this.onHistoryChanged(contactId);
     this.#tellWaiting(contactId);
+    return true;
+  }
+
+  /**
+   * A note that waits leaves the queue unread, and the conversation no longer has its line. What is going on goes on.
+   * @param {string} contactId
+   * @param {string} entryId
+   * @param {WaitingNote} note
+   * @returns {Promise<boolean>}  whether it left: not one on its way to be read, or one its provider read meanwhile
+   */
+  async #dropNote(contactId, entryId, note) {
+    if (note.sending) return false;
+    if (note.session) {
+      // Remove it from tracking before the provider emits its smaller queue: cancellation is no delivery.
+      this.#waitingNotes.get(contactId).delete(entryId);
+      if (!(await note.session.cancel(entryId))) {
+        this.#waitingNotes.get(contactId).set(entryId, note);
+        this.#syncWaitingNotes(contactId);
+        return false;
+      }
+    } else {
+      this.#notes.get(contactId)?.delete(note.key);
+      this.#waitingNotes.get(contactId).delete(entryId);
+      this.#groups.get(contactId)?.turns.cancelNote(entryId);
+    }
+    this.history.remove(contactId, entryId);
+    this.onHistoryChanged(contactId);
+    this.#tellWaitingNotes(contactId);
+    this.#tellWaiting(contactId);
+    return true;
+  }
+
+  /**
+   * Edit on a manager's message that still waits: it leaves the queue unread, as Cancel drops it, and its sender's
+   * words go in the message box, to change and send as yours. Its sender is told. It is kept aside, to go back in the
+   * queue as it was where the edit is called off (see putBackNote).
+   * @param {string} contactId
+   * @param {string} entryId  its line in the conversation's history
+   * @returns {Promise<{ text: string, from: string } | null>}  its words, and who sent it, by name. Null for a note
+   *   that carries no words of its sender's, or one read meanwhile
+   */
+  async takeNote(contactId, entryId) {
+    const note = this.#waitingNotes.get(contactId)?.get(entryId);
+    if (!note?.said || !(await this.#dropNote(contactId, entryId, note))) return null;
+    inner(this.#notesAside, contactId).set(entryId, note);
+    this.managing.noteTaken?.(contactId, note, { edited: true });
+    return { text: note.said, from: this.store.getContact(note.from)?.name ?? '' };
+  }
+
+  /**
+   * A manager's message taken to edit goes back in the queue as it was, last in line, where the edit is called off:
+   * it is read as any note that waits, once its agent is free and nothing holds it.
+   * @param {string} contactId
+   * @param {string} entryId  as it was taken (see takeNote)
+   * @returns {boolean}  whether it went back: not once it did already, nor to a conversation that is gone or archived
+   */
+  putBackNote(contactId, entryId) {
+    const note = this.#notesAside.get(contactId)?.get(entryId);
+    if (!note) return false;
+    this.#notesAside.get(contactId).delete(entryId);
+    const { key, line, text, from, said } = note;
+    if (!this.pass(contactId, { key, line, note: text, from, said })) return false;
+    this.managing.notePutBack?.(contactId, note);
     return true;
   }
 
@@ -3302,9 +3378,11 @@ export class Conversations {
     const contact = this.store.getContact(contactId);
     if (!contact) return;
     const notes = keepNotes && this.#notes.get(contactId);
+    const quietNotes = keepNotes && this.#quietNotes.get(contactId);
     const waitingNotes = keepNotes && this.#waitingNotes.get(contactId);
     this.#takeUp(contact, { entries: [] });
     if (notes) this.#notes.set(contactId, notes);
+    if (quietNotes) this.#quietNotes.set(contactId, quietNotes);
     if (waitingNotes) this.#waitingNotes.set(contactId, waitingNotes);
     // What they left running in the background was the old conversation's.
     this.#tellParticipants(contactId);
@@ -3361,11 +3439,15 @@ export class Conversations {
    */
   #endForAnotherAgent(contactId) {
     const notes = this.#notes.get(contactId);
+    const quietNotes = this.#quietNotes.get(contactId);
     const waitingNotes = this.#waitingNotes.get(contactId);
+    const notesAside = this.#notesAside.get(contactId);
     const live = this.#live.get(contactId);
     this.end(contactId);
     if (notes) this.#notes.set(contactId, notes);
+    if (quietNotes) this.#quietNotes.set(contactId, quietNotes);
     if (waitingNotes) this.#waitingNotes.set(contactId, waitingNotes);
+    if (notesAside) this.#notesAside.set(contactId, notesAside);
     // Closing may finish a streamed reply itself. Keep only the buffers it left unfinished, once, before
     // the new session starts. The old session's later events are ignored by its emit callback.
     for (const [key, { text, speaker }] of live || []) {
@@ -3549,7 +3631,9 @@ export class Conversations {
       this.#waitingTold,
       this.#unread,
       this.#notes,
+      this.#quietNotes,
       this.#waitingNotes,
+      this.#notesAside,
       this.#stoppedManagers,
       this.#notesTold,
       this.#noted,
@@ -4351,13 +4435,23 @@ export class Conversations {
    * @param {string} what.line  what the window shows
    * @param {string} what.note  what the agent is sent
    * @param {string} [what.from]  the contact it is from, kept with the line
+   * @param {string} [what.said]  with `from`: the words its sender wrote, as a manager's message has them. The user may
+   *   take them to edit and send as theirs while it waits (see takeNote)
+   * @param {boolean} [what.quiet]  news that is nothing to act on, such as what the user did with a message it sent:
+   *   it starts nobody, and is read with the next note that does
    * @returns {boolean}  whether it was passed on: nothing is, to a contact that is gone or archived
    */
-  pass(contactId, { key, line, note, from }) {
+  pass(contactId, { key, line, note, from, said, quiet = false }) {
     const contact = this.store.getContact(contactId);
     if (!contact || contact.archived) return false;
-    const entry = this.#notice(contactId, line, from ? { from, managerNote: true } : {});
+    const entry = this.#notice(contactId, line, from ? { from, managerNote: true, ...(said && { words: true }) } : {});
     inner(this.#notes, contactId).set(key, note);
+    if (quiet) {
+      if (!this.#quietNotes.has(contactId)) this.#quietNotes.set(contactId, new Set());
+      this.#quietNotes.get(contactId).add(key);
+      return true;
+    }
+    this.#quietNotes.get(contactId)?.delete(key);
     // Replacement applies only while the app owns the note. A provider-owned note is already an
     // independent message: keep its identity until delivery, without letting an older bubble replay it.
     let replaced = false;
@@ -4367,9 +4461,23 @@ export class Conversations {
       this.#groups.get(contactId)?.turns.cancelNote(id);
       replaced = true;
     }
-    if (from) inner(this.#waitingNotes, contactId).set(entry.id, { key, text: note });
+    if (from)
+      inner(this.#waitingNotes, contactId).set(entry.id, { key, text: note, line, from, ...(said && { said }) });
     if (['idle', 'offline'].includes(this.#state(contactId))) this.#readNotes(contactId);
     if (from || replaced) this.#tellWaitingNotes(contactId);
+    return true;
+  }
+
+  /**
+   * Takes back quiet news its agent hasn't read yet (see `quiet` in pass): it never hears of it. The line its window
+   * shows stays.
+   * @param {string} contactId
+   * @param {string} key
+   * @returns {boolean}  whether it was still unread
+   */
+  withdraw(contactId, key) {
+    if (!this.#quietNotes.get(contactId)?.delete(key)) return false;
+    this.#notes.get(contactId)?.delete(key);
     return true;
   }
 
@@ -4515,8 +4623,10 @@ export class Conversations {
     if ([...(this.#waitingNotes.get(hostId)?.values() ?? [])].some((note) => note.session)) return;
     if (this.#stoppedManagers.has(hostId) || this.#atPlanLimit.has(hostId)) return;
     const notes = this.#notes.get(hostId);
+    const quiet = this.#quietNotes.get(hostId);
     const host = this.store.getContact(hostId);
-    if (!notes?.size || !host || host.archived) return;
+    // Quiet news alone starts nobody: it waits for a note that does.
+    if (![...(notes?.keys() ?? [])].some((key) => !quiet?.has(key)) || !host || host.archived) return;
     const group = this.#group(hostId);
     if (group) {
       const active = inAnswerOrder(this.participants(hostId), group.turns.order).filter((agent) => !agent.paused);
@@ -4539,7 +4649,10 @@ export class Conversations {
     const key = selected && this.#waitingNotes.get(hostId)?.get(selected)?.key;
     const taken = selected ? new Map(key && notes.has(key) ? [[key, notes.get(key)]] : []) : new Map(notes);
     if (!taken.size) return '';
-    for (const key of taken.keys()) notes.delete(key);
+    for (const key of taken.keys()) {
+      notes.delete(key);
+      this.#quietNotes.get(hostId)?.delete(key);
+    }
     for (const [id, note] of this.#waitingNotes.get(hostId) ?? []) {
       if (!note.session && taken.has(note.key)) this.#waitingNotes.get(hostId).delete(id);
     }

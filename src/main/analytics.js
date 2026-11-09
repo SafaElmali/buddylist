@@ -456,6 +456,8 @@ export const COUNTED = Object.freeze({
   // Send now: what you said that waits is read at once. And one of them taken back before it is.
   [REQUESTS.chatSendNow]: { event: 'queued messages sent now' },
   [REQUESTS.chatCancel]: { event: 'queued message cancelled', about: happened },
+  // A manager's message taken out of the queue to edit and send as yours, as one of yours taken back to edit is.
+  [REQUESTS.chatTakeNote]: { event: 'queued message cancelled', about: happened },
   [REQUESTS.chatPin]: { event: 'message pinned', about: messagePinned },
   // Accept, Always allow or Decline, a question's answers or Skip, and a plan approved or sent back.
   [REQUESTS.chatRespond]: { event: 'invitation answered', about: invitationAnswered },

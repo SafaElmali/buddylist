@@ -1,6 +1,7 @@
 // What you sent that waits to be read, in a tray over the message box: oldest first, each on a line of what it says,
-// with Send now, Edit and Cancel. Waiting, a message is not among the conversation's lines; once read, it is there,
-// where it was read (see Conversation.queued). Which messages wait is main's to say: the tray draws what it is told.
+// with Send now, Edit and Cancel. A manager's message there has them too: Edit takes it into the box, to send as yours.
+// Waiting, a message is not among the conversation's lines; once read, it is there, where it was read (see
+// Conversation.queued). Which messages wait is main's to say: the tray draws what it is told.
 import { el, errorText, html, raw } from '../lib/dom.js';
 import { listNames } from '../lib/format.js';
 import { smallIcon } from '../lib/icons.js';
@@ -89,8 +90,9 @@ export function trayRow(queued, participants) {
     to,
     managerNote,
     canSend: Boolean(id),
-    // A manager's note is not yours to change: it can only be dropped.
-    canEdit: Boolean(id) && cancellable && !managerNote,
+    // A manager's message can be taken to edit and send as yours. A note with no words of its sender's, such as a
+    // worker's report to its manager, can only be dropped.
+    canEdit: Boolean(id) && cancellable && (!managerNote || Boolean(sent?.words)),
     canCancel: Boolean(id) && cancellable,
   };
 }
@@ -236,7 +238,11 @@ export class QueueTray {
             html`<button
               class="link queue-tray-edit"
               type="button"
-              title="Take it back into the message box, to change and send again"
+              title="${
+                row.managerNote
+                  ? 'Take it into the message box, to change and send as yours'
+                  : 'Take it back into the message box, to change and send again'
+              }"
               aria-label="Edit: ${row.preview}"
             >
               Edit

@@ -664,7 +664,8 @@ function refreshParticipants() {
   conversation.root.classList.toggle('can-edit', alone && !archived());
   // And the chat forked from a reply, by a service that can copy its conversation: the others here have theirs.
   conversation.root.classList.toggle('can-fork', alone && !archived() && Boolean(ctx.provider?.fork));
-  if (!alone) composer?.stopEditing();
+  // A manager's message taken to edit goes as yours, guests or not.
+  if (!alone && !composer?.editingNote) composer?.stopEditing();
   learnModels();
   renderParticipants(ctx);
   // A conversation with several agents opens with the list of them, as does one someone just
@@ -919,7 +920,28 @@ async function takeBack(sent, { drop = false } = {}) {
 
 /** Edit on a message you sent: one that waits is taken back to change, and one already read is edited in place. */
 async function editSent(sent) {
+  if (sent.managerNote) return editNote(sent);
   if (!(conversation.waits(sent.id) && (await takeBack(sent)))) composer.edit(sent);
+}
+
+/**
+ * Edit on a manager's message that waits: it leaves the queue unread, as Cancel drops it, and its words are in the
+ * message box, to change and send as yours. Its manager is told. Put back, it waits again (see putBackNote).
+ * @param {import('./conversation.js').Sent} sent
+ */
+async function editNote(sent) {
+  const taken = await api.chat.takeNote(ctx.contactId, sent.id).catch(() => null);
+  if (!taken) return void conversation.addNotice('That message is no longer queued.');
+  conversation.remove(sent.id);
+  showPins();
+  shared.changed();
+  composer.editNote({ id: sent.id, ...taken });
+}
+
+/** A manager's message taken to edit goes back in its queue as it was: the edit was called off. */
+async function putBackNote(id) {
+  if (await api.chat.putBackNote(ctx.contactId, id).catch(() => false)) return;
+  conversation.addNotice('That message couldn’t go back in the queue: the conversation started over or was archived.');
 }
 
 /** Whether anyone here is at work: a turn, a subagent, or something left running in the background. */
@@ -2433,6 +2455,7 @@ function mountControls() {
     output: (card) => (card.kind === 'terminal' ? terminals.output(card.id) : run.output(card.id)),
     edit: editMessage,
     editing: (id) => conversation.editing(id),
+    putBack: putBackNote,
     stop,
     nudge,
     wink: sendWink,
@@ -2865,9 +2888,11 @@ async function main() {
   if (data.contact.draft) composer.setDraft(data.contact.draft);
   // And what you had in the box is in it again: the words, the pictures and the files.
   if (unsent) composer.restore(unsent);
-  window.addEventListener('pagehide', () =>
-    keepUnsent(ctx.contactId, { ...composer.unsent, answers: invitations.unsent })
-  );
+  window.addEventListener('pagehide', () => {
+    // A manager's message being edited goes back in its queue: what the box keeps is what you were writing.
+    if (composer.editingNote) api.chat.putBackNote(ctx.contactId, composer.editing).catch(() => {});
+    keepUnsent(ctx.contactId, { ...composer.unsent, answers: invitations.unsent });
+  });
 
   voice = new VoiceClips({
     // The browser preview has no microphone to open: it answers with a sample sentence.

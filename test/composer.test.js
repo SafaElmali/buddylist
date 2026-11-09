@@ -599,6 +599,98 @@ test('the composer can mount before the provider arrives, then updates its hint'
   assert.match(input.placeholder, /\/ for commands/);
 });
 
+// ---- a manager's message taken from the queue to edit -------------------------------------------
+
+/** A box with a manager's message being edited, and what it asked to put back in the queue. */
+function editingNote({ sent = true } = {}) {
+  const putBack = [];
+  const opened = open({
+    handlers: {
+      send: async (message) => {
+        opened.asked.sent.push(message);
+        return sent;
+      },
+      putBack: async (id) => void putBack.push(id),
+    },
+  });
+  opened.type('Also check the totals');
+  opened.composer.editNote({ id: 'note-1', text: 'Add tests for the coupon code', from: 'shop manager' });
+  const bar = globalThis.document.querySelector('#editing-bar');
+  return { ...opened, putBack, bar };
+}
+
+test('a manager’s message taken to edit is in the box, says whose it was, and what you were writing waits', () => {
+  const { composer, input, bar, asked } = editingNote();
+  assert.equal(input.value, 'Add tests for the coupon code');
+  assert.equal(composer.editing, 'note-1');
+  assert.equal(composer.editingNote, true);
+  assert.equal(bar.hidden, false);
+  assert.match(bar.children[0].markup, /<b>Editing shop manager’s message\.<\/b> It goes as yours once you send it\./);
+  assert.match(bar.children[1].markup, /Put back/);
+  assert.equal(composer.unsent.text, 'Also check the totals', 'the note goes back to the queue, not in a kept box');
+  assert.deepEqual(asked.edits, []);
+});
+
+test('sent, a manager’s message goes as yours, by the normal send, and is not put back', async () => {
+  const { composer, input, asked, putBack, bar, type } = editingNote();
+  type('Add tests for the coupon code and the gift card');
+  composer.submit();
+  await settle();
+  assert.deepEqual(asked.sent, [{ text: 'Add tests for the coupon code and the gift card', images: [] }]);
+  assert.deepEqual(asked.edits, [], 'nothing you sent is replaced');
+  assert.deepEqual(putBack, []);
+  assert.equal(composer.editing, null);
+  assert.equal(bar.hidden, true);
+  assert.equal(input.value, 'Also check the totals', 'what you were writing is back');
+});
+
+test('one that could not be sent stays in the box, still being edited, and is not put back', async () => {
+  const { composer, input, putBack, asked } = editingNote({ sent: false });
+  composer.submit();
+  await settle();
+  assert.equal(asked.sent.length, 1);
+  assert.equal(composer.editing, 'note-1');
+  assert.equal(input.value, 'Add tests for the coupon code');
+  assert.deepEqual(putBack, []);
+});
+
+test('Put back, or Esc, puts a manager’s message back in the queue, once, and what you were writing returns', () => {
+  const { composer, input, putBack, bar, asked } = editingNote();
+  bar.querySelector('button').fire('click');
+  assert.deepEqual(putBack, ['note-1']);
+  assert.equal(composer.editing, null);
+  assert.equal(input.value, 'Also check the totals');
+  composer.stopEditing();
+  assert.deepEqual(putBack, ['note-1'], 'only once');
+  assert.deepEqual(asked.sent, []);
+});
+
+test('an empty box sends nothing and keeps the edit; a command can’t take a manager’s message’s place', async () => {
+  const { composer, type, asked, putBack } = editingNote();
+  type('   ');
+  composer.submit();
+  type('/compact');
+  composer.submit();
+  await settle();
+  assert.deepEqual(asked.sent, []);
+  assert.deepEqual(asked.notices, ['A command can’t take the place of a message. Send it on its own.']);
+  assert.equal(composer.editing, 'note-1');
+  assert.deepEqual(putBack, []);
+});
+
+test('taking another message to edit puts the manager’s back first, and the box keeps what you were writing', () => {
+  const { composer, input, putBack } = editingNote();
+  composer.editNote({ id: 'note-2', text: 'Then the docs', from: 'shop manager' });
+  assert.deepEqual(putBack, ['note-1']);
+  assert.equal(input.value, 'Then the docs');
+  composer.edit({ id: 'said-1', text: 'Fix the login page', pictures: [] });
+  assert.deepEqual(putBack, ['note-1', 'note-2']);
+  assert.equal(composer.editingNote, false);
+  composer.stopEditing();
+  assert.equal(input.value, 'Also check the totals');
+  assert.deepEqual(putBack, ['note-1', 'note-2'], 'your own message edited is not a note to put back');
+});
+
 test('the composer attach button opens the shared picker and is enabled again afterward', async () => {
   const { asked } = open();
   const attach = globalThis.document.querySelector('#ct-attach');

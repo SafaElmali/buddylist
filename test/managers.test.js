@@ -1780,6 +1780,8 @@ function inTheApp(app, settings = {}, makeSession) {
       oversees: (contact) => managers.oversees(contact),
       managerOf: (contact) => managers.managerOf(contact),
       questionAsked: (id, prompt) => managers.questionAsked(id, prompt),
+      noteTaken: (id, note, how) => managers.noteTaken(id, note, how),
+      notePutBack: (id, note) => managers.notePutBack(id, note),
     },
   });
   const shown = [];
@@ -3061,6 +3063,179 @@ test('urgent group notes respect pauses and stopped rounds, and can be cancelled
   assert.ok(id);
   assert.equal(await conversations.cancel(worker.id, id), true);
   assert.deepEqual(conversations.snapshot(worker.id).waitingNotes, []);
+});
+
+// ---- the user takes a manager's waiting message to edit ------------------------------------------
+
+/**
+ * A worker at work, with two messages from its manager waiting for it, in the app: what each session was sent, and
+ * the manager's own session, which only reads what starts it.
+ */
+async function waitingMessages(t) {
+  const app = setup(t);
+  const inApp = inTheApp(app);
+  const { conversations, managers, sessions, manager } = inApp;
+  const worker = app.worker('Claude (cart)');
+  conversations.send(worker.id, { text: 'Work on the cart' });
+  const session = sessions.findLast((one) => one.contact.id === worker.id);
+  session.emit({ type: 'state', state: 'working' });
+  await managers.say(manager.id, worker.name, 'Add tests for the **coupon** code\n\nand the gift card');
+  await managers.say(manager.id, worker.name, 'Then update the docs');
+  const [first, second] = conversations.snapshot(worker.id).waitingNotes;
+  const bossSession = sessions.findLast((one) => one.contact.id === manager.id);
+  /** What the worker was sent, and what the manager was, as text. */
+  const read = () => session.sent.map((message) => message.text);
+  const managerRead = () => bossSession.sent.map((message) => message.text);
+  /** The lines the manager's window shows that are no message to it. */
+  const managerLines = () =>
+    app.history
+      .read(manager.id)
+      .filter((entry) => entry.kind === 'notice' && !entry.from)
+      .map((entry) => entry.text);
+  return { app, ...inApp, worker, session, first, second, read, managerRead, managerLines };
+}
+
+test('Edit takes a manager’s waiting message out unread, with its words as written, and the worker never reads it', async (t) => {
+  const { app, conversations, worker, session, first, second, read, manager } = await waitingMessages(t);
+  const entry = app.history.read(worker.id).find((one) => one.id === first);
+  assert.equal(entry.words, true, 'its line says it carries what its sender wrote');
+  assert.deepEqual(await conversations.takeNote(worker.id, first), {
+    text: 'Add tests for the **coupon** code\n\nand the gift card',
+    from: manager.name,
+  });
+  assert.deepEqual(conversations.snapshot(worker.id).waitingNotes, [second], 'the other still waits');
+  assert.equal(
+    app.history.read(worker.id).some((one) => one.id === first),
+    false,
+    'it leaves the conversation, as Cancel drops it'
+  );
+  assert.equal(await conversations.takeNote(worker.id, first), null, 'taken once');
+  assert.equal(await conversations.cancel(worker.id, first), false);
+  session.emit({ type: 'state', state: 'idle' });
+  assert.equal(read().length, 2);
+  assert.match(read()[1], /Then update the docs/);
+  assert.doesNotMatch(read().join('\n'), /coupon/, 'what was taken is never read');
+});
+
+test('the manager is told its message was taken to edit, or cancelled, without starting it: it hears with its next notes', async (t) => {
+  const { app, conversations, worker, first, second, managerRead, managerLines, manager } = await waitingMessages(t);
+  const before = managerRead().length;
+  await conversations.takeNote(worker.id, first);
+  await conversations.cancel(worker.id, second);
+  assert.equal(managerRead().length, before, 'neither starts the manager');
+  assert.deepEqual(managerLines().slice(-2), [
+    'You took its message to Claude (cart) to edit before it was read.',
+    'You cancelled its message to Claude (cart) before it was read.',
+  ]);
+  assert.deepEqual(conversations.snapshot(manager.id).waitingNotes, [], 'nothing for the user to send now or cancel');
+  // The next news it reads has them along.
+  conversations.pass(manager.id, {
+    key: 'news',
+    line: 'Claude (cart) changed 1 file',
+    note: 'Claude (cart) changed 1 file.',
+  });
+  const told = managerRead().at(-1);
+  assert.match(told, /Claude \(cart\) changed 1 file\./);
+  assert.match(
+    told,
+    /The user took your message to Claude \(cart\) out of its queue to edit it, before Claude \(cart\) read it\..*What they send in its place reaches Claude \(cart\) as their own message, not as yours/s
+  );
+  assert.match(told, /It was: “Add tests for the coupon code and the gift card”/);
+  assert.match(
+    told,
+    /The user cancelled your message to Claude \(cart\) before Claude \(cart\) read it: it never got it\./
+  );
+  assert.match(told, /It was: “Then update the docs”/);
+  conversations.pass(manager.id, { key: 'news', line: 'More', note: 'More news.' });
+  assert.doesNotMatch(managerRead().at(-1), /took your message|cancelled your message/, 'each is read once');
+  assert.equal(app.history.read(worker.id).filter((one) => one.from === manager.id).length, 0);
+});
+
+test('a note with no words of its sender’s, such as a worker’s report to its manager, can’t be taken to edit', async (t) => {
+  const app = setup(t);
+  const { conversations, sessions, manager } = inTheApp(app);
+  const session = sessions.findLast((one) => one.contact.id === manager.id);
+  session.emit({ type: 'state', state: 'working' });
+  conversations.pass(manager.id, { key: 'w', line: 'Claude (cart) changed 1 file', note: 'Report', from: 'someone' });
+  const [id] = conversations.snapshot(manager.id).waitingNotes;
+  assert.equal(app.history.read(manager.id).find((one) => one.id === id).words, undefined);
+  assert.equal(await conversations.takeNote(manager.id, id), null);
+  assert.deepEqual(conversations.snapshot(manager.id).waitingNotes, [id]);
+});
+
+test('put back, a manager’s message waits again and is read once; unread, the manager never hears it was taken', async (t) => {
+  const { conversations, worker, session, first, second, read, managerRead, managerLines, manager } =
+    await waitingMessages(t);
+  const before = managerRead().length;
+  await conversations.takeNote(worker.id, first);
+  assert.equal(conversations.putBackNote(worker.id, first), true);
+  assert.equal(conversations.putBackNote(worker.id, first), false, 'once');
+  const waiting = conversations.snapshot(worker.id).waitingNotes;
+  assert.equal(waiting.length, 2);
+  assert.equal(waiting[0], second);
+  assert.equal(managerRead().length, before, 'the manager is not started for it');
+  assert.equal(managerLines().at(-1), 'You put its message to Claude (cart) back in the queue.');
+  session.emit({ type: 'state', state: 'idle' });
+  assert.equal(read().length, 2);
+  assert.equal(read()[1].match(/coupon/g)?.length, 1, 'read once, as written');
+  assert.match(read()[1], /Then update the docs/);
+  conversations.pass(manager.id, { key: 'news', line: 'News', note: 'News.' });
+  assert.doesNotMatch(managerRead().at(-1), /took your message|put your message/, 'nothing changed for it');
+});
+
+test('put back after the manager read that it was taken, it is told the message waits again', async (t) => {
+  const { conversations, worker, first, managerRead, manager } = await waitingMessages(t);
+  await conversations.takeNote(worker.id, first);
+  conversations.pass(manager.id, { key: 'news', line: 'News', note: 'News.' });
+  assert.match(managerRead().at(-1), /took your message/);
+  conversations.putBackNote(worker.id, first);
+  conversations.pass(manager.id, { key: 'news', line: 'More', note: 'More news.' });
+  assert.match(
+    managerRead().at(-1),
+    /The user put your message to Claude \(cart\) back in its queue as you wrote it: it waits for Claude \(cart\) again\./
+  );
+});
+
+test('the user’s version of a manager’s message goes as theirs, once, and the manager’s is never read', async (t) => {
+  const { conversations, worker, session, first, read } = await waitingMessages(t);
+  const { text } = await conversations.takeNote(worker.id, first);
+  conversations.send(worker.id, { text: `${text.replace('**coupon**', 'coupon')} and the totals` });
+  session.emit({ type: 'state', state: 'idle' });
+  const said = read().join('\n');
+  assert.equal(said.match(/and the totals/g)?.length, 1);
+  assert.doesNotMatch(said, /\*\*coupon\*\*/);
+  assert.doesNotMatch(said, /has a message for you[^]*coupon/, 'not as the manager’s');
+  assert.equal(conversations.putBackNote(worker.id, first), true, 'kept aside until put back or the conversation ends');
+});
+
+test('Edit on a held message works, keeps the others held, and put back it is held again: nothing starts', async (t) => {
+  const app = setup(t);
+  const { conversations, managers, sessions, manager } = inTheApp(app);
+  const worker = app.worker('Claude (cart)');
+  const guest = app.worker('Reviewer', { provider: 'codex' });
+  conversations.invite(worker.id, guest.id);
+  conversations.send(worker.id, { text: 'Work' });
+  const session = sessions.findLast((one) => one.contact.id === worker.id);
+  session.interrupt = async () => {};
+  await conversations.interrupt(worker.id);
+  session.emit({ type: 'result', isError: false, stopped: true, errorText: '', durationMs: 1, costUsd: 0 });
+  session.emit({ type: 'state', state: 'idle' });
+  const sent = sessions.filter((one) => one.contact.id !== manager.id).map((one) => one.sent.length);
+  await managers.say(manager.id, worker.name, 'Add tests for the coupon code');
+  await managers.say(manager.id, worker.name, 'Then update the docs', true);
+  const [first, second] = conversations.snapshot(worker.id).waitingNotes;
+  assert.equal(conversations.snapshot(worker.id).notesHeld, 'stopped');
+  assert.equal((await conversations.takeNote(worker.id, second)).text, 'Then update the docs');
+  assert.deepEqual(conversations.snapshot(worker.id).waitingNotes, [first]);
+  assert.equal(conversations.snapshot(worker.id).notesHeld, 'stopped', 'the other is still held');
+  assert.equal(conversations.putBackNote(worker.id, second), true);
+  assert.equal(conversations.snapshot(worker.id).waitingNotes.length, 2);
+  assert.equal(conversations.snapshot(worker.id).notesHeld, 'stopped', 'held again');
+  assert.deepEqual(
+    sessions.filter((one) => one.contact.id !== manager.id).map((one) => one.sent.length),
+    sent,
+    'neither taking nor putting back starts anyone'
+  );
 });
 
 test('a worker stopped at its plan limit holds its manager’s messages, urgent ones too, and the manager is told why', async (t) => {

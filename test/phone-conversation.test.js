@@ -597,6 +597,50 @@ test('a manager note your Stop holds says so, and offers Send now: nothing is at
   assert.equal(note.querySelector('.ph-queued').hidden, true, 'read: it holds nothing any more');
 });
 
+/** The lines the transcript says that are no message. */
+const notes = (root) => root.querySelectorAll('.ph-note').map((line) => line.textContent.trim());
+
+test('Edit on a manager’s message takes it out unread and puts its words in the box, ahead of yours, to send as yours', async (t) => {
+  const { open, root, box, type, said } = setup(t, { state: 'working', announcer: true });
+  const taken = [];
+  messenger.chat.takeNote = async (contactId, id) => {
+    taken.push([contactId, id]);
+    return { text: 'Add tests for the coupon code', from: 'shop manager' };
+  };
+  const screen = await open('a');
+  screen.heard({ type: 'notice', text: 'shop manager says: Add tests', managerNote: true, entryId: 'n1', words: true });
+  screen.heard({ type: 'notice', text: 'Claude (cart) changed 1 file', managerNote: true, entryId: 'n2' });
+  screen.heard({ type: 'waiting-notes', ids: ['n1', 'n2'] });
+  const buttons = (id) =>
+    root
+      .querySelector(`.ph-manager-note[data-note="${id}"]`)
+      .querySelectorAll('.ph-queued button')
+      .map((one) => one.textContent.trim());
+  assert.deepEqual(buttons('n1'), ['Cancel', 'Edit', 'Interrupt and send']);
+  assert.deepEqual(buttons('n2'), ['Cancel', 'Interrupt and send'], 'a note with no words of its sender’s');
+  type('and the totals');
+  root.querySelector('.ph-manager-note[data-note="n1"] [data-do="edit"]').click();
+  await settle();
+  assert.deepEqual(taken, [['a', 'n1']]);
+  assert.equal(box().value, 'Add tests for the coupon code\nand the totals');
+  assert.equal(root.querySelector('.ph-manager-note[data-note="n1"]'), null, 'it left the conversation');
+  assert.ok(notes(root).includes('shop manager’s message is in the box: send it as yours.'));
+  assert.ok(said().includes('Message taken back to edit.'));
+});
+
+test('a manager’s message read before Edit stays: the box is left alone', async (t) => {
+  const { open, root, box } = setup(t, { state: 'working' });
+  messenger.chat.takeNote = async () => null;
+  const screen = await open('a');
+  screen.heard({ type: 'notice', text: 'shop manager says: Add tests', managerNote: true, entryId: 'n1', words: true });
+  screen.heard({ type: 'waiting-notes', ids: ['n1'] });
+  root.querySelector('[data-do="edit"]').click();
+  await settle();
+  assert.equal(box().value, '');
+  assert.ok(root.querySelector('.ph-manager-note[data-note="n1"]'));
+  assert.ok(notes(root).includes('Too late to edit: it was read already.'));
+});
+
 test('what waits is counted over the message box, a tap away from the oldest, however far it scrolled up', async (t) => {
   const { open, root } = setup(t, { state: 'working' });
   const screen = await open('a');
@@ -1627,6 +1671,10 @@ test('answer only: no box and no Send, Stop for whoever works, cards without Alw
   const mine = root.querySelector('.ph-me[data-id="q1"]');
   assert.equal(mine.querySelector('.ph-queued span').textContent, 'Queued');
   assert.deepEqual(mine.querySelectorAll('.ph-queued button'), []);
+  // Nor a manager's message: Edit takes it from the queue, as Cancel does, which only full access may.
+  screen.heard({ type: 'notice', text: 'shop manager says: Add tests', managerNote: true, entryId: 'n1', words: true });
+  screen.heard({ type: 'waiting-notes', ids: ['n1'] });
+  assert.deepEqual(root.querySelector('.ph-manager-note[data-note="n1"]').querySelectorAll('.ph-queued button'), []);
   // Nothing sends: not the form, not Return. The draft is kept for when it may.
   root.querySelector('#composer').fire('submit');
   await settle();

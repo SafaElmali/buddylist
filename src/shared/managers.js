@@ -1073,6 +1073,34 @@ export const answeredLead = (manager, reply) =>
     reply ? clipped(reply, REPORT_UP_MAX) : 'It read it and said nothing.',
   ].join('\n');
 
+/** How much of a message what its sender hears of the user taking it out of the queue quotes, to say which it was. */
+const TAKEN_QUOTED = 200;
+
+/**
+ * What a manager is told when the user takes a message of its out of a conversation's queue before it was read: to
+ * edit it and send it as their own, or dropped. It hears with its next notes, rather than being started for it.
+ * @param {string} to  whom it was for, by name
+ * @param {string} said  what it wrote
+ * @param {{ edited: boolean }} how
+ */
+export const noteTakenNote = (to, said, { edited }) =>
+  (edited
+    ? `[The user took your message to ${to} out of its queue to edit it, before ${to} read it. ${FROM_BUDDYLIST} ` +
+      `What they send in its place reaches ${to} as their own message, not as yours: don’t take it that ${to} read ` +
+      'what you wrote, and don’t send yours again.'
+    : `[The user cancelled your message to ${to} before ${to} read it: it never got it. ${FROM_BUDDYLIST}`) +
+  ` It was: “${oneLine(said, TAKEN_QUOTED)}”]`;
+
+/**
+ * What a manager is told when a message of its the user took to edit went back in its queue as it was, once it
+ * heard it was taken (see noteTakenNote).
+ * @param {string} to  whom it is for, by name
+ * @param {string} said  what it wrote
+ */
+export const notePutBackNote = (to, said) =>
+  `[The user put your message to ${to} back in its queue as you wrote it: it waits for ${to} again. ` +
+  `${FROM_BUDDYLIST} It is: “${oneLine(said, TAKEN_QUOTED)}”]`;
+
 /**
  * What a project manager is told when one of its managers sends it a report: a job's result that came in later.
  * @param {string} manager  its name

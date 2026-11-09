@@ -149,7 +149,7 @@ test('a waiting manager notice offers Send now and Cancel by id, with escaped te
   const entry = tray.entry(text);
   assert.equal(tray.root.querySelector('img'), null);
   assert.match(entry.textContent, /<img src=x onerror=bad\(\)>/);
-  assert.equal(entry.querySelector('.queue-tray-edit'), null, 'a manager note is not yours to edit');
+  assert.equal(entry.querySelector('.queue-tray-edit'), null, 'a note with no words of its sender’s has no Edit');
   entry.querySelector('.queue-tray-now').click();
   await Promise.resolve();
   await Promise.resolve();
@@ -167,6 +167,33 @@ test('a waiting manager notice offers Send now and Cancel by id, with escaped te
   assert.equal(note.classList.contains('waiting'), false);
   conversation.remove('note');
   assert.equal(root.children.length, 0);
+});
+
+test('a waiting manager message with its sender’s words offers Edit, which hands over the note', async (t) => {
+  page(t);
+  const previousCSS = globalThis.CSS;
+  globalThis.CSS = { escape: (value) => value };
+  t.after(() => {
+    globalThis.CSS = previousCSS;
+  });
+  const tray = trayOf();
+  const calls = [];
+  const conversation = new Conversation(
+    el(html`<div></div>`),
+    { participants: [] },
+    {
+      sendNow: async () => {},
+      cancel: async () => {},
+      edit: async (sent) => calls.push(sent),
+      tray,
+    }
+  );
+  const text = 'shop manager says: Add a test for the empty cart';
+  conversation.addNotice(text, { id: 'note', managerNote: true, words: true });
+  conversation.showWaitingNotes(['note'], 'stopped');
+  tray.entry(text).querySelector('.queue-tray-edit').click();
+  await Promise.resolve();
+  assert.deepEqual(calls, [{ id: 'note', text, managerNote: true, words: true }]);
 });
 
 test('a rejected Send now reports why and leaves the queued button ready for retry', async (t) => {

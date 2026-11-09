@@ -105,6 +105,8 @@ function shop(t, { withLead = true } = {}) {
       managerOf: (contact) => managers.managerOf(contact),
       leadOf: (contact) => managers.leadOf(contact),
       roundCut: (id, round) => managers.roundCut(id, round),
+      noteTaken: (id, note, how) => managers.noteTaken(id, note, how),
+      notePutBack: (id, note) => managers.notePutBack(id, note),
     },
   });
   const managers = new Managers({
@@ -348,6 +350,39 @@ test('a message the user did not approve is the manager’s own idea: what it st
   assert.equal(managers.startsAtOnce(reviewer.id), true, 'once the user wrote to it, what they ask is theirs');
   // Another manager was sent nothing unapproved.
   assert.equal(managers.startsAtOnce(app.coder.id), true);
+});
+
+test('a project manager’s message taken to edit tells it so; put back unapproved, it still holds what the manager starts', async (t) => {
+  const app = shop(t);
+  const { managers, conversations, reviewer, lead } = app;
+  app.worker('Claude (tags)');
+  await app.round(lead.id, 'Ready.');
+  await app.round(reviewer.id, 'Ready.');
+  app.sessionOf(reviewer.id).emit({ type: 'state', state: 'working' });
+  await app.tell('review manager', 'Review the **tags**.', { approved: false });
+  const [id] = conversations.snapshot(reviewer.id).waitingNotes;
+  const leadSent = app.sessionOf(lead.id).sent.length;
+  assert.deepEqual(await conversations.takeNote(reviewer.id, id), { text: 'Review the **tags**.', from: lead.name });
+  assert.equal(app.sessionOf(lead.id).sent.length, leadSent, 'the project manager is not started for it');
+  assert.equal(app.lines(lead.id).at(-1), 'You took its message to review manager to edit before it was read.');
+  assert.equal(conversations.putBackNote(reviewer.id, id), true);
+  assert.equal(managers.startsAtOnce(reviewer.id), false, 'back as it was: still the manager’s own idea');
+  assert.equal(app.lines(lead.id).at(-1), 'You put its message to review manager back in the queue.');
+  await app.round(reviewer.id, 'Reviewing.');
+  assert.equal(app.sentTo(reviewer.id).match(/Review the \*\*tags\*\*\./g)?.length, 1, 'read once');
+  assert.doesNotMatch(app.sentTo(lead.id), /took your message|put your message/, 'it never heard either');
+});
+
+test('a manager’s report waiting for its project manager can be taken to edit, and the manager is told', async (t) => {
+  const app = shop(t);
+  const { conversations, reviewer, lead } = app;
+  await app.round(lead.id, 'Ready.');
+  await app.round(reviewer.id, 'Ready.');
+  app.sessionOf(lead.id).emit({ type: 'state', state: 'working' });
+  app.managers.report(reviewer.id, 'The tags pass review.');
+  const [id] = conversations.snapshot(lead.id).waitingNotes;
+  assert.equal((await conversations.takeNote(lead.id, id)).text, 'The tags pass review.');
+  assert.equal(app.lines(reviewer.id).at(-1), `You took its message to ${lead.name} to edit before it was read.`);
 });
 
 test('a project manager’s message goes only to a manager at work, within the limit, and says how it waits', async (t) => {

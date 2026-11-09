@@ -518,7 +518,13 @@ export class ConversationScreen {
         return this.#markQueued();
       case 'notice':
         return this.transcript.append(
-          ...this.#entry({ kind: 'notice', text: event.text, managerNote: event.managerNote, id: event.entryId })
+          ...this.#entry({
+            kind: 'notice',
+            text: event.text,
+            managerNote: event.managerNote,
+            id: event.entryId,
+            words: event.words,
+          })
         );
       case 'error':
         return this.transcript.append(...this.#entry({ kind: 'error', text: event.message, speaker: event.speaker }));
@@ -623,10 +629,19 @@ export class ConversationScreen {
         return [line, planLimitCard({ contactId: this.contactId, speaker, said })];
       }
       case 'notice':
-        // A manager's note waits to be read as your messages do, and says so under it.
+        // A manager's note waits to be read as your messages do, and says so under it. One with words its sender
+        // wrote can be taken to edit meanwhile.
         return [
           entry.managerNote && entry.id
-            ? el(html`<div class="ph-note ph-manager-note" data-note="${entry.id}"><p>${entry.text}</p></div>`)
+            ? el(
+                html`<div
+                  class="ph-note ph-manager-note"
+                  data-note="${entry.id}"
+                  data-words="${String(Boolean(entry.words))}"
+                >
+                  <p>${entry.text}</p>
+                </div>`
+              )
             : this.#line('ph-note', entry.text),
         ];
       case 'error':
@@ -873,7 +888,8 @@ export class ConversationScreen {
 
   /**
    * Which of your messages, and of a manager's notes, wait to be read: each says so, with Cancel and Interrupt and send
-   * (Send now in the conversation window: it stops the turn going on to be read at once) where this phone may send.
+   * (Send now in the conversation window: it stops the turn going on to be read at once) where this phone may send. A
+   * manager's message has Edit too, which takes its words into the box to send as yours.
    */
   #markQueued() {
     const mine = /** @type {HTMLElement[]} */ ([...this.transcript.querySelectorAll('.ph-me')]);
@@ -925,6 +941,9 @@ export class ConversationScreen {
               ...(cancellable
                 ? [el(html`<button class="ph-button" type="button" data-do="cancel">Cancel</button>`)]
                 : []),
+              ...(node.dataset.words === 'true'
+                ? [el(html`<button class="ph-button" type="button" data-do="edit">Edit</button>`)]
+                : []),
               el(
                 html`<button class="ph-button" type="button" data-do="send-now">
                   ${held ? 'Send now' : 'Interrupt and send'}
@@ -960,6 +979,7 @@ export class ConversationScreen {
       }
       return;
     }
+    if (button.dataset.do === 'edit') return this.#editNote(node, id, button);
     let taken;
     try {
       taken = await api.chat.cancel(this.contactId, id);
@@ -981,6 +1001,37 @@ export class ConversationScreen {
     this.#markQueued();
     this.input.focus({ preventScroll: true });
     announce('Message cancelled.');
+  }
+
+  /**
+   * Edit on a manager's message that waits: it leaves the queue unread, as Cancel drops it, and its words go in the box
+   * ahead of yours, to change and send as yours. Its manager is told.
+   */
+  async #editNote(node, id, button) {
+    let taken;
+    try {
+      taken = await api.chat.takeNote(this.contactId, id);
+    } catch (error) {
+      // The Mac wasn't reached, or didn't say: it is still queued as far as this page knows.
+      if (error?.code !== UNCONFIRMED) button.disabled = false;
+      return this.#keepAtEnd(() => this.transcript.append(this.#line('ph-error', errorText(error))));
+    }
+    if (!taken) {
+      button.disabled = false;
+      return this.#keepAtEnd(() =>
+        this.transcript.append(this.#line('ph-note', 'Too late to edit: it was read already.'))
+      );
+    }
+    this.#write([taken.text, this.input.value].filter(Boolean).join('\n'));
+    node.remove();
+    this.#markQueued();
+    this.#keepAtEnd(() =>
+      this.transcript.append(
+        this.#line('ph-note', `${taken.from || 'The manager'}’s message is in the box: send it as yours.`)
+      )
+    );
+    this.input.focus({ preventScroll: true });
+    announce('Message taken back to edit.');
   }
 
   /** One of yours that Stop dropped before it was read: it wasn't sent, and stays to be seen so. */

@@ -167,6 +167,7 @@ test('the channels a page may ask on are exactly these: nothing that runs an age
       REQUESTS.chatRespond,
       REQUESTS.chatInterrupt,
       REQUESTS.chatCancel,
+      REQUESTS.chatTakeNote,
       REQUESTS.chatUseCredits,
       REQUESTS.chatSwitchAccount,
       REQUESTS.contactSetUnread,
@@ -180,6 +181,8 @@ test('the channels a page may ask on are exactly these: nothing that runs an age
     ].sort()
   );
   assert.equal(FORWARDED.has(REQUESTS.agentStatus), false);
+  // A manager's message goes back in its queue from the window that took it to edit: a phone takes it for good.
+  assert.equal(FORWARDED.has(REQUESTS.chatPutBackNote), false);
 });
 
 test('a page asks for a provider’s models without a folder: one with a folder is turned down', async () => {
@@ -274,7 +277,7 @@ test('a page asks for the entries before one it has, as the app answers them', a
 /** Whether each channel a page may ask on reaches the app, for a device at each level. */
 const MAY = {
   full: [...FORWARDED],
-  // Answering what an agent asks, and Stop: no message, nothing that waits sent at once or taken back, and no turn
+  // Answering what an agent asks, and Stop: no message, nothing that waits sent at once, taken back or taken to edit, and no turn
   // stopped at its plan's limit let go on, in usage credits or another account.
   answer: [...FORWARDED].filter(
     (channel) =>
@@ -282,6 +285,7 @@ const MAY = {
         REQUESTS.chatSend,
         REQUESTS.chatSendNow,
         REQUESTS.chatCancel,
+        REQUESTS.chatTakeNote,
         REQUESTS.chatUseCredits,
         REQUESTS.chatSwitchAccount,
       ].includes(channel)
@@ -293,6 +297,7 @@ const MAY = {
         REQUESTS.chatSend,
         REQUESTS.chatSendNow,
         REQUESTS.chatCancel,
+        REQUESTS.chatTakeNote,
         REQUESTS.chatUseCredits,
         REQUESTS.chatSwitchAccount,
         REQUESTS.chatRespond,
