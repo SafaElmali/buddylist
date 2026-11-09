@@ -1907,6 +1907,8 @@ test('a drafted conversation says who drafted it, with its prompt in the box, an
   assert.ok(button('Start', draftBar(root)));
   assert.ok(button('Delete…', draftBar(root)));
   assert.equal(root.querySelector('.ph-chat-state').textContent, 'Waiting to start');
+  // Its dot is Home's: the colour of what waits for you.
+  assert.match(root.querySelector('.ph-chat-bar .ph-avatar').className, /\bph-draft\b/);
 });
 
 test('Start sends what is in the box, the draft or what was made of it, once', async (t) => {

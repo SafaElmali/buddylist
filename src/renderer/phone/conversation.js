@@ -1243,7 +1243,8 @@ export class ConversationScreen {
     badge.hidden = !role;
     badge.textContent = role;
     const avatar = /** @type {HTMLElement} */ (this.root.querySelector('.ph-chat-bar .ph-avatar'));
-    avatar.className = `ph-avatar ph-${(this.#reachable && view?.status) || 'offline'}`;
+    // Drafted for you, it wears Home's dot for it: the colour of what waits for you.
+    avatar.className = `ph-avatar ph-${(this.#reachable && (this.#drafted() ? 'draft' : view?.status)) || 'offline'}`;
     if (view && avatar.dataset.avatar !== view.avatar) {
       avatar.dataset.avatar = view.avatar || '';
       avatar.innerHTML = pictureArt(view.avatar || 'default');
