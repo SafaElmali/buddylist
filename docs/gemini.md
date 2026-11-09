@@ -41,4 +41,5 @@ Good to know:
 - **Always allow** lasts until you quit the app or start a new chat.
 - A message sent while Gemini is busy waits for its turn.
 - Gemini leaves Plan mode with an ordinary invitation, not plan-approval buttons.
+- A mode Gemini says it switched to by itself counts only where it is stricter, or follows your **Accept** on its invitation: an approved plan, or **Always allow** for a file change.
 - Its thinking isn't shown, and it doesn't report what a reply cost.

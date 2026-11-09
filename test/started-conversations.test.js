@@ -36,9 +36,10 @@ const opts = { skip: !registerIpc };
 
 /**
  * A conversation whose agent starts others, through the app's own tool and contact creation. With `workers`, it is a
- * project's manager whose New workers use says that; without, a contact like any.
+ * project's manager whose New workers use says that; without, a contact like any. `managing`: whether its
+ * conversation counts as a manager's at work for the app's tools.
  */
-function fixture(t, hostProvider = 'claude', { workers, hostMode, sendResult } = {}) {
+function fixture(t, hostProvider = 'claude', { workers, hostMode, sendResult, managing = true } = {}) {
   const getSystemVersion = process.getSystemVersion;
   process.getSystemVersion = () => 'test';
   t.after(() => {
@@ -52,7 +53,7 @@ function fixture(t, hostProvider = 'claude', { workers, hostMode, sendResult } =
   store.updateSettings({ renameBranches: false });
   const providers = createProviders({
     app: { isPackaged: false },
-    tools: (conversation, speaker) => toolsFor(conversation, speaker),
+    tools: (conversation, speaker, seat) => toolsFor(conversation, speaker, seat),
   });
   const host = store.addContact({
     name: 'Manager',
@@ -94,7 +95,7 @@ function fixture(t, hostProvider = 'claude', { workers, hostMode, sendResult } =
   };
   const managers = {
     managerFor: ({ startedBy }) => startedBy,
-    oversees: () => true,
+    oversees: () => managing,
     newWorkers: (contact) => (contact?.manages ? cleanWorkers(workers) : null),
   };
   const { startConversation } = registerIpc({
@@ -429,19 +430,27 @@ for (const demo of [false, true]) {
     const providers = createProviders({
       app: { isPackaged: false },
       demo,
-      tools: (conversation, speaker) => {
-        asked.push({ conversation, speaker });
+      tools: (conversation, speaker, seat) => {
+        asked.push({ conversation, speaker, seat });
         return [];
       },
     });
     for (const provider of providers.list()) {
-      providers.createSession({ id: provider.id, provider: provider.id, cwd: '/tmp', model: '' }, () => {}, {
-        conversation: 'host',
-      });
+      for (const readOnly of [false, true]) {
+        providers.createSession(
+          { id: provider.id, provider: provider.id, cwd: '/tmp', model: '', ...(readOnly && { readOnly }) },
+          () => {},
+          { conversation: 'host' }
+        );
+      }
     }
+    // And as its session has it: kept from changing files or not.
     assert.deepEqual(
       asked,
-      providers.list().map(({ id }) => ({ conversation: 'host', speaker: id }))
+      providers.list().flatMap(({ id }) => [
+        { conversation: 'host', speaker: id, seat: { readOnly: false } },
+        { conversation: 'host', speaker: id, seat: { readOnly: true } },
+      ])
     );
   });
 }
@@ -477,3 +486,45 @@ test('a worker a guest drafts in a manager’s conversation says who drafted it,
     ['Codex drafted this conversation from Manager.']
   );
 });
+
+test('a read-only reviewer’s conversation waits for the user, even one it says the user asked for', opts, async (t) => {
+  const app = fixture(t, 'claude', { managing: false });
+  const reviewer = app.store.addContact({
+    name: 'Reviewer',
+    provider: 'claude',
+    cwd: app.host.cwd,
+    model: '',
+    permissionMode: 'bypassPermissions',
+    guestOf: app.host.id,
+  });
+  app.store.addGuest(app.host.id, { id: reviewer.id, permissionMode: 'bypassPermissions' });
+  // Its session in the host's conversation, as Conversations makes one for a role that is read only.
+  const tool = app.starter({ ...reviewer, readOnly: true });
+  const answer = await tool.run({ prompt: 'Round the cart total', asked_by_user: true });
+  const [drafted] = app.children();
+  assert.equal(drafted.draft, 'Round the cart total');
+  assert.deepEqual(app.sent, [], 'nothing runs until the user starts it');
+  assert.match(answer, /Nothing runs until the user sends it\./);
+  assert.deepEqual(
+    app.notices.filter(({ id }) => id === drafted.id).map(({ text }) => text),
+    ['Reviewer drafted this conversation from Manager.']
+  );
+});
+
+test(
+  'a read-only manager still starts the worker the user asked for at once, and drafts its own ideas',
+  opts,
+  async (t) => {
+    const app = fixture(t, 'claude', { workers: { use: 'manager' } });
+    // Its session, as Conversations makes a manager's: kept from changing files.
+    const tool = app.starter({ ...app.host, readOnly: true });
+    await tool.run({ prompt: 'Fix the coupon code', asked_by_user: true });
+    await tool.run({ prompt: 'Round the cart total' });
+    const [started, drafted] = app.children();
+    assert.deepEqual(
+      app.sent.map(({ id }) => id),
+      [started.id]
+    );
+    assert.equal(drafted.draft, 'Round the cart total');
+  }
+);

@@ -176,8 +176,9 @@ function startApp(errorReports, electronUpdater) {
     demo: DEMO,
     // The demo's made-up projects, with the conversations its Claude Code had in them, are kept with its data.
     demoFolder: DEMO ? path.join(app.getPath('userData'), 'demo-projects') : '',
-    // Asked for when a session starts, which is after everything below is there.
-    tools: (conversation, speaker) => toolsFor(conversation, speaker),
+    // Asked for when a session starts, which is after everything below is there: by whoever speaks, as its session has
+    // it, read-only or not.
+    tools: (conversation, speaker, seat) => toolsFor(conversation, speaker, seat),
     // A program of the user's own, named in Settings, is run in place of the one the app finds.
     cliPath: (id) => store.settings.agents?.[id]?.path || '',
     // The login a session starts in: the user's own, or one they added in Settings.

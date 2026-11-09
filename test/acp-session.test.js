@@ -7,7 +7,16 @@ import { opencodeAgent } from '../src/providers/opencode/index.js';
 import { allInstructions } from '../src/shared/project-settings.js';
 import { JsonRpcPeer } from '../src/providers/json-rpc.js';
 import { AcpSession } from '../src/providers/acp/session.js';
-import { fakeAgent, GEMINI_SESSION, OPTIONS, rpcError, start, started, tick } from './fixtures/fake-acp.js';
+import {
+  fakeAgent,
+  GEMINI_SESSION,
+  OPTIONS,
+  opencodeOptions,
+  rpcError,
+  start,
+  started,
+  tick,
+} from './fixtures/fake-acp.js';
 
 // What every ACP agent has in common, played here with Gemini CLI's ways of
 // answering. What only Gemini or only opencode does is in their own tests.
@@ -910,6 +919,104 @@ test('a mode the agent won’t take is given back, with its reason', async () =>
   assert.deepEqual(of('mode'), [{ type: 'mode', mode: 'default' }]);
   assert.equal(contact.permissionMode, 'default');
   assert.equal(agent.params('session/set_mode').length, 1, 'not asked for a mode it doesn’t have');
+});
+
+// ---- one kept from changing files that can't be put in the mode for that ----------------------------
+
+const OPENCODE = opencodeAgent();
+
+for (const [why, replies, said] of [
+  [
+    'its agent refuses Plan',
+    {
+      'session/new': () => ({ sessionId: 's-1', configOptions: opencodeOptions({ mode: 'build' }) }),
+      'session/set_config_option': () => {
+        throw rpcError('agent "plan" not found', -32603);
+      },
+    },
+    'OpenCode can’t work read-only here: it couldn’t be put in Plan (agent "plan" not found), the only mode of it that changes no files.',
+  ],
+  [
+    'its agent has no Plan',
+    {
+      'session/new': () => ({
+        sessionId: 's-1',
+        configOptions: opencodeOptions({ mode: 'build' }).map((option) =>
+          option.id === 'mode' ? { ...option, options: [{ value: 'build', name: 'build' }] } : option
+        ),
+      }),
+    },
+    'OpenCode can’t work read-only here: it couldn’t be put in Plan (it has no "plan" mode here), the only mode of it that changes no files.',
+  ],
+  [
+    'its agent has no modes to choose',
+    { 'session/new': () => ({ sessionId: 's-1' }) },
+    'OpenCode can’t work read-only here: it couldn’t be put in Plan (it doesn’t let its mode be chosen from here), the only mode of it that changes no files.',
+  ],
+]) {
+  test(`a read-only seat doesn’t go on in its agent’s own mode where ${why}`, async () => {
+    const { agent, of, session } = start(OPENCODE, { contact: { permissionMode: 'plan', readOnly: true }, replies });
+    session.send({ text: 'review' });
+    await tick();
+    await tick();
+    await tick();
+    assert.deepEqual(
+      of('error').map((e) => e.message),
+      [said]
+    );
+    assert.equal(agent.params('session/prompt').length, 0, 'nothing was sent');
+    assert.equal(agent.closed, 1, 'its agent is closed');
+    assert.equal(of('notice').length, 0);
+  });
+}
+
+test('an agent that may change files and refuses a mode still goes on in its own, as before', async () => {
+  const { agent, of, session } = start(OPENCODE, {
+    contact: { permissionMode: 'plan' },
+    replies: {
+      'session/new': () => ({ sessionId: 's-1', configOptions: opencodeOptions({ mode: 'build' }) }),
+      'session/set_config_option': () => {
+        throw rpcError('agent "plan" not found', -32603);
+      },
+    },
+  });
+  session.send({ text: 'look' });
+  await tick();
+  await tick();
+  await tick();
+  assert.deepEqual(of('error'), []);
+  assert.equal(agent.params('session/prompt').length, 1);
+});
+
+test('a read-only seat its agent moves out of Plan mode is put back in it, or ends', async () => {
+  let refuse = false;
+  const { agent, of, session } = start(OPENCODE, {
+    contact: { permissionMode: 'plan', readOnly: true },
+    replies: {
+      'session/new': () => ({ sessionId: 's-1', configOptions: opencodeOptions({ mode: 'build' }) }),
+      'session/set_config_option': ({ value }) => {
+        if (refuse) throw rpcError('agent "plan" not found', -32603);
+        return { configOptions: opencodeOptions({ mode: value }) };
+      },
+    },
+  });
+  session.send({ text: 'review' });
+  await tick();
+  await tick();
+  const sets = () => agent.params('session/set_config_option').map((p) => p.value);
+  assert.deepEqual(sets(), ['plan']);
+  // Its agent says, as the protocol has it, that it is in its own mode now.
+  agent.update({ sessionUpdate: 'current_mode_update', currentModeId: 'build' });
+  await tick();
+  assert.deepEqual(sets(), ['plan', 'plan'], 'put back in Plan mode');
+  assert.deepEqual(of('mode'), []);
+  refuse = true;
+  agent.update({ sessionUpdate: 'current_mode_update', currentModeId: 'build' });
+  await tick();
+  await tick();
+  assert.match(of('error').at(-1).message, /can’t work read-only here: it couldn’t be put in Plan/);
+  assert.equal(session.state, 'offline');
+  assert.equal(agent.closed, 1);
 });
 
 test('a mode chosen while offline or signing in applies once the session is there', async () => {

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import { fallbackPermissionModes } from '../src/shared/limit-fallbacks.js';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { appTools } from '../src/main/app-tools.js';
+import { OUTSIDE_SANDBOX, appTools } from '../src/main/app-tools.js';
 import {
   APP_TOOLS,
   COMMAND_MAX,
@@ -187,7 +187,7 @@ test('a name is kept as a name the user typed is: on one line, and not endlessly
 
 test('with the conversation’s window closed no terminal is opened, and the agent is told why', async () => {
   const { open, asked } = setup({ watching: false });
-  assert.throws(() => open.run({ count: 2 }), /window is closed, so no terminal was opened/);
+  await assert.rejects(open.run({ count: 2 }), /window is closed, so no terminal was opened/);
   assert.deepEqual(asked, []);
 });
 
@@ -225,9 +225,9 @@ test('one terminal has it typed into it', async () => {
   );
 });
 
-test('a command of several lines is refused: what follows the first would be typed into what it started', () => {
+test('a command of several lines is refused: what follows the first would be typed into what it started', async () => {
   const { open, asked } = setup();
-  assert.throws(() => open.run({ command: 'claude\nyes' }), /A command for a terminal is one line\./);
+  await assert.rejects(open.run({ command: 'claude\nyes' }), /A command for a terminal is one line\./);
   assert.deepEqual(asked, []);
 });
 
@@ -572,6 +572,164 @@ test('the tool itself is never asked about: saving asks on a card of its own, wh
   const { told } = setup();
   assert.equal(told.ask({}), false);
   assert.equal(told.ask({ text: SCOPE }), false);
+});
+
+// ---- an agent that changes no files ------------------------------------------------------------------
+
+/** The tools of an agent whose session keeps it from changing files, as its session runs them. */
+const readOnlyTools = (tools, hostId = 'c1', speakerId = hostId) => {
+  const all = tools.toolsFor(hostId, speakerId, { readOnly: true });
+  const named = (name) =>
+    withContext(
+      all.find((one) => one.name === name),
+      tools.context
+    );
+  return { all, open: named(APP_TOOLS.terminals), start: named(APP_TOOLS.conversation) };
+};
+
+const terminalCard = (input) => ({
+  kind: 'tool',
+  canAlways: false,
+  activity: appActivity(APP_TOOLS.terminals, input),
+  reason: OUTSIDE_SANDBOX,
+});
+
+test('a read-only agent’s command for a terminal asks on a card of its own, saying it runs outside the sandbox', async () => {
+  const tools = setup();
+  const { open } = readOnlyTools(tools);
+  // Its provider shows no card of its own for it: the tool asks as it runs, the same in every mode.
+  assert.equal(open.ask({ command: 'echo hi' }), false);
+  const answer = await open.run({ count: 2, command: ' echo hi ' });
+  assert.deepEqual(tools.questions, [terminalCard({ count: 2, command: 'echo hi' })]);
+  assert.match(OUTSIDE_SANDBOX, /your own shell, outside the read-only sandbox/);
+  assert.deepEqual(tools.asked, [{ contactId: 'c1', names: [null, null], command: 'echo hi' }]);
+  assert.equal(answer, '2 terminals are opening beside the conversation, with echo hi typed into each.');
+});
+
+test('in a mode that never asks, a read-only agent’s command for a terminal still waits for the user', async () => {
+  const tools = setup({ saying: { decision: 'deny' } });
+  const open = tools.toolsFor('c1', 'c1', { readOnly: true }).find((one) => one.name === APP_TOOLS.terminals);
+  // As its session runs it in Never ask: the mode lets its agent act unasked.
+  await assert.rejects(open.run({ command: 'echo hi' }, { ...tools.context, unasked: true }), /chose not to run it/);
+  assert.deepEqual(tools.questions, [terminalCard({ command: 'echo hi' })]);
+  assert.deepEqual(tools.asked, []);
+});
+
+test('a read-only agent’s command the user said no to opens no terminal, and the agent is told why', async () => {
+  for (const [saying, why] of [
+    [{ decision: 'deny' }, /The user chose not to run it\. No terminal was opened\./],
+    [{ decision: 'feedback', message: 'Not now.' }, /Not now\./],
+    [{ decision: 'cancelled' }, /The turn ended before the user answered\. No terminal was opened\./],
+  ]) {
+    const tools = setup({ saying });
+    await assert.rejects(readOnlyTools(tools).open.run({ command: 'echo hi' }), why);
+    assert.deepEqual(tools.asked, []);
+  }
+});
+
+test('a read-only agent opens terminals without a command unasked, as any agent does', async () => {
+  const tools = setup();
+  const { open } = readOnlyTools(tools);
+  assert.equal(open.ask({ count: 2 }), false);
+  await open.run({ count: 2, names: ['logs'] });
+  assert.deepEqual(tools.questions, []);
+  assert.deepEqual(tools.asked, [{ contactId: 'c1', names: ['logs', null], command: null }]);
+});
+
+test('an agent that may change files has its command asked about by its provider, as before', async () => {
+  const tools = setup();
+  assert.equal(tools.open.ask({ command: 'echo hi' }), true);
+  await tools.open.run({ command: 'echo hi' }, tools.context);
+  assert.deepEqual(tools.questions, [], 'no second card from the tool itself');
+});
+
+test('a manager’s command for a terminal asks too: its conversation is read-only', async () => {
+  const tools = setup({ contacts: [{ id: 'm1', manages: 'git:/code/shop/.git' }], managers: managersFor() });
+  await readOnlyTools(tools, 'm1').open.run({ command: 'echo hi' });
+  assert.deepEqual(tools.questions, [terminalCard({ command: 'echo hi' })]);
+  const lead = setup({ contacts: [{ id: 'p1', manages: 'git:/code/shop/.git' }], managers: leadsFor() });
+  await readOnlyTools(lead, 'p1').open.run({ command: 'echo hi' });
+  assert.deepEqual(lead.questions, [terminalCard({ command: 'echo hi' })], 'and so does a project manager’s');
+});
+
+test('a conversation a read-only agent starts waits for the user, even one it says the user asked for', async () => {
+  const tools = setup({ contacts: [{ id: 'c1' }, { id: 'r1' }] });
+  const { start } = readOnlyTools(tools, 'c1', 'r1');
+  const input = { prompt: 'Fix the cart total.', asked_by_user: true };
+  assert.equal(start.ask(input), false);
+  assert.equal(start.activity(input).started, false, 'its line says it waits for the user to start it');
+  const answer = await start.run(input);
+  assert.deepEqual(tools.begun, [
+    { hostId: 'c1', prompt: 'Fix the cart total.', now: false, fromHere: false, invite: [], speakerId: 'r1' },
+  ]);
+  assert.match(answer, /with the prompt waiting in its message box\..*Nothing runs until the user sends it\./s);
+  assert.deepEqual(tools.questions, [], 'no card: the draft is the user’s to start');
+});
+
+test('a read-only agent is told what it starts waits for the user, and has no word for the user asking', () => {
+  const tools = setup();
+  const { start } = readOnlyTools(tools);
+  assert.match(start.description, /It waits with the prompt in its message box until the user starts it/);
+  assert.doesNotMatch(start.description, /asked_by_user/);
+  assert.ok(!('asked_by_user' in start.input));
+  // What it says of the user anyway changes nothing.
+  assert.equal(z.object(start.input).parse({ prompt: 'x', asked_by_user: true }).asked_by_user, undefined);
+});
+
+test('Settings’ start at once doesn’t start what a read-only agent adds', async () => {
+  const tools = setup({ settings: { startConversations: true } });
+  const { start } = readOnlyTools(tools);
+  assert.doesNotMatch(start.description, /It starts at once/);
+  assert.equal(start.activity({ prompt: 'x' }).started, false);
+  await start.run({ prompt: 'x' });
+  assert.equal(tools.begun.at(-1).now, false);
+});
+
+test('a read-only agent outside a manager’s conversation can’t invite agents anywhere', () => {
+  const tools = setup({ contacts: [{ id: 'c1' }, { id: 'm1' }], managers: invitingFor(), agents: AGENTS });
+  assert.ok(!readOnlyTools(tools).all.some((tool) => tool.name === APP_TOOLS.invite));
+});
+
+test('a manager still starts at once what the user asked for, as far as it may', async () => {
+  const held = new Set();
+  const tools = setup({
+    contacts: [{ id: 'm1', manages: 'git:/code/shop/.git' }],
+    managers: leadsFor({ startsAtOnce: (id) => !held.has(id) }),
+  });
+  const { start } = readOnlyTools(tools, 'm1');
+  assert.ok('asked_by_user' in start.input);
+  const input = { prompt: 'Fix COM-630.', asked_by_user: true };
+  assert.equal(start.activity(input).started, true);
+  await start.run(input);
+  assert.equal(tools.begun.at(-1).now, true);
+  await start.run({ prompt: 'Tidy the CSS.' });
+  assert.equal(tools.begun.at(-1).now, false, 'one it thought of waits, as ever');
+  // Acting on a project manager's message the user did not approve, what it says the user asked is not so.
+  held.add('m1');
+  await start.run({ ...input, request_id: 'held' });
+  assert.equal(tools.begun.at(-1).now, false);
+});
+
+test('an agent answering as part of a manager starts what the user asked for at once, as the manager does', async () => {
+  const tools = setup({
+    contacts: [{ id: 'm1', manages: 'git:/code/shop/.git' }, { id: 'g1' }],
+    managers: invitingFor(),
+    agents: AGENTS,
+  });
+  const { all, start } = readOnlyTools(tools, 'm1', 'g1');
+  await start.run({ prompt: 'Fix COM-630.', asked_by_user: true });
+  assert.deepEqual(tools.begun.at(-1), {
+    hostId: 'm1',
+    prompt: 'Fix COM-630.',
+    now: true,
+    fromHere: false,
+    invite: [],
+    speakerId: 'g1',
+  });
+  // And invites one the user asked for unasked, as the manager does.
+  const invite = all.find((tool) => tool.name === APP_TOOLS.invite);
+  assert.equal(invite.ask({ to: 'Claude (tags)', service: 'claude', asked_by_user: true }), false);
+  assert.equal(invite.ask({ to: 'Claude (tags)', service: 'claude' }), true);
 });
 
 test('the note from a conversation it started says who it is from, and that the user did not write it', () => {

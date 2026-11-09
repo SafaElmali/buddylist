@@ -30,7 +30,7 @@ export const opencodeAgent = (command = 'opencode') => ({
 
 /**
  * @param {object} [opts]
- * @param {(conversation: string, speakerId: string) => import('../../main/app-tools.js').AppTool[]} [opts.tools]
+ * @param {(conversation: string, speakerId: string, seat?: import('../../main/app-tools.js').Seat) => import('../../main/app-tools.js').AppTool[]} [opts.tools]
  * @param {() => string} [opts.cliPath]  the opencode the user pointed the app at, if any: asked each time
  * @returns {import('../contract.js').Provider}
  */
@@ -47,7 +47,7 @@ export function createOpencodeProvider({ cliPath = () => '', tools = () => [] } 
         agent: opencodeAgent(cli()),
         env: mainFolder ? { ...env, ...worktreeEnv(contact.cwd, mainFolder, { ...process.env, ...env }) } : env,
         instructions,
-        appTools: conversation ? tools(conversation, contact.id) : [],
+        appTools: conversation ? tools(conversation, contact.id, { readOnly: Boolean(contact.readOnly) }) : [],
       }),
     listModels: () => listOpencodeModels({ command: cli() }),
     // opencode can't be asked whether it is signed in to a provider, only whether it is there.

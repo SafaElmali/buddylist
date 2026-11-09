@@ -22,7 +22,7 @@ export const loginArgs = (way) => ['auth', 'login', `--${way}`];
 /**
  * @param {{ isPackaged: boolean, resourcesPath?: string }} app
  * @param {object} [opts]
- * @param {(conversation: string, speakerId: string) => import('../../main/app-tools.js').AppTool[]} [opts.tools]  the app's own
+ * @param {(conversation: string, speakerId: string, seat?: import('../../main/app-tools.js').Seat) => import('../../main/app-tools.js').AppTool[]} [opts.tools]  the app's own
  *   tools for the agents of a conversation
  * @param {() => string} [opts.cliPath]  the Claude Code the user pointed the app at, if any: asked each time
  * @param {(accountId?: string) => import('../contract.js').AccountSwitch | null} [opts.accounts]  the logins the app keeps, with
@@ -44,7 +44,7 @@ export function createClaudeProvider(app, { tools = () => [], cliPath = () => ''
         contact,
         emit,
         cliPath: cli(),
-        tools: conversation ? tools(conversation, contact.id) : [],
+        tools: conversation ? tools(conversation, contact.id, { readOnly: Boolean(contact.readOnly) }) : [],
         env: projectEnv,
         instructions,
         mainFolder,

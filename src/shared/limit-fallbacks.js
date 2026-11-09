@@ -17,6 +17,19 @@ const MODE_ACCESS = {
 };
 
 /**
+ * Whether one of a service's modes lets its agent do no more without asking than another of its modes. Unknown
+ * services and modes are looser than anything.
+ * @param {string} provider  the service's id
+ * @param {string} mode
+ * @param {string} than
+ */
+export function noLooser(provider, mode, than) {
+  const access = MODE_ACCESS[provider]?.[mode];
+  const ceiling = MODE_ACCESS[provider]?.[than];
+  return typeof access === 'number' && typeof ceiling === 'number' && access <= ceiling;
+}
+
+/**
  * Known target modes that are no looser than the limited agent's mode, preferred first.
  * Unknown providers and modes fail closed. Codex's workspace grant becomes ask-first across services: file-edit modes
  * elsewhere do not preserve its sandbox boundary.

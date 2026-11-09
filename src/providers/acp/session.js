@@ -7,6 +7,7 @@ import { selectQueued } from '../queued-message.js';
 import { appToolBridge, APP_TOOL_INSTRUCTIONS } from '../app-tool-bridge.js';
 import { BaseSession, truncateOutput } from '../base-session.js';
 import { connectProcess } from '../json-rpc.js';
+import { noLooser } from '../../shared/limit-fallbacks.js';
 import { chooseOption, isShowable, mergeToolCall, toRequest, toResult, toTools } from './activity.js';
 
 const PROTOCOL_VERSION = 1;
@@ -36,7 +37,12 @@ const CUT_SHORT = {
  * @property {string[]} args          what makes it speak ACP, e.g. ["acp"]
  * @property {string} notInstalled    what to say when the program isn't there
  * @property {string[]} [alwaysOptions]  the permission options to pick for "Always allow", when it offers several
- * @property {(text: string) => string | null} [modeFromText]  spots a mode change the agent announces as reply text
+ * @property {(text: string) => string | null} [modeFromText]  spots a mode change the agent announces as reply text.
+ *   Its model writes that text too, so what it says is taken only where it can't loosen what the user picked: the
+ *   mode the app has it in, a stricter one, or the one `modeAfter` says the user's answer leads to
+ * @property {(asked: { mode: string, kind: string, always: boolean }) => string | null} [modeAfter]  the mode the agent
+ *   goes to by itself once the user lets it do what it asked, in `mode`, on a card for a call of `kind`, with
+ *   "Always allow" or not. Null where it stays in its own
  * @property {Record<string, (params: any) => any>} [requests]  answers to other things the agent asks the app
  * @property {(answer: any) => boolean} [loaded]  for an agent that answers for a saved session it hasn't got as if
  *   it had it: whether its answer to `session/load` is for the one asked for. Its sessions are loaded, not
@@ -106,7 +112,10 @@ export class AcpSession extends BaseSession {
      */
     this.queue = [];
     this.pumping = false;
-    /** @type {{ started: number, stopped: boolean } | null} the turn that is running */
+    /**
+     * The turn that is running, and the modes the user's answers in it lead the agent to (see #answered).
+     * @type {{ started: number, stopped: boolean, answered?: Set<string> } | null}
+     */
     this.turn = null;
     /**
      * `declined`: not allowed, as you said no or nobody answered; `withdrawn`: its question was withdrawn unanswered.
@@ -306,20 +315,56 @@ export class AcpSession extends BaseSession {
     this.models = setting('model') || this.models;
   }
 
-  /** Put the agent in the contact's mode, or say why it is staying in its own. */
+  /** The mode a contact kept from changing files works in, where its agent has one for that: null for any other. */
+  #readOnlyMode() {
+    return (this.contact.readOnly && this.agent.descriptor.readOnlyMode) || null;
+  }
+
+  /**
+   * Put the agent in the contact's mode, or say why it is staying in its own. One kept from changing files doesn't go
+   * on in its own: nothing else keeps its edits and commands from running unasked there, so this throws why.
+   */
   async #applyMode(rpc) {
     const { modes } = this;
-    const wanted = (this.contact.readOnly && this.agent.descriptor.readOnlyMode) || this.contact.permissionMode;
-    if (!modes || modes.current === wanted) return;
+    const readOnlyMode = this.#readOnlyMode();
+    const wanted = readOnlyMode || this.contact.permissionMode;
+    if (modes?.current === wanted) return;
     try {
+      if (!modes) {
+        if (readOnlyMode) throw new Error('it doesn’t let its mode be chosen from here.');
+        return;
+      }
       if (!modes.choices.some((mode) => mode.id === wanted)) throw new Error(`it has no "${wanted}" mode here.`);
       await modes.set(wanted);
       modes.current = wanted;
     } catch (err) {
       // If the process went away meanwhile, that has already been reported.
       if (this.rpc !== rpc) return;
+      if (readOnlyMode) {
+        const label = this.agent.descriptor.permissionModes.find((mode) => mode.id === readOnlyMode)?.short;
+        throw new Error(
+          `${this.name} can’t work read-only here: it couldn’t be put in ${label || readOnlyMode} ` +
+            `(${explain(err).replace(/\.$/, '')}), the only mode of it that changes no files.`,
+          { cause: err }
+        );
+      }
       this.emit({ type: 'notice', text: `${this.name} couldn’t change mode: ${explain(err)}` });
       this.#modeChanged(modes.current);
+    }
+  }
+
+  /**
+   * Put the agent in the contact's mode while its session goes on. One kept from changing files that can't be put back
+   * in its mode for that ends there, and says why (see #applyMode).
+   */
+  async #applyModeOrEnd(rpc) {
+    try {
+      await this.#applyMode(rpc);
+    } catch (err) {
+      if (this.rpc !== rpc) return;
+      this.emit({ type: 'error', message: explain(err) });
+      this.#disconnected();
+      rpc.close();
     }
   }
 
@@ -338,13 +383,38 @@ export class AcpSession extends BaseSession {
     }
   }
 
-  /** The agent is in `mode` now, by its own doing or because it refused another. */
-  #modeChanged(mode) {
+  /**
+   * The agent is in `mode` now, by its own doing or because it refused another. `said`: it says so in its reply
+   * text, which its model writes too (see `modeFromText`).
+   */
+  #modeChanged(mode, { said = false } = {}) {
+    if (said && !this.#mayAnnounce(mode)) return;
     if (this.modes) this.modes.current = mode;
     const known = this.agent.descriptor.permissionModes.some((m) => m.id === mode);
-    if (!known || mode === this.contact.permissionMode) return;
+    if (!known) return;
+    // One kept from changing files works in the mode for that alone: the agent is put back in it, or the session ends.
+    const readOnlyMode = this.#readOnlyMode();
+    if (readOnlyMode) {
+      if (mode !== readOnlyMode && this.rpc) void this.#applyModeOrEnd(this.rpc);
+      return;
+    }
+    if (mode === this.contact.permissionMode) return;
     this.contact.permissionMode = mode;
     if (this.announced) this.emit({ type: 'mode', mode });
+  }
+
+  /**
+   * Whether a mode the agent says in its reply text it is in now is taken: one that can't loosen what the user picked,
+   * as the mode the app has it in or a stricter one, or the one the user's answer on its card this turn leads to. Its
+   * model could write any other.
+   */
+  #mayAnnounce(mode) {
+    const answered = this.turn?.answered;
+    if (answered?.has(mode)) {
+      answered.delete(mode);
+      return true;
+    }
+    return noLooser(this.agent.descriptor.id, mode, this.contact.permissionMode);
   }
 
   #ready() {
@@ -416,7 +486,7 @@ export class AcpSession extends BaseSession {
     if (update.sessionUpdate === 'agent_message_chunk') {
       const text = update.content?.type === 'text' ? update.content.text : '';
       const mode = text && this.agent.modeFromText?.(text);
-      if (mode) return this.#modeChanged(mode);
+      if (mode) return this.#modeChanged(mode, { said: true });
       if (text && this.turn) this.#say(text, update.messageId || null);
       return;
     }
@@ -543,6 +613,9 @@ export class AcpSession extends BaseSession {
       canAlways: options.some((option) => option.kind === 'allow_always'),
       ...toRequest(entry.call, this.name),
     });
+    // What the user let it do can move it to another mode by itself, such as out of Plan mode once a plan is approved.
+    if (['allow', 'always'].includes(response.decision))
+      this.#answered(entry.call.kind, response.decision === 'always');
     switch (response.decision) {
       case 'allow':
         return allow(['allow_once', 'allow_always']);
@@ -561,6 +634,19 @@ export class AcpSession extends BaseSession {
         this.#cancelTurn();
         return CANCELLED;
     }
+  }
+
+  /**
+   * The mode the user's yes on one of the agent's cards leads it to by itself, where it says it is in it during this
+   * turn (see #mayAnnounce).
+   * @param {string} kind  of the call it asked about
+   * @param {boolean} always  "Always allow"
+   */
+  #answered(kind, always) {
+    const mode = this.agent.modeAfter?.({ mode: this.contact.permissionMode, kind, always });
+    if (!mode || !this.turn) return;
+    this.turn.answered ??= new Set();
+    this.turn.answered.add(mode);
   }
 
   // ---- commands from the app ------------------------------------------------------
@@ -687,7 +773,7 @@ export class AcpSession extends BaseSession {
   // while offline applies when the session next starts.
   async setPermissionMode(mode) {
     this.contact.permissionMode = mode;
-    if (await this.opening) await this.#applyMode(this.rpc);
+    if (await this.opening) await this.#applyModeOrEnd(this.rpc);
   }
 
   async setModel(model) {

@@ -10,7 +10,7 @@ export { descriptor };
 
 /**
  * @param {object} [opts]
- * @param {(conversation: string, speakerId: string) => import('../../main/app-tools.js').AppTool[]} [opts.tools]
+ * @param {(conversation: string, speakerId: string, seat?: import('../../main/app-tools.js').Seat) => import('../../main/app-tools.js').AppTool[]} [opts.tools]
  * @param {() => string} [opts.cliPath]  the Codex CLI the user pointed the app at, if any: asked each time
  * @returns {import('../contract.js').Provider}
  */
@@ -29,7 +29,7 @@ export function createCodexProvider({ cliPath = () => '', tools = () => [] } = {
         env,
         instructions,
         mainFolder,
-        appTools: conversation ? tools(conversation, contact.id) : [],
+        appTools: conversation ? tools(conversation, contact.id, { readOnly: Boolean(contact.readOnly) }) : [],
       }),
     listModels: () => listCodexModels({ command: cli() }),
     suggestReplies: (reply, { asks, model } = {}) => codexSuggestReplies(reply, { asks, model, command: cli() }),
