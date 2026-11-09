@@ -22,8 +22,9 @@ export const FORWARDED = new Set([
   REQUESTS.chatRespond,
   REQUESTS.chatInterrupt,
   REQUESTS.chatCancel,
-  // A manager's message that waits, taken out to edit in the box and send as yours.
+  // A manager's message that waits, taken out to edit in the box and send as yours, and put back as it was.
   REQUESTS.chatTakeNote,
+  REQUESTS.chatPutBackNote,
   // A turn stopped at its plan's limit: let it use usage credits this once, or go on in the next account.
   REQUESTS.chatUseCredits,
   REQUESTS.chatSwitchAccount,
@@ -98,7 +99,7 @@ export const READS = new Set([
 /** What answers an agent: a card's answer, and Stop. Answer only asks these, besides what reads. */
 export const ANSWERS = new Set([REQUESTS.chatRespond, REQUESTS.chatInterrupt]);
 /**
- * What says something to an agent: a message, one that waits sent at once, taken back or taken to edit; or lets a turn
+ * What says something to an agent: a message, one that waits sent at once, taken back, taken to edit or put back; or lets a turn
  * stopped at its plan's limit go on, in usage credits or another account. Only with full access.
  */
 export const SENDS = new Set([
@@ -106,6 +107,7 @@ export const SENDS = new Set([
   REQUESTS.chatSendNow,
   REQUESTS.chatCancel,
   REQUESTS.chatTakeNote,
+  REQUESTS.chatPutBackNote,
   REQUESTS.chatUseCredits,
   REQUESTS.chatSwitchAccount,
 ]);

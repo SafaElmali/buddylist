@@ -650,11 +650,22 @@ export class Conversations {
    */
   #waiting(hostId) {
     const inLine = this.#groups.get(hostId)?.turns.unheard ?? 0;
-    const notes = this.#waitingNotes.get(hostId);
     return [...(this.#sessions.get(hostId)?.values() || [])].reduce(
-      (sum, session) => sum + session.waiting - (session.queuedIds ?? []).filter((id) => notes?.has(id)).length,
+      (sum, session) =>
+        sum + session.waiting - (session.queuedIds ?? []).filter((id) => !this.#yours(hostId, id)).length,
       inLine
     );
+  }
+
+  /**
+   * Whether what waits in a session's own line under `id` is a message of yours: not a manager's note handed over by
+   * Send now, nor the notes its agent reads once it is free, which go unnamed (see #readNotes). Each of yours goes by
+   * its entry in the history.
+   * @param {string} hostId
+   * @param {string | undefined} id
+   */
+  #yours(hostId, id) {
+    return Boolean(id) && !this.#waitingNotes.get(hostId)?.has(id);
   }
 
   /** Queue identities belong to the queue owner, never to the last bubbles drawn by a window. */
@@ -664,7 +675,7 @@ export class Conversations {
     if (sessions.some((session) => !Array.isArray(session.queuedIds))) return undefined;
     const ids = [
       ...(group?.turns.queuedIds ?? []),
-      ...sessions.flatMap((session) => session.queuedIds.filter((id) => !this.#waitingNotes.get(hostId)?.has(id))),
+      ...sessions.flatMap((session) => session.queuedIds.filter((id) => this.#yours(hostId, id))),
     ];
     return ids.length === this.#waiting(hostId) && ids.every(Boolean) ? ids : undefined;
   }

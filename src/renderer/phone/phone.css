@@ -1017,6 +1017,15 @@ body:has(> .ph-connection:not([hidden])) > .ph-screen {
   margin: 0;
 }
 
+/* A manager's message in the box to edit: what it says, with Put back beside it. */
+.ph-taken {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 12px;
+}
+
 .ph-answer {
   color: var(--text-mid);
 }

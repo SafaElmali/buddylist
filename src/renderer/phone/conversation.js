@@ -16,7 +16,7 @@ import { accessNote, mayAnswer, maySend } from './access.js';
 import { announce } from './announce.js';
 import { yourComputer } from './host.js';
 import { answeredElsewhere, answeredLine, cardSays } from './cards.js';
-import { draftOf, keepDraft, keepSend, keepWaiting, sendsOf } from './drafts.js';
+import { draftOf, keepDraft, keepNote, keepSend, keepWaiting, noteOf, sendsOf } from './drafts.js';
 import { CONNECTION, UNCONFIRMED } from '../remote/network-ipc.js';
 import { promptCard } from './prompt-cards.js';
 import { planLimitCard } from './plan-limit.js';
@@ -54,6 +54,12 @@ const breathe = () => new Promise((resolve) => setTimeout(resolve, 0));
  * @type {{ contactId: string, at: number, pages: number, atEnd?: boolean, entry?: string, offset?: number } | null}
  */
 let place = null;
+/**
+ * The manager's message being edited in the box as the connection dropped: the screen drawn anew goes on with the edit,
+ * where one that was left, or a page loaded again, puts it back in its queue (see #putBack).
+ * @type {import('./drafts.js').TakenNote | null}
+ */
+let carried = null;
 /** How soon the conversation has to be drawn again for its place to be put back. */
 const PLACE_KEPT_MS = 5000;
 /** How near the end the conversation has to be scrolled to stay at the end as lines come in. */
@@ -93,6 +99,8 @@ export class ConversationScreen {
   #answeredHere = false;
   /** Whether the connection dropped while this screen was up, and how many pages of Show earlier it drew. */
   #dropped = false;
+  /** @type {import('./drafts.js').TakenNote | null} a manager's message in the box to edit, until it goes */
+  #editingNote = null;
   #pagesShown = 0;
   /**
    * Whether the Mac can be reached, as the page's connection says (see network-ipc.js, which says it on <html> too):
@@ -253,6 +261,12 @@ export class ConversationScreen {
     for (const prompt of pending) this.#ask(prompt);
     // What was sent before with no word back: asked again by its id, now the Mac is there to say.
     for (const sent of sendsOf(this.contactId)) this.#confirm(sent);
+    // A manager's message taken to edit here: drawn anew after a drop, the edit goes on. Otherwise the conversation was
+    // left, or the page loaded again, with nobody there to put it back: it goes back now.
+    const taken = noteOf(this.contactId);
+    if (taken && carried?.id === taken.id) this.#holdNote(taken);
+    else if (taken) void this.#putBack(taken);
+    carried = null;
     this.#markQueued();
     this.#ready = true;
     this.#header();
@@ -416,6 +430,9 @@ export class ConversationScreen {
   close() {
     // Drawn anew after a drop: where you were reading is kept for the screen that comes next.
     place = this.#dropped && this.#ready ? this.#where() : null;
+    // And a manager's message being edited goes on there. Left, it goes back in its queue.
+    if (this.#editingNote && this.#dropped) carried = this.#editingNote;
+    else if (this.#editingNote) void this.#putBack(this.#editingNote);
     window.removeEventListener(CONNECTION, this.onConnection);
     this.#closed = true;
     this.stopKey.reset();
@@ -957,6 +974,13 @@ export class ConversationScreen {
   }
 
   async #queuedAction({ target }) {
+    const putBack = /** @type {HTMLButtonElement | null} */ (
+      /** @type {HTMLElement} */ (target).closest?.('[data-do="put-back"]')
+    );
+    if (putBack && this.#editingNote) {
+      putBack.disabled = true;
+      return this.#putBack(this.#editingNote);
+    }
     const button = /** @type {HTMLButtonElement} */ (
       /** @type {HTMLElement} */ (target).closest?.('.ph-queued button')
     );
@@ -1022,16 +1046,65 @@ export class ConversationScreen {
         this.transcript.append(this.#line('ph-note', 'Too late to edit: it was read already.'))
       );
     }
-    this.#write([taken.text, this.input.value].filter(Boolean).join('\n'));
+    const before = this.input.value;
+    this.#write([taken.text, before].filter(Boolean).join('\n'));
     node.remove();
     this.#markQueued();
-    this.#keepAtEnd(() =>
-      this.transcript.append(
-        this.#line('ph-note', `${taken.from || 'The manager'}’s message is in the box: send it as yours.`)
-      )
-    );
+    this.#holdNote({ id, from: taken.from || 'The manager', before });
     this.input.focus({ preventScroll: true });
     announce('Message taken back to edit.');
+  }
+
+  /**
+   * A manager's message is in the box to edit: kept so for the screen drawn next, and said under the conversation with
+   * Put back, until it is sent or goes back in its queue.
+   * @param {import('./drafts.js').TakenNote} note
+   */
+  #holdNote(note) {
+    this.#editingNote = note;
+    keepNote(this.contactId, note);
+    this.transcript.querySelector('.ph-taken')?.remove();
+    this.#keepAtEnd(() =>
+      this.transcript.append(
+        el(
+          html`<div class="ph-note ph-taken">
+            <p>${note.from}’s message is in the box: send it as yours.</p>
+            <button class="ph-button" type="button" data-do="put-back">Put back</button>
+          </div>`
+        )
+      )
+    );
+  }
+
+  /**
+   * The manager's message taken to edit goes back in its queue as it was, and the box has what it had before it. One
+   * the Mac couldn't be asked about stays as it is, words and all, to try again.
+   * @param {import('./drafts.js').TakenNote} note
+   */
+  async #putBack(note) {
+    let back;
+    try {
+      back = await api.chat.putBackNote(this.contactId, note.id);
+    } catch (error) {
+      const button = /** @type {HTMLButtonElement | null} */ (this.transcript.querySelector('.ph-taken button'));
+      if (button) button.disabled = false;
+      return this.#keepAtEnd(() => this.transcript.append(this.#line('ph-error', errorText(error))));
+    }
+    if (this.#editingNote?.id === note.id) this.#editingNote = null;
+    keepNote(this.contactId, null);
+    this.transcript.querySelector('.ph-taken')?.remove();
+    if (!back) {
+      return this.#keepAtEnd(() =>
+        this.transcript.append(
+          this.#line(
+            'ph-note',
+            'That message couldn’t go back in the queue: the conversation started over or was archived.'
+          )
+        )
+      );
+    }
+    this.#write(note.before);
+    announce('Message put back.');
   }
 
   /** One of yours that Stop dropped before it was read: it wasn't sent, and stays to be seen so. */
@@ -1047,6 +1120,14 @@ export class ConversationScreen {
   async #send() {
     const text = this.input.value;
     if (!text.trim() || !this.#ready || this.view?.archived || !maySend()) return;
+    // A manager's message being edited goes as yours: there is nothing to put back any more.
+    if (this.#editingNote) {
+      const line = this.transcript.querySelector('.ph-taken');
+      line?.querySelector('button')?.remove();
+      line?.querySelector('p')?.replaceChildren(`${this.#editingNote.from}’s message went as yours.`);
+      this.#editingNote = null;
+      keepNote(this.contactId, null);
+    }
     this.#write('');
     const node = this.#mine({ text });
     this.#keepAtEnd(() => this.transcript.append(node), true);

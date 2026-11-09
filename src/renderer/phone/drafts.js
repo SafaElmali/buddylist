@@ -14,6 +14,8 @@ export const KEPT = 20;
 
 /** A message sent with no word back yet is kept by its id, as a card's draft is by its request. */
 const SENT = 'send:';
+/** And a manager's message taken to edit in the box, until it is sent or goes back in its queue (see conversation.js). */
+const NOTE = 'note:';
 
 /** @typedef {{ contact: string, request: string, value: unknown }} Draft  a message box's has no request: '' */
 
@@ -66,7 +68,11 @@ export function keepWaiting(contact, waiting) {
   const drafts = read();
   const kept = drafts.filter(
     (draft) =>
-      draft.contact !== contact || !draft.request || draft.request.startsWith(SENT) || waiting.includes(draft.request)
+      draft.contact !== contact ||
+      !draft.request ||
+      draft.request.startsWith(SENT) ||
+      draft.request === NOTE ||
+      waiting.includes(draft.request)
   );
   if (kept.length < drafts.length) write(kept);
 }
@@ -97,3 +103,18 @@ export function forgetDrafts() {
     // Nothing was kept.
   }
 }
+
+/**
+ * A manager's message taken to edit in a conversation's box: its id, who sent it, and what the box had before it.
+ * @typedef {{ id: string, from: string, before: string }} TakenNote
+ */
+
+/** @param {string} contact  @returns {TakenNote | undefined} */
+export const noteOf = (contact) => /** @type {TakenNote | undefined} */ (draftOf(contact, NOTE));
+
+/**
+ * Keeps the manager's message taken to edit in a conversation's box; null forgets it.
+ * @param {string} contact
+ * @param {TakenNote | null} note
+ */
+export const keepNote = (contact, note) => keepDraft(contact, NOTE, note);

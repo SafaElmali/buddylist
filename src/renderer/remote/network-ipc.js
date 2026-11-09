@@ -73,6 +73,7 @@ const WRITES = new Set([
   REQUESTS.chatInterrupt,
   REQUESTS.chatCancel,
   REQUESTS.chatTakeNote,
+  REQUESTS.chatPutBackNote,
   REQUESTS.chatUseCredits,
   REQUESTS.chatSwitchAccount,
 ]);
