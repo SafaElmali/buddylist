@@ -22,13 +22,20 @@ const PLAYERS = [
   { id: 'com.apple.Music', name: 'Music', announces: 'com.apple.Music.playerInfo' },
 ];
 
-// JavaScript for Automation. It prints a line of JSON for each player that starts or stops
-// playing: { player, playing, title, artist }. It ends itself once the app's end of its stdin
-// closes, so it doesn't outlive an app that died without stopping it.
-const SCRIPT = String.raw`
+/**
+ * JavaScript for Automation. It prints a line of JSON for each player that starts or stops
+ * playing: { player, playing, title, artist }. It doesn't outlive an app that died without
+ * stopping it, however it died: it ends itself once the app's end of its stdin closes, and, should
+ * something else hold that open, within seconds of the app being gone.
+ * @param {typeof PLAYERS} [players]  the tests leave them out, so no player is asked anything
+ */
+export const listeningScript = (players = PLAYERS) => String.raw`
 ObjC.import('AppKit');
 ObjC.import('stdlib');
-const players = ${JSON.stringify(PLAYERS)};
+ObjC.import('unistd');
+const players = ${JSON.stringify(players)};
+// The app that started it. Once that is gone, launchd is its parent instead.
+const app = $.getppid();
 const out = $.NSFileHandle.fileHandleWithStandardOutput;
 const input = $.NSFileHandle.fileHandleWithStandardInput;
 const say = (heard) => out.writeData($(JSON.stringify(heard) + '\n').dataUsingEncoding($.NSUTF8StringEncoding));
@@ -50,16 +57,25 @@ ObjC.registerSubclass({
     'quit:': {
       types: ['void', ['id']],
       implementation: (note) => {
-        const app = note.userInfo.objectForKey($.NSWorkspaceApplicationKey);
-        const player = players.find((one) => one.id === ObjC.unwrap(app.bundleIdentifier));
+        const quit = note.userInfo.objectForKey($.NSWorkspaceApplicationKey);
+        const player = players.find((one) => one.id === ObjC.unwrap(quit.bundleIdentifier));
         if (player) stopped(player);
       },
     },
     'input:': {
       types: ['void', ['id']],
       implementation: (note) => {
-        if (note.userInfo.objectForKey($.NSFileHandleNotificationDataItem).length === 0) $.exit(0);
+        // The app never writes to it, so a read that brings nothing is its end closing, or an
+        // error. Read again, and the same comes back at once, forever. JXA hands NSData's length
+        // over as a string ('0'), and none at all where there is no data.
+        if (!(Number(note.userInfo.objectForKey($.NSFileHandleNotificationDataItem).length) > 0)) $.exit(0);
         input.readInBackgroundAndNotify;
+      },
+    },
+    'check:': {
+      types: ['void', ['id']],
+      implementation: () => {
+        if ($.getppid() !== app) $.exit(0);
       },
     },
   },
@@ -72,6 +88,9 @@ for (const player of players) {
 $.NSWorkspace.sharedWorkspace.notificationCenter.addObserverSelectorNameObject(listener, 'quit:', $.NSWorkspaceDidTerminateApplicationNotification, $());
 $.NSNotificationCenter.defaultCenter.addObserverSelectorNameObject(listener, 'input:', $.NSFileHandleReadCompletionNotification, input);
 input.readInBackgroundAndNotify;
+// A second way to tell the app is gone, for when something else holds its stdin open. Every
+// 5 seconds, give or take one, so macOS can wake it with other timers.
+$.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(5, listener, 'check:', $(), true).tolerance = 1;
 
 // The song already playing. running() asks nothing of the player, and doesn't open it.
 for (const player of players) {
@@ -140,7 +159,9 @@ export class Listening {
 
   #start() {
     if (this.#child) return;
-    const child = this.spawn('osascript', ['-l', 'JavaScript', '-e', SCRIPT], { stdio: ['pipe', 'pipe', 'ignore'] });
+    const child = this.spawn('osascript', ['-l', 'JavaScript', '-e', listeningScript()], {
+      stdio: ['pipe', 'pipe', 'ignore'],
+    });
     this.#child = child;
     let rest = '';
     child.stdout.setEncoding('utf8');

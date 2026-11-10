@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Listening, parseHeard } from '../src/main/listening.js';
+import { Listening, listeningScript, parseHeard } from '../src/main/listening.js';
 import { Store } from '../src/main/storage/store.js';
 import { MemoryStore } from '../preview/memory-storage.js';
 
@@ -21,7 +22,7 @@ function setup(platform = 'darwin') {
     onChange: (value) => changes.push(value),
     spawn(command, args, options) {
       assert.equal(command, 'osascript');
-      assert.deepEqual(args.slice(0, 3), ['-l', 'JavaScript', '-e']);
+      assert.deepEqual(args, ['-l', 'JavaScript', '-e', listeningScript()]);
       assert.deepEqual(options.stdio, ['pipe', 'pipe', 'ignore']);
       const child = new EventEmitter();
       child.stdout = new PassThrough();
@@ -147,6 +148,77 @@ test('helper failure clears stale music and allows listening to start again', ()
     listening.setEnabled(false);
   }
 });
+
+// The real helper, run by the real osascript, without players: none of them is asked anything.
+const ON_A_MAC = { skip: process.platform !== 'darwin' && 'the helper is JavaScript for Automation' };
+const HELPER = ['-l', 'JavaScript', '-e', listeningScript([])];
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const running = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+/** Whether the process ends within `ms`. */
+async function endsWithin(pid, ms) {
+  const start = Date.now();
+  while (running(pid)) {
+    if (Date.now() - start > ms) return false;
+    await sleep(50);
+  }
+  return true;
+}
+
+/**
+ * A stand-in for the app, started as the app starts the helper. With `holdInput`, another child of
+ * it holds the app's end of the helper's stdin too, so that stays open once the app is gone.
+ * @param {import('node:test').TestContext} t  ends them all after the test
+ * @param {boolean} [holdInput]
+ * @returns {Promise<{ app: import('node:child_process').ChildProcess, helper: number, holder?: number }>}
+ */
+async function startApp(t, holdInput = false) {
+  const app = spawn(
+    process.execPath,
+    [
+      '-e',
+      `const { spawn } = require('node:child_process');
+      const helper = spawn('osascript', JSON.parse(process.argv[1]), { stdio: ['pipe', 'ignore', 'ignore'] });
+      const holder = process.argv[2] && spawn('sleep', ['60'], { stdio: ['ignore', helper.stdin, 'ignore'] });
+      console.log(JSON.stringify({ helper: helper.pid, holder: holder?.pid }));`,
+      JSON.stringify(HELPER),
+      holdInput ? 'hold' : '',
+    ],
+    { stdio: ['ignore', 'pipe', 'ignore'] }
+  );
+  const pids = JSON.parse(await new Promise((resolve) => app.stdout.once('data', resolve)));
+  t.after(() => {
+    app.kill('SIGKILL');
+    for (const pid of [pids.helper, pids.holder]) if (pid && running(pid)) process.kill(pid, 'SIGKILL');
+  });
+  await sleep(1500);
+  assert.ok(running(pids.helper), 'the helper waits on its run loop');
+  return { app, ...pids };
+}
+
+test('the helper ends at once when the app is killed', ON_A_MAC, async (t) => {
+  const { app, helper } = await startApp(t);
+  // kill -9: the app can't stop it. Its end of the helper's stdin closes with it, as on any quit or crash.
+  app.kill('SIGKILL');
+  assert.ok(await endsWithin(helper, 1500), 'it ended once its input closed');
+});
+
+test(
+  'the helper ends within seconds of the app, even while something else holds its input open',
+  ON_A_MAC,
+  async (t) => {
+    const { app, helper, holder } = await startApp(t, true);
+    app.kill('SIGKILL');
+    assert.ok(running(holder), 'its input is still open');
+    assert.ok(await endsWithin(helper, 8000), 'it ended once its parent was gone');
+  }
+);
 
 test('the preference survives restart while the saved personal message stays intact', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'buddylist-listening-'));
