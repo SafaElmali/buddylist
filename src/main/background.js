@@ -100,8 +100,9 @@ export function stayInBackground(
     win.setIgnoreMouseEvents(true);
     win.setSkipTaskbar(true);
   });
-  // And every page, a browser tab's too, keeps drawing and running its timers as if it were in front.
-  app.on('web-contents-created', (_event, contents) => contents.setBackgroundThrottling(false));
+  // A page's own throttling is left as it is. A see-through window is still shown, so its pages are not throttled,
+  // and turning it off while a window is still hidden, as every one is when it is made, kept the page from drawing
+  // again on Linux: a screenshot of it never came.
 
   if (app.dock) {
     app.dock.bounce = () => {

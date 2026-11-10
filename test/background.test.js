@@ -156,7 +156,7 @@ test('elsewhere there is no Dock to keep away from, and no Dock to bounce', () =
   }
 });
 
-test('in the background every window is see-through, deaf to the mouse and out of the taskbar, and every page keeps drawing', () => {
+test('in the background every window is see-through, deaf to the mouse and out of the taskbar, and its pages are left to draw', () => {
   const { electron } = fakeElectron();
   stayInBackground(electron, { platform: 'darwin', log: () => {} });
   const done = [];
@@ -166,14 +166,13 @@ test('in the background every window is see-through, deaf to the mouse and out o
     setSkipTaskbar: (value) => done.push(['skip taskbar', value]),
   };
   electron.app.emit('browser-window-created', {}, win);
-  const contents = { setBackgroundThrottling: (value) => done.push(['throttling', value]) };
-  electron.app.emit('web-contents-created', {}, contents);
   assert.deepEqual(done, [
     ['opacity', 0],
     ['ignore mouse', true],
     ['skip taskbar', true],
-    ['throttling', false],
   ]);
+  // Throttling turned off on a page whose window is still hidden stopped it drawing on Linux.
+  assert.equal(electron.app.listenerCount('web-contents-created'), 0);
 });
 
 test('in the background nothing reaches past the windows, and the run is told what was held back', async () => {
