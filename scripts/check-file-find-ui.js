@@ -37,7 +37,8 @@ const contact = store.addContact({
 const history = new History(path.join(profile, 'history'));
 history.append(contact.id, { kind: 'assistant', text: 'A conversation-only-needle for checking conversation search.' });
 history.flush();
-const env = { ...process.env, BUDDYLIST_TEST: '1', BUDDYLIST_USER_DATA: profile };
+// In front: it reads the Mac menu bar's Edit menu, which only a focused window gets (see docs/building.md).
+const env = { ...process.env, BUDDYLIST_TEST: '1', BUDDYLIST_BACKGROUND: '0', BUDDYLIST_USER_DATA: profile };
 for (const key of ['ELECTRON_RUN_AS_NODE', 'BUDDYLIST_DEMO', 'BUDDYLIST_UPDATES_URL', 'BUDDYLIST_ANALYTICS_URL'])
   delete env[key];
 const errors = [];

@@ -4,6 +4,7 @@ import { BrowserWindow, nativeTheme, screen, shell } from 'electron';
 import path from 'node:path';
 import { EVENTS } from '../../shared/ipc-channels.js';
 import { DEFAULT_LOOK, DEFAULT_PALETTE } from '../../shared/theme.js';
+import { showWindow } from '../background.js';
 import { PRELOAD, RENDERER_DIR } from '../paths.js';
 
 const webPreferences = {
@@ -146,7 +147,7 @@ export function createWindow(page, query, { maximized = false, ...options } = {}
         win.once('unmaximize', () => keepOnScreen(win));
         win.maximize();
       }
-      win.show();
+      showWindow(win);
     });
   }
   loadPage(win, page, query);

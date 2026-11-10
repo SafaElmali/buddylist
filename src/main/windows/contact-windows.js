@@ -1,3 +1,4 @@
+import { bringToFront } from '../background.js';
 import { createWindow, isAlive, loadPage } from './common.js';
 
 /** Windows that belong to a contact, at most one per contact. */
@@ -28,9 +29,7 @@ export class ContactWindows {
   open(contact, params = {}, options = {}) {
     const existing = this.get(contact.id);
     if (existing) {
-      if (existing.isMinimized()) existing.restore();
-      existing.show();
-      existing.focus();
+      bringToFront(existing);
       return existing;
     }
     // Each one opens a little below and to the right of the one before.

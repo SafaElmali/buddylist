@@ -81,7 +81,14 @@ try {
       if (name === 'Archived worker') store.updateContact(worker.id, { archived: true });
     }
     history.flush();
-    const env = { ...process.env, BUDDYLIST_DEMO: '1', BUDDYLIST_TEST: '1', BUDDYLIST_USER_DATA: profile };
+    // In front: it reads the Mac menu bar's Team menu, which only a focused window gets (see docs/building.md).
+    const env = {
+      ...process.env,
+      BUDDYLIST_DEMO: '1',
+      BUDDYLIST_TEST: '1',
+      BUDDYLIST_BACKGROUND: '0',
+      BUDDYLIST_USER_DATA: profile,
+    };
     delete env.ELECTRON_RUN_AS_NODE;
     delete env.BUDDYLIST_ANALYTICS_URL;
     delete env.BUDDYLIST_UPDATES_URL;

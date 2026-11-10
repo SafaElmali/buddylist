@@ -1,3 +1,4 @@
+import { bringToFront } from '../background.js';
 import { createWindow, isAlive } from './common.js';
 
 let win = null;
@@ -5,9 +6,7 @@ let win = null;
 /** The contact list: one per app. Shows it and gives it the focus, wherever it was. */
 export function showContactsWindow() {
   if (isAlive(win)) {
-    if (win.isMinimized()) win.restore();
-    win.show();
-    win.focus();
+    bringToFront(win);
     return win;
   }
   win = createWindow('contacts.html', undefined, {

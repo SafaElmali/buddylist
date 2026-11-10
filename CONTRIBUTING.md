@@ -23,6 +23,8 @@ npm run lint   # ESLint and Prettier
 
 Run a single file with `node --test test/<name>.test.js`. Please keep both green, and add a test for what you change: most of the code is plain modules that the tests drive without Electron.
 
+A check that drives the real app, with Playwright or otherwise, sets `BUDDYLIST_TEST=1` and a temporary `BUDDYLIST_USER_DATA`. The app then runs in the background: its windows never take the focus or come in front of your work, and screenshots and recordings still work ([how](docs/building.md)).
+
 `npm run build:app` bundles the app as it ships, and `npm run dist` (or `dist:win`, `dist:linux`) packs an installer for the computer you're on. [Build the app](docs/building.md) says what each does, and which checks CI runs on the installers.
 
 ## Find your way

@@ -40,6 +40,7 @@ test('what goes into the installers, or checks them, builds them; the rest of th
     'scripts/packaging-changes.js',
     '.github/workflows/build-app.yml',
     'src/main/paths.js',
+    'src/main/background.js',
     'src/providers/claude/binary.js',
     'src/main/terminals.js',
     'src/main/git-bash.js',
@@ -113,6 +114,7 @@ test('what the phone app is, what serves it and what a build makes of it check i
     'scripts/build-app.js',
     'scripts/check-remote-ui.js',
     'test/fixtures/fake-tailscale.js',
+    'src/main/background.js',
     '.github/workflows/build-app.yml',
     'scripts/packaging-changes.js',
   ];

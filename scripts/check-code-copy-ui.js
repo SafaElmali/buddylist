@@ -104,7 +104,9 @@ try {
       await chat.screenshot({ path: path.join(output, `${look}-${theme}.png`), animations: 'disabled' });
       results.push({ look, theme, geometry });
     }
-    // Whole-message Copy is still the original Markdown, including fences and prose.
+    // Whole-message Copy is still the original Markdown, including fences and prose. Its button shows while the
+    // message is hovered, as a user finds it: a window in the background doesn't keep a hover from earlier clicks.
+    await chat.locator('.msg.them').first().hover();
     await chat.locator('.msg.them .msg-copy').click();
     await chat.waitForFunction(() => document.querySelector('.msg.them .msg-copy').title === 'Copied');
     assert.equal(await clipboard(), reply);

@@ -4,6 +4,7 @@
 // meanwhile, and gets its width back after.
 import { screen } from 'electron';
 import { EVENTS } from '../../shared/ipc-channels.js';
+import { bringToFront } from '../background.js';
 import { isAlive } from './common.js';
 import { contactsWindow, showContactsWindow } from './contacts-window.js';
 import { giveBack, makeRoom } from './side-pane.js';
@@ -36,9 +37,7 @@ export function showSettings(win, { section = '', project = '', manager = '' } =
     host.webContents.send(EVENTS.settingsClose);
   }
   host = win;
-  if (win.isMinimized()) win.restore();
-  win.show();
-  win.focus();
+  bringToFront(win);
   widen(win);
   const send = () => win.webContents.send(EVENTS.settingsPage, { section, project, manager });
   // A contact list that was not open yet is told once its page is there to hear it.

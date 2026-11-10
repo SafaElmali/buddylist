@@ -43,6 +43,8 @@ export const PACKAGING = [
   'src/main/paths.js',
   'src/providers/claude/binary.js',
   'src/main/terminals.js',
+  // How a check run keeps to the background (BUDDYLIST_TEST=1), which only these checks run on Windows and Linux.
+  'src/main/background.js',
   // What the job alone tests on Windows (Test platform integration).
   'src/main/app-updater.js',
   'src/main/shell-env.js',
@@ -68,9 +70,10 @@ export const PHONE = [
   'package.json',
   'package-lock.json',
   '.npmrc',
-  // The check, Tailscale's stand-in it runs with, the job itself and this choice.
+  // The check, Tailscale's stand-in it runs with, how its app keeps to the background, the job itself and this choice.
   'scripts/check-remote-ui.js',
   'test/fixtures/fake-tailscale.js',
+  'src/main/background.js',
   '.github/workflows/build-app.yml',
   'scripts/packaging-changes.js',
 ];
