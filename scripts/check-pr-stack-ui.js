@@ -26,8 +26,11 @@ try {
     format: 'esm',
   });
   const main = `
-    import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
+    import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, Notification, shell } from 'electron';
+    import { BACKGROUND, showWindow, stayInBackground } from ${JSON.stringify(path.join(root, 'src/main/background.js'))};
     import { pullRequestStack } from ${JSON.stringify(path.join(root, 'src/main/pr-stack.js'))};
+    // Out of sight, as the app itself is with BUDDYLIST_TEST=1 (see src/main/background.js).
+    if (BACKGROUND) stayInBackground({ app, dialog, shell, globalShortcut, Notification });
     import { githubStackFixture, retargetedEvents, retargetedFixture, sevenStackFixture, stackFixture, stackFixtureRun } from ${JSON.stringify(path.join(root, 'test/fixtures/pr-stack.js'))};
     app.setPath('userData', ${JSON.stringify(path.join(temp, 'profile'))});
     nativeTheme.themeSource = 'light';
@@ -59,8 +62,9 @@ try {
       return pullRequestStack(${JSON.stringify(temp)}, { known: id === 'empty' ? null : { url: (prs[1] || prs[0]).html_url }, run: stackFixtureRun(prs) });
     });
     app.whenReady().then(async () => {
-      const win = new BrowserWindow({ width: 470, height: 790, useContentSize: true, webPreferences: { preload: ${JSON.stringify(path.join(root, 'dist/app/preload/index.cjs'))}, contextIsolation: true, nodeIntegration: false } });
+      const win = new BrowserWindow({ show: false, width: 470, height: 790, useContentSize: true, webPreferences: { preload: ${JSON.stringify(path.join(root, 'dist/app/preload/index.cjs'))}, contextIsolation: true, nodeIntegration: false } });
       await win.loadFile(${JSON.stringify(path.join(temp, 'index.html'))});
+      showWindow(win);
     });
     app.on('window-all-closed', () => app.quit());
   `;

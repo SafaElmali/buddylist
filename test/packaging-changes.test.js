@@ -114,6 +114,7 @@ test('what the phone app is, what serves it and what a build makes of it check i
     'scripts/build-app.js',
     'scripts/check-remote-ui.js',
     'test/fixtures/fake-tailscale.js',
+    'src/main/background.js',
     '.github/workflows/build-app.yml',
     'scripts/packaging-changes.js',
   ];

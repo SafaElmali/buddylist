@@ -70,9 +70,10 @@ export const PHONE = [
   'package.json',
   'package-lock.json',
   '.npmrc',
-  // The check, Tailscale's stand-in it runs with, the job itself and this choice.
+  // The check, Tailscale's stand-in it runs with, how its app keeps to the background, the job itself and this choice.
   'scripts/check-remote-ui.js',
   'test/fixtures/fake-tailscale.js',
+  'src/main/background.js',
   '.github/workflows/build-app.yml',
   'scripts/packaging-changes.js',
 ];
