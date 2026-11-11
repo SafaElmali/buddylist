@@ -64,7 +64,7 @@ Yes. **Add a Contact** has a **GitHub issue or PR** field: pick one of the proje
 
 ### What runs when I start an agent on someone else's pull request?
 
-Nothing the pull request brings, until you say so. Its contact works in a worktree of its own, and the project's setup script waits there, since installing runs a package's own scripts: **Run setup** in the **Setup** tab starts it once you have looked the changes over. In that worktree Claude Code takes the project's settings from your main checkout, so hooks, allow rules and MCP servers the pull request adds don't run. Codex, OpenCode and Hermes don't start what the branch sets up either, and Gemini trusts none of the worktrees unless you tell it to. The agent can still run the branch's code, such as its tests, as on any branch.
+Nothing the pull request brings, until you say so. Its contact works in a worktree of its own, and the project's setup script waits there, since installing runs a package's own scripts: **Run setup** in the **Setup** tab starts it once you have looked the changes over. In that worktree Claude Code takes the project's settings from your main checkout, so hooks, allow rules and MCP servers the pull request adds don't run. Codex, OpenCode and Hermes don't start what the branch sets up either, and Gemini trusts none of the worktrees unless you tell it to. The agent can still run the branch's code, such as its tests, as on any branch. A conversation an agent starts from a pull request's branch, or from any code that isn't on the project's own branches, waits for **Run setup** the same way.
 
 ## Working with agents
 
@@ -99,6 +99,10 @@ A Claude contact often hands part of a job to a subagent, an agent of its own th
 ### Can an agent check back later on its own?
 
 A Claude contact can. Say "keep an eye on CI and tell me when it's green", "look at the deploy again in 10 minutes", or type `/loop`. Claude says how often it will check back, and so does the status bar. When a check-in is due, Claude answers it without you sending anything, and "stop checking" ends them. Check-ins last while buddylist is open, and one that repeats ends by itself after 7 days. Codex, Gemini, OpenCode and Hermes can't do this. More in the [check-ins guide](check-ins.md).
+
+### Can I ask a worker's manager something from the worker's conversation?
+
+Yes. Type `@` in the worker's message box: its manager is first in the list. Ask it something, such as _"@shop manager should this round per line or on the subtotal?"_, and the manager answers right there, under its name, knowing what the worker is doing. The worker doesn't answer that message, but hears the exchange with your next one, so "do that" just works. A busy manager answers once it's free. More in the [project managers guide](project-managers.md).
 
 ## Day to day
 
