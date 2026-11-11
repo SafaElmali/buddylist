@@ -833,6 +833,13 @@ export class DemoSession extends BaseSession {
       return void (await this.#stream(`@${name} is adding the test. I will look again once it changed files.`));
     }
     if (kind === 'settings') return void (await this.#stream('Noted: I go by the new settings from here on.'));
+    // Tagged in a worker's conversation: it answers there, and its answer starts nothing.
+    if (kind === 'tagged') {
+      return void (await this.#stream(
+        `${name} is on track: it does what its task asks. Add a test for it before the pull request, and tell me ` +
+          'if it should change course: I can message it.'
+      ));
+    }
     if (kind === 'handover') {
       const saved = await this.#useAppTool(APP_TOOLS.brief, { text: `${BRIEF}\n${HANDED_OVER}` });
       return void (await this.#stream(

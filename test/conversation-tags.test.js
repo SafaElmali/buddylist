@@ -142,7 +142,12 @@ test('in an ordinary conversation with one agent, @ opens no list', () => {
   const plain = { id: 'p', name: 'Claude', project: 'shop', status: 'online' };
   assert.equal(offered('@', window(plain, [participant('p', 'Claude')], [plain, ...contacts])), null);
   assert.equal(offered('@cl', window(plain, [participant('p', 'Claude')], [plain, ...contacts])), null);
-  assert.deepEqual(nameable(window(plain, [participant('p', 'Claude')])), { mentionable: [], tags: [] });
+  assert.deepEqual(nameable(window(plain, [participant('p', 'Claude')])), {
+    mentionable: [],
+    manager: null,
+    held: null,
+    tags: [],
+  });
 });
 
 test('the list for a name opens at its @, which stays put as the rest of the name is typed', () => {
@@ -163,7 +168,7 @@ test('in a group, @ lists the agents in it as before, and only them where nobody
   const ctx = window(plain, group, [plain, ...contacts]);
   assert.deepEqual(offered('@', ctx), ['Claude', 'Codex']);
   assert.deepEqual(offered('@co', ctx), ['Codex']);
-  assert.deepEqual(nameable(ctx), { mentionable: group, tags: [] });
+  assert.deepEqual(nameable(ctx), { mentionable: group, manager: null, held: null, tags: [] });
 });
 
 test('a manager’s conversation with guests lists the agents first, then the conversations it oversees', () => {
@@ -345,4 +350,69 @@ test('the message history opens no tag, clicked or with Enter: it marks none', (
   new Conversation(pane, { participants: [host] });
   assert.equal(pane.fire('click', tagged('cart')), false);
   assert.equal(pane.fire('keydown', tagged('cart'), { key: 'Enter' }), false);
+});
+
+// ---- a worker's manager, tagged from the worker's conversation (see manager-tag.js) -----------------------------
+
+/** A worker under the shop's manager, as the contact list has it: `managedBy` is kept, `overseenBy` while it is at work. */
+const underManager = (more = {}) => worker('cart', { managedBy: 'm', ...more });
+
+test('in a worker’s conversation, @ offers its manager first, as a Manager, above the files', () => {
+  const ctx = window(underManager(), [participant('cart', 'Claude (cart)')]);
+  const found = completionAt('@', 1, ctx);
+  const [row] = found.items;
+  assert.equal(row.label, 'shop manager');
+  assert.equal(row.hint, 'Manager');
+  assert.equal(row.disabled, false);
+  assert.equal(row.ariaLabel, 'shop manager, the manager over this conversation');
+  assert.match(row.icon, /data-lead/, 'its buddy wears the star, as in the contact list');
+  assert.deepEqual(row.complete('@', 1), { text: '@shop manager ', caret: 14 });
+  assert.deepEqual(offered('ask @sh', ctx), ['shop manager']);
+  assert.equal(offered('@shop manager', ctx), null, 'typed in full: Enter sends it');
+  assert.deepEqual(nameable(ctx).manager, manager);
+});
+
+test('in a group under a manager, the manager comes first, then the agents', () => {
+  const ctx = window(underManager(), [participant('cart', 'Claude (cart)'), codex]);
+  assert.deepEqual(offered('@', ctx), ['shop manager', 'Claude (cart)', 'Codex']);
+});
+
+test('a manager turned off, put away or with its folder gone is greyed out in @, and says why', () => {
+  const said = (who, typed = '@s') =>
+    completionAt(
+      typed,
+      typed.length,
+      window(
+        underManager({ overseenBy: null }),
+        [participant('cart', 'Claude (cart)')],
+        [who, underManager({ overseenBy: null })]
+      )
+    )?.items[0];
+  const off = said({ ...manager, oversees: false });
+  assert.deepEqual([off.label, off.hint, off.disabled], ['shop manager', 'Turned off', true]);
+  assert.equal(
+    off.ariaLabel,
+    'shop manager, the manager over this conversation, is turned off: it can’t be asked here'
+  );
+  assert.equal(off.complete, undefined, 'never written in');
+  assert.equal(said({ ...manager, archived: true, oversees: false }).hint, 'Put away');
+  assert.equal(said({ ...manager, status: 'offline' }).hint, 'Folder gone');
+  assert.equal(said({ ...manager, oversees: false }, 'see @z'), undefined, 'only once its name is begun');
+});
+
+test('a worker under no manager, a manager itself, or a project manager’s conversation offers no manager to tag', () => {
+  const loose = worker('loose', { overseenBy: null });
+  assert.equal(nameable(window(loose, [participant('loose', 'Claude (loose)')])).manager, null);
+  assert.equal(nameable(window(manager, [host])).manager, null);
+  const lead = { id: 'pm', name: 'shop project manager', manages: KEY, leads: true, oversees: true, status: 'online' };
+  const underLead = worker('x', { overseenBy: null, managedBy: 'pm' });
+  assert.equal(nameable(window(underLead, [participant('x', 'Claude (x)')], [lead, underLead])).held, null);
+});
+
+test('a message you sent that tags the manager marks it, even with one agent here; a quote doesn’t', () => {
+  const tagged = '@shop manager subtotal?';
+  assert.deepEqual(sentMarks(tagged, [participant('cart', 'Claude (cart)')], [], [manager]), [
+    { start: 0, end: 13, id: 'm' },
+  ]);
+  assert.deepEqual(sentMarks(tagged, [participant('cart', 'Claude (cart)')]), [], 'with no manager here, nothing');
 });

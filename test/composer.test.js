@@ -302,6 +302,8 @@ test('a picture replied with goes in as it was shared, with a quote over the car
   assert.deepEqual(asked.sent[0], {
     text: "Before that,\n\n> Claude's picture: The cart page",
     images: [{ mediaType: 'image/png', data: 'c2NyZWVuc2hvdA==', preview: null }],
+    // Typed in the box: it could tag the conversation's manager (see manager-tag.js).
+    typed: true,
   });
 });
 

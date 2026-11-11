@@ -16,6 +16,8 @@ import { pictureHtml } from '../lib/pictures.js';
 import { firstInSight, scrollBack } from '../lib/scroll-place.js';
 import { viewPictures } from '../lib/picture-viewer.js';
 import { markTags, TAG_CLASS, taggable, tagNode } from './conversation-tags.js';
+import { tagManagerOf } from './manager-tag.js';
+import { ANSWERED_FROM } from '../../shared/manager-answer.js';
 import { actionRow, copyAction } from './message-actions.js';
 import { QueueTray } from './queue-tray.js';
 import { limitSuggestion } from './limit-suggestion.js';
@@ -490,7 +492,12 @@ export class Conversation {
       for (const run of quoteRuns(part.text)) {
         // A name in a quote picked nobody, and tags nothing: it is marked only in what you wrote yourself.
         const tags = run.quote ? [] : this.#tags();
-        const said = withMarks(run.text, sentMarks(run.text, run.quote ? [] : this.ctx.participants, tags), tags);
+        const managers = run.quote ? [] : this.#manager();
+        const said = withMarks(
+          run.text,
+          sentMarks(run.text, run.quote ? [] : this.ctx.participants, tags, managers),
+          tags
+        );
         if (!run.quote) body.append(...said);
         else body.appendChild(el('<blockquote></blockquote>')).append(...said);
       }
@@ -877,6 +884,12 @@ export class Conversation {
     return this.openTag ? taggable(this.ctx.contact, this.ctx.contacts ?? [], this.ctx.participants) : [];
   }
 
+  /** The manager a message here can tag, while it can be asked (see manager-tag.js): none or one. */
+  #manager() {
+    const tag = tagManagerOf(this.ctx.contact, this.ctx.contacts ?? []);
+    return tag && !tag.why ? [tag.manager] : [];
+  }
+
   /** @param {From} [from]  the event or saved line that says whose words these are */
   #name(from) {
     return speakerOf(this.ctx.participants, from).name;
@@ -893,10 +906,16 @@ export class Conversation {
   /**
    * Its picture goes beside the name in the professional look, so a bold line in what it said never
    * reads as someone else starting to talk. A guest that has left has its initial instead.
-   * @param {number} time @param {From} from
+   * @param {number} time @param {From & { managerAnswer?: boolean }} from
    */
   #assistantNode(time, from) {
-    const { name, avatar } = speakerOf(this.ctx.participants, from);
+    const speaker = speakerOf(this.ctx.participants, from);
+    const { name } = speaker;
+    // A manager's answer wears its picture, as its contact has it, though it is in no conversation here.
+    const avatar =
+      speaker.avatar ??
+      (from.managerAnswer ? this.ctx.contacts?.find((one) => one.id === from.speaker)?.avatar : null) ??
+      null;
     const picture = avatar
       ? raw(pictureHtml({ avatar, size: 'tiny', title: name }))
       : html`<span class="msg-initial" title="${name}">${name[0] || '?'}</span>`;
@@ -912,7 +931,10 @@ export class Conversation {
     );
   }
 
-  /** @param {{ text: string, time?: number, id?: string, pinned?: boolean } & From} entry */
+  /**
+   * @param {{ text: string, time?: number, id?: string, pinned?: boolean, managerAnswer?: boolean } & From} entry
+   *   `managerAnswer`: the conversation's manager's answer to what you tagged it with, said in its own conversation
+   */
   addAssistant(entry) {
     const { text, time = Date.now(), id, pinned } = entry;
     if (!hasReply(text)) return;
@@ -920,12 +942,28 @@ export class Conversation {
     // A diagram in it is drawn after: the line grows by it, as by a picture.
     renderMarkdown(node.querySelector('.text'), text, (paint) => this.keepPinned(paint), this.#folder());
     markTags(node.querySelector('.text'), this.#tags());
+    if (entry.managerAnswer) this.#answeredFrom(node, entry.speaker);
     if (id) this.identify(node, id, { pinned });
     this.#theirs(node, text);
     this.lastReceived = time;
     // The newest of its turn, so far.
     this.#turnReply.set(this.#sessionOf(entry), node);
     return this.append(node, { reply: true });
+  }
+
+  /**
+   * Under a manager's answer: that it came from its own conversation, with a link that shows that conversation here.
+   * @param {HTMLElement} node  the reply
+   * @param {string | undefined} managerId
+   */
+  #answeredFrom(node, managerId) {
+    const line = el(html`<div class="answered-from">${ANSWERED_FROM}</div>`);
+    if (this.openTag && managerId) {
+      const open = el(html`<button class="link" type="button">Open it</button>`);
+      open.addEventListener('click', () => this.openTag(managerId));
+      line.append(' ', open);
+    }
+    node.querySelector('.text').append(line);
   }
 
   /**

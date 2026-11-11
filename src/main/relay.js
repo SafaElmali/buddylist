@@ -25,12 +25,33 @@ const CHANGES = ['write', 'edit'];
 const pictures = ({ images }) => (images ? ` (with ${images === 1 ? 'a picture' : `${images} pictures`})` : '');
 
 /**
+ * A message as an agent here reads it, after whose it is. A worker's manager's answer to the user (see
+ * Conversations#managerAnswered) says it is the manager's, from its own conversation, and asks nothing by itself. A
+ * message of the user's to that manager alone says nobody here was asked it.
+ * @param {HistoryEntry} entry
+ * @param {string} who  its speaker's name
+ * @param {string} me  the user's name
+ */
+function said(entry, who, me) {
+  if (entry.managerAnswer) {
+    return (
+      `[${who}, who oversees this project, answered ${me} here from its own conversation. What follows is ${who}’s, ` +
+      `not ${me}’s, and asks nothing of anyone here by itself.]\n${who}: ${entry.text}`
+    );
+  }
+  if (entry.onlyManager)
+    return `${who} (to ${entry.toManager?.name ?? 'the manager'} alone: nobody here was asked): ${entry.text}`;
+  return `${who}: ${entry.text}`;
+}
+
+/**
  * The entries as text: one block per message, and one per run of actions, a line each.
  * @param {HistoryEntry[]} entries
  * @param {(entry: HistoryEntry) => string} name  who an entry is from
+ * @param {string} me  the user's name
  * @returns {string[]}
  */
-function transcript(entries, name) {
+function transcript(entries, name, me) {
   const blocks = [];
   let actions = null;
   for (const entry of entries) {
@@ -39,7 +60,7 @@ function transcript(entries, name) {
       actions.push(`[${name(entry)}: ${activityStatus(entry.activity)}]`);
     } else {
       actions = null;
-      blocks.push([`${name(entry)}: ${entry.text}${pictures(entry)}`]);
+      blocks.push([`${said(entry, name(entry), me)}${pictures(entry)}`]);
     }
   }
   return blocks.map((lines) => lines.join('\n'));
@@ -228,19 +249,21 @@ export class Relay {
     const told = (entry) => !unread.has(entry.id);
     const { start, news: all } = this.#news(entries, to.id, host.id);
     const news = all.filter(told);
-    const asked = entries.findLast((entry) => fromUser(entry) && told(entry))?.text ?? '';
+    // What the user asked the manager alone here is no message to answer here.
+    const asked = entries.findLast((entry) => fromUser(entry) && told(entry) && !entry.onlyManager)?.text ?? '';
     if (alone) {
       this.caughtUp(to.id, entries, unread);
-      const said = news.filter(fromUser).map((entry) => entry.text);
-      return { text: said.join('\n\n'), asked };
+      // That, and the manager's answer, a contact on its own is told apart (see Conversations#exchange).
+      const yours = news.filter((entry) => fromUser(entry) && !entry.onlyManager).map((entry) => entry.text);
+      return { text: yours.join('\n\n'), asked };
     }
     const earlier = entries.slice(0, start).filter((entry) => isMessage(entry) && told(entry));
-    const before = newcomer ? recap(transcript(earlier, name)) : [];
+    const before = newcomer ? recap(transcript(earlier, name, me)) : [];
 
     const parts = [];
     if (!this.#introduced.has(to.id)) parts.push(introduction({ to, agents, me, cwd, picking, atOnce }));
     if (before.length) parts.push('[Said before you joined]', ...before, '[Since then]');
-    parts.push(...transcript(news, name));
+    parts.push(...transcript(news, name, me));
 
     this.#introduced.add(to.id);
     this.caughtUp(to.id, entries, unread);

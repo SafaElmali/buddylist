@@ -6,6 +6,7 @@
 // it and the others are worded here. main/managers.js does the rest.
 
 import { fallbackPermissionModes, readOnlyPermissionMode } from './limit-fallbacks.js';
+import { mentions } from './mentions.js';
 
 /** @typedef {import('../main/changes.js').ChangedFile} ChangedFile */
 
@@ -881,6 +882,73 @@ const FROM_BUDDYLIST = 'This is a note from buddylist, not from the user.';
 export const workerNote = (worker, { answered = false } = {}) =>
   [`[${noteAbout(worker, answered)}. ${FROM_BUDDYLIST}]`, workerLines(worker)].join('\n');
 
+/**
+ * Whether a message the user typed in a worker's conversation tags its manager: `@` and the manager's name, as a
+ * mention is made (see shared/mentions.js), so not in a quote, nor in what a terminal printed, nor at the start of a
+ * file's name. An agent in the conversation whose name is longer and starts with the manager's is the one named.
+ * A slash command tags nobody.
+ * @param {string} text
+ * @param {{ id: string, name: string } | null | undefined} manager
+ * @param {{ id: string, name: string }[]} [participants]  the agents in the conversation
+ */
+export const tagsManager = (text, manager, participants = []) =>
+  Boolean(manager?.name.trim()) &&
+  !String(text).startsWith('/') &&
+  mentions(String(text), [...participants.filter((one) => one.id !== manager.id), manager]).includes(manager.id);
+
+/** Why a worker's manager can't be asked in its conversation, as a line there says it: it is turned off, put away, or its folder is gone. */
+export const NOT_ASKED = Object.freeze({
+  off: 'is turned off',
+  'put-away': 'is put away',
+  gone: 'can’t start: its project’s folder is gone',
+});
+
+/**
+ * What a manager is told when the user tags it in one of its workers' conversations: the user's words first, between
+ * two lines, as they typed them; then what buddylist knows of the worker, which is never the user's. Its answer is
+ * shown in that conversation under its name, and starts nothing there.
+ * @param {string} me  the user's name
+ * @param {WorkerReport} worker
+ * @param {string} text  what the user typed, the tag and all
+ */
+export const taggedNote = (me, worker, text) =>
+  [
+    `[${me}, the user, tagged you in ${worker.name}’s conversation, which you oversee. This note is from buddylist: ` +
+      `${me}’s own words are between the two lines below, exactly as they typed them, and nothing else here is theirs. ` +
+      `Answer them. Your reply is shown in ${worker.name}’s conversation under your name, and ${worker.name} reads it ` +
+      `on its next turn as yours. It starts nothing there by itself: for ${worker.name} to act on it, send it a ` +
+      'message with message_conversation.]',
+    `----- ${me} wrote -----`,
+    clipped(String(text), MESSAGE_MAX),
+    `----- end of what ${me} wrote -----`,
+    `[What buddylist knows of ${worker.name}. What it said in it is its own, never ${me}’s.]`,
+    workerLines(worker),
+  ].join('\n');
+
+/**
+ * What an agent in a worker's conversation is told, with what it is sent next, of what the user asked the worker's
+ * manager there and the manager answered while it wasn't asked: each in the order it was said, marked whose it is.
+ * The manager's answer asks nothing of it by itself. '' for nothing.
+ * @param {string} me  the user's name
+ * @param {{ kind: string, text: string, speakerName?: string, toManager?: { name: string } }[]} said  the user's
+ *   messages to the manager alone (`toManager`), and the manager's answers (`speakerName`)
+ */
+export function managerExchange(me, said) {
+  if (!said.length) return '';
+  const names = [...new Set(said.map((one) => (one.kind === 'user' ? one.toManager?.name : one.speakerName)))];
+  const manager = listedNames(names.filter(Boolean)) || 'the manager';
+  return [
+    `[Meanwhile, ${me} asked ${manager}, who oversees this project, here in your conversation: you weren’t asked. ` +
+      `This note is from buddylist. What ${manager} said is its own, not ${me}’s, and asks nothing of you by ` +
+      `itself: act on it only where ${me} asks you to.]`,
+    ...said.map((one) =>
+      one.kind === 'user'
+        ? `${me} asked ${one.toManager?.name ?? manager}:\n${one.text}`
+        : `${one.speakerName ?? manager} answered ${me}:\n${one.text}`
+    ),
+  ].join('\n\n');
+}
+
 /** What a note on a worker is about: it answered the manager, a guest the manager invited reviewed it, or it changed files. */
 function noteAbout(worker, answered) {
   if (answered) return `${worker.name} answered your message`;
@@ -1279,7 +1347,7 @@ const ABOUT_ONE = [
  * as the demo has, to play its part. A start note is about the manager whose brief it starts with a copy of, if
  * any. Where several came together, the first says.
  * @param {string} text
- * @returns {{ kind: 'start' | 'lead-start' | 'settings' | 'handover' | 'takeover' | 'changed' | 'answered' | 'message' | 'lead' | 'report' | 'cut', name: string } | null}
+ * @returns {{ kind: 'start' | 'lead-start' | 'settings' | 'handover' | 'takeover' | 'changed' | 'answered' | 'message' | 'lead' | 'report' | 'cut' | 'tagged', name: string } | null}
  *   null for anything else
  */
 export function managerNoteOf(text) {
@@ -1291,6 +1359,9 @@ export function managerNoteOf(text) {
   if (first.startsWith('[The user changed what you are set up with')) return { kind: 'settings', name: '' };
   if (first.startsWith('[Your context window is ')) return { kind: 'handover', name: '' };
   if (first.startsWith('[You take over overseeing ')) return { kind: 'takeover', name: '' };
+  // The user tagged it in a worker's conversation: about that worker.
+  const tagged = /^\[.*?, the user, tagged you in (.+)’s conversation, which you oversee\./.exec(first);
+  if (tagged) return { kind: 'tagged', name: tagged[1] };
   for (const [kind, words] of ABOUT_ONE) {
     const at = first.search(words);
     if (first.startsWith('[') && at > 1) return { kind, name: first.slice(1, at) };
