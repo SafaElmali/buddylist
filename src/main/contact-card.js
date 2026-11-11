@@ -2,8 +2,8 @@
 // stands in git, what it cost today and when it last did something. Whether
 // its branch has a pull request, and how that one's checks stand, is asked
 // separately, because that answer comes from GitHub and the card doesn't wait for it.
-import { execFile } from 'node:child_process';
 import { turnCosts } from '../shared/cost.js';
+import { execTool } from './git-command.js';
 import { describeWorktree, git } from './worktrees.js';
 
 // A big repository can take a moment; past this the card goes without git.
@@ -81,7 +81,7 @@ function gitStatus(cwd) {
     // Without a folder git would answer for the app's own.
     if (!cwd) return resolve(null);
     try {
-      execFile(
+      execTool(
         'git',
         // Without the optional lock, looking never gets in the way of the agent's own git commands.
         ['--no-optional-locks', 'status', '--porcelain=v2', '--branch'],
@@ -253,7 +253,7 @@ export function parsePullRequest(output) {
 export function ghPullRequest({ cwd, page }) {
   return new Promise((resolve, reject) => {
     try {
-      execFile(
+      execTool(
         'gh',
         ['pr', 'view', ...(page ? [page] : []), '--json', GH_FIELDS],
         { cwd, timeout: GH_TIMEOUT_MS, windowsHide: true },
@@ -281,7 +281,7 @@ export function branchCheckedOut(cwd) {
     if (!cwd) return resolve(null);
     try {
       // With no branch checked out, git leaves with 1 and says nothing.
-      execFile('git', ['symbolic-ref', '--quiet', 'HEAD'], { cwd, timeout: GIT_TIMEOUT_MS, windowsHide: true }, (err) =>
+      execTool('git', ['symbolic-ref', '--quiet', 'HEAD'], { cwd, timeout: GIT_TIMEOUT_MS, windowsHide: true }, (err) =>
         resolve(err ? (err.code === 1 ? false : null) : true)
       );
     } catch {

@@ -1,10 +1,10 @@
 // The run command belongs to a project, not to one contact: which project a
 // folder is part of, a guess at what starts it, and the command that starts a
 // script file picked for it.
-import { execFile, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { cleanScript } from '../shared/project-settings.js';
+import { execTool, execToolSync } from './git-command.js';
 
 // Looking at a repository should feel instant; past this the folder counts as having none.
 const LOOK_TIMEOUT_MS = 4000;
@@ -56,7 +56,7 @@ function gitSaid(said) {
 
 function lookAt(cwd) {
   return new Promise((resolve) => {
-    execFile('git', LOOK, { cwd, timeout: LOOK_TIMEOUT_MS, windowsHide: true }, (err, stdout) =>
+    execTool('git', LOOK, { cwd, timeout: LOOK_TIMEOUT_MS, windowsHide: true }, (err, stdout) =>
       resolve(err ? null : gitSaid(stdout))
     );
   });
@@ -105,7 +105,7 @@ export async function describeProject(cwd) {
 export function describeProjectSync(cwd) {
   if (!fs.existsSync(cwd)) return projectOf(cwd, null);
   try {
-    const said = execFileSync('git', LOOK, {
+    const said = execToolSync('git', LOOK, {
       cwd,
       timeout: LOOK_TIMEOUT_MS,
       windowsHide: true,
@@ -154,13 +154,19 @@ function firstLine(file) {
   }
 }
 
+// What can name a program: letters, digits and . _ / + -, and not a dash first, which is an option.
+const PROGRAM = /^(?!-)[\w./+-]+$/;
+
 /**
  * The program that runs a script which can't be started by itself: the one its first line names,
- * as `#!/usr/bin/env bash` names bash, or else sh.
+ * as `#!/usr/bin/env bash` names bash, or else sh. Only the program: the rest of the line is not
+ * the command's to run, and a name that is not a plain one is no program either.
  */
 function interpreterOf(file) {
-  const named = /^#!\s*(\S.*)$/.exec(firstLine(file))?.[1].trim();
-  return named ? named.replace(/^\/usr\/bin\/env\s+/, '') : 'sh';
+  const words = /^#!\s*(\S.*)$/.exec(firstLine(file))?.[1].trim().split(/\s+/) ?? [];
+  // `env` finds the program on the PATH, after its own options and variables.
+  const named = /(^|\/)env$/.test(words[0] ?? '') ? words.slice(1).find((word) => !/^-|=/.test(word)) : words[0];
+  return named && PROGRAM.test(named) ? shellWord(named) : 'sh';
 }
 
 /**

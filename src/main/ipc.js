@@ -80,6 +80,7 @@ import { showSpendingWindow } from './windows/spending-window.js';
 import { shake } from './windows/shake.js';
 import { makeRoom } from './windows/side-pane.js';
 import {
+  codeOrigin,
   describeRemotes,
   describeRepository,
   describeWorktree,
@@ -634,6 +635,14 @@ export function registerIpc({
     // A worktree made just now, not the folder picked worked in as it is.
     const fresh = !own && cwd !== fields.cwd;
     const fromPullRequest = Boolean(fields.worktree?.pullRequest);
+    // A pull request's code is someone else's until the user has looked at it, and the setup script would run
+    // it: installing runs a package's own scripts. It waits for the user. So does the setup of a worktree started
+    // from where that still waits, and of one on code that is on none of the project's branches.
+    const setupWaits = fromPullRequest || (fresh && (await othersCode(cwd, fields.cwd, project)));
+    // `draft` is a first message for the user to finish: it waits in the new contact's message box. One an agent
+    // drafted runs nothing until the user starts it, its setup script neither (see sendMessage).
+    const draft = cleanDraft(fields.draft);
+    const setupOnStart = fresh && !setupWaits && Boolean(draft && startedBy);
     // A deleted worktree's path can be reused. Clear its old PR, including answers still on
     // their way, before publishing the new contact. An existing PR keeps its own status.
     // A branch left with the name made up for the project is named after the first thing the contact
@@ -645,8 +654,6 @@ export function registerIpc({
         : '';
     // A contact on This computer has no branch: the nickname made up from its folder's name follows the work.
     const placeholderName = own && store.settings.renameBranches ? path.basename(own) : '';
-    // `draft` is a first message for the user to finish: it waits in the new contact's message box.
-    const draft = cleanDraft(fields.draft);
     const permissionMode = provider.permissionModes.some((m) => m.id === fields.permissionMode)
       ? fields.permissionMode
       : provider.defaultPermissionMode;
@@ -664,9 +671,8 @@ export function registerIpc({
       ...(draft && { draft }),
       ...(placeholderBranch && { placeholderBranch }),
       ...(placeholderName && { placeholderName }),
-      // A pull request's code is someone else's until the user has looked at it, and the setup
-      // script would run it: installing runs a package's own scripts. It waits for the user.
-      ...(fromPullRequest && { setupWaits: true }),
+      ...(setupWaits && { setupWaits: true }),
+      ...(setupOnStart && { setupOnStart: true }),
       startedBy,
       // Under the manager that started it or that its starter is under; any other under the one it was added under.
       managedBy: managers.managerFor({ key: project.key, startedBy, under: fields?.under }),
@@ -679,16 +685,29 @@ export function registerIpc({
     if (team) conversations.addTeam(contact.id, team);
     broadcastContacts();
     // The project's setup script gets the new worktree ready behind the answer: installing what a
-    // project needs takes minutes. The contact's conversation shows it, as it shows a run. A pull
-    // request's worktree is left as it is (see Runs.setup), and its conversation says so instead.
-    if (fresh) {
-      runs
-        .setup(contact.id)
-        .catch((err) =>
-          onNotice(`The setup script of ${project.name} could not be started.\n\n${err.message}`, contact)
-        );
-    }
+    // project needs takes minutes. The contact's conversation shows it, as it shows a run. One whose
+    // setup waits is left as it is (see Runs.setup), and its conversation says so instead.
+    if (fresh && !setupOnStart) setUp(contact, project, onNotice);
     return contact;
+  };
+
+  /** Starts the setup script of a contact's new worktree; the user hears of one that could not be started. */
+  const setUp = (contact, project, onNotice) =>
+    runs
+      .setup(contact.id)
+      .catch((err) => onNotice(`The setup script of ${project.name} could not be started.\n\n${err.message}`, contact));
+
+  /**
+   * Whether a worktree made just now has code its project's setup script should not run by itself: code that is on
+   * none of the project's branches, or, off the main line, code from a folder whose setup still waits for the user.
+   * @param {string} cwd  the new worktree
+   * @param {string} from  the folder it was made from
+   * @param {Awaited<ReturnType<typeof projects.of>>} project
+   */
+  const othersCode = async (cwd, from, project) => {
+    const origin = await codeOrigin(cwd, startingFrom(project));
+    if (origin === 'main') return false;
+    return origin === 'other' || store.contacts.some((one) => one.setupWaits && one.cwd === from);
   };
 
   /** @type {Map<Electron.WebContents, AbortController>} a window -> calls off the contact it is adding, one at a time */
@@ -828,6 +847,7 @@ export function registerIpc({
       id: contact.id,
       name: store.getContact(contact.id)?.name ?? contact.name,
       worktree: !computer && contact.cwd !== host.cwd,
+      setupWaits: Boolean(store.getContact(contact.id)?.setupWaits),
       joined,
     };
   };
@@ -921,12 +941,14 @@ export function registerIpc({
   });
 
   /**
-   * Runs a project's cleanup script in a contact's worktree, to its end.
+   * Runs a project's cleanup script in a contact's worktree, to its end. Not while its setup waits for the user,
+   * nor before a conversation an agent drafted has started: the setup script ran nothing there to clean up, and the
+   * cleanup script would run the worktree's code as well.
    * @returns {Promise<string>}  what went wrong, for the user; '' when nothing did or there is no script
    */
   const cleanUp = async (project, contact) => {
     const { cleanup } = project.settings;
-    if (!cleanup || !fs.existsSync(contact.cwd)) return '';
+    if (!cleanup || contact.setupWaits || contact.setupOnStart || !fs.existsSync(contact.cwd)) return '';
     const port = contact.port ? String(contact.port) : undefined;
     const { code, output, timedOut } = await runToEnd(cleanup, {
       cwd: contact.cwd,
@@ -1141,8 +1163,8 @@ export function registerIpc({
     }
   });
   // Delete, on the phone (see remote/routes.js): it goes with its worktree, or the folder made for it on This
-  // computer while that is empty. Only a draft, which nothing has run in: a worktree with uncommitted changes, such
-  // as what its setup script made, is kept until the user says to throw them away. The answer says how many there are.
+  // computer while that is empty. Only a draft, which nothing has run in: a worktree with uncommitted changes is kept
+  // until the user says to throw them away. The answer says how many there are.
   handleWithPath(REQUESTS.chatDeleteDraft, async (event, id, opts) => {
     const contact = store.getContact(id);
     if (!waitingToStart(contact) || startingDrafts.has(id)) throw new Error(NOT_A_DRAFT);
@@ -1483,12 +1505,20 @@ export function registerIpc({
     if (store.getContact(contactId)) views.keep(contactId, view);
   });
 
+  /** A conversation an agent drafted has started: its worktree is set up from now on (see addContact). */
+  const draftStarted = async (id) => {
+    const contact = store.updateContact(id, { setupOnStart: null });
+    if (contact) setUp(contact, await projects.of(contact.cwd), (message) => conversations.notice(id, message));
+  };
+
   // Answered with the id to edit the message by, or null for one that can't be edited.
   const sendMessage = async (contactId, message) => {
     const text = String(message?.text || '');
     // The first thing a contact is asked to do names its branch, before its agent reads what the branch is called.
     await nameBranchFor(contactId, text);
+    const drafted = store.getContact(contactId)?.setupOnStart;
     const said = conversations.send(contactId, { text, images: message?.images || [], recipient: message?.recipient });
+    if (drafted && said && !said.blocked) draftStarted(contactId).catch(() => {});
     // Its id pins it. Only one sent to an agent that can go back to it is editable.
     return said;
   };

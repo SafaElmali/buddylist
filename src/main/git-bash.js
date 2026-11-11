@@ -1,9 +1,9 @@
 // On Windows a project's scripts run in Git Bash, the bash that comes with Git for Windows, so that a
 // script written as on a Mac or Linux runs there as it is: `$PORT`, more lines than one. Claude Code
 // on Windows needs it too. It is looked for when the first script starts, not while the app starts.
-import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execTool } from './git-command.js';
 
 // Asking git where it is should take a moment; past this it counts as not there.
 const LOOK_TIMEOUT_MS = 4000;
@@ -14,7 +14,7 @@ const WSL_BASH = /[\\/](system32|sysnative|windowsapps)[\\/]bash\.exe$/i;
 /** Where the git on the PATH keeps its own programs, as it says; '' without git. */
 function gitExecPath() {
   return new Promise((resolve) => {
-    execFile('git', ['--exec-path'], { timeout: LOOK_TIMEOUT_MS, windowsHide: true }, (err, stdout) =>
+    execTool('git', ['--exec-path'], { timeout: LOOK_TIMEOUT_MS, windowsHide: true }, (err, stdout) =>
       resolve(err ? '' : stdout.trim())
     );
   });
