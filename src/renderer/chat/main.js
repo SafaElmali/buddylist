@@ -2841,9 +2841,11 @@ async function main() {
     if (kept) await sidePane.restore(withPinnedTabs(kept, pinned), reopen);
     const fresh = !data.history.length;
     if (platform !== 'web') {
-      // A pull request's worktree was not set up: its line says so, and Setup is where to start it. Not while
-      // the contact is archived: nothing runs for it.
-      if (fresh && data.contact.setupWaits && !archived()) run.setupWaits();
+      // A worktree whose setup waits for the user, a pull request's or one an agent started from it, was not set
+      // up: its line says so while it waits, also once its first message was sent, and Setup is where to start it.
+      // Not while the contact is archived: nothing runs for it.
+      const waits = Boolean(data.contact.setupWaits) && !archived();
+      if (waits) run.setupWaits();
       const bare = !sidePane.tabs.length;
       // What the upper half has on show already stays in front: the list of agents, in a group.
       const { upper } = sidePane.state;
@@ -2866,8 +2868,9 @@ async function main() {
           if (upper) sidePane.select(upper);
           else files.show();
           // Under it, what runs there. The terminal is behind the other two: the setup script is
-          // what a new worktree is waiting for. Nothing runs for an archived contact.
-          if (!fresh || !bare || archived()) return;
+          // what a new worktree is waiting for, and what one whose setup waits has its line point to.
+          // Nothing runs for an archived contact.
+          if (!(fresh || waits) || !bare || archived()) return;
           scripts.open();
           terminals.open({ focus: false, unasked: true });
           scripts.showSetup();

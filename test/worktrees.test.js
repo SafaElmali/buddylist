@@ -1260,6 +1260,51 @@ test('a new worktree gets its copy of those files, where they were', opts, async
 });
 
 test(
+  'the copies are for the user alone to read, and one that can be run still can',
+  { ...opts, skip: !HAS_GIT || process.platform === 'win32' },
+  async () => {
+    const dir = withLocalFiles();
+    fs.chmodSync(path.join(dir, '.env'), 0o644);
+    fs.writeFileSync(path.join(dir, '.env.tool'), '#!/bin/sh\necho ok\n', { mode: 0o755 });
+    const folder = await createWorktree({ cwd: dir, branch: 'private', home: tmp() });
+    await copyUntracked(dir, folder, ['.env*']);
+    const mode = (file) => (fs.statSync(path.join(folder, file)).mode & 0o777).toString(8);
+    assert.equal(mode('.env'), '600');
+    assert.equal(mode('.env.tool'), '700');
+  }
+);
+
+test(
+  'a link a branch has where a copy goes is never followed out of the worktree',
+  { ...opts, skip: !HAS_GIT || process.platform === 'win32' },
+  async () => {
+    const dir = withLocalFiles();
+    const elsewhere = tmp();
+    // A branch on which `config` is a link to a folder elsewhere, and `.env.local` one to a file there.
+    run(dir, 'checkout', '--quiet', '-b', 'linked');
+    fs.rmSync(path.join(dir, 'config'), { recursive: true });
+    fs.rmSync(path.join(dir, '.env.local'));
+    fs.symlinkSync(elsewhere, path.join(dir, 'config'));
+    fs.symlinkSync(path.join(elsewhere, 'copy-of-env'), path.join(dir, '.env.local'));
+    run(dir, 'add', '-f', 'config', '.env.local');
+    run(dir, 'commit', '--quiet', '-m', 'links');
+    run(dir, 'checkout', '--quiet', 'main');
+    // The user's own files on main, which git does not keep.
+    fs.mkdirSync(path.join(dir, 'config'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'config', 'local.yml'), 'config/local.yml');
+    fs.writeFileSync(path.join(dir, '.env.local'), '.env.local');
+
+    const folder = await createWorktree({ cwd: dir, branch: 'from-linked', base: 'current', home: tmp() });
+    run(folder, 'checkout', '--quiet', 'linked');
+    assert.deepEqual(await copyUntracked(dir, folder, ['.env*', 'config/local.yml']), ['.env']);
+    assert.deepEqual(fs.readdirSync(elsewhere), [], 'nothing was written there');
+    // The links are as the branch has them.
+    assert.equal(fs.lstatSync(path.join(folder, 'config')).isSymbolicLink(), true);
+    assert.equal(fs.lstatSync(path.join(folder, '.env.local')).isSymbolicLink(), true);
+  }
+);
+
+test(
   'nothing is copied without a pattern, into the main checkout, or into a folder with no repository',
   opts,
   async () => {

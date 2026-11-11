@@ -5,12 +5,12 @@
 // what is not committed yet. This is what the Changes tab of a conversation
 // shows. It only ever reads: nothing is staged, committed or written, and git is
 // told to leave its own files alone.
-import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { UNCOMMITTED } from '../shared/changes.js';
 import { CONTEXT_LINES, cutOff, hunksOf, isBinaryDiff } from '../shared/unified-diff.js';
 import { branchLabel } from './contact-card.js';
+import { execTool } from './git-command.js';
 import { readText, SHOWN_AT_MOST } from './files.js';
 import { defaultBranch, isInside } from './worktrees.js';
 
@@ -116,11 +116,11 @@ const said = (stderr) =>
  * @param {{ command?: string, timeout?: number }} [opts]  stand-ins for tests: another program, less patience
  * @returns {Git}
  */
-export function gitRunner({ command = 'git', timeout = GIT_TIMEOUT_MS } = {}) {
+export function gitRunner({ command, timeout = GIT_TIMEOUT_MS } = {}) {
   return (cwd, args, { ok = [], maxBuffer = LIST_BUFFER } = {}) =>
     new Promise((resolve, reject) => {
-      execFile(
-        command,
+      execTool(
+        'git',
         // Without the optional lock, looking never gets in the way of the agent's own git commands.
         // `git diff` takes that lock all the same, to note in the index which files were only
         // touched, unless it is told not to tidy up.
@@ -130,6 +130,7 @@ export function gitRunner({ command = 'git', timeout = GIT_TIMEOUT_MS } = {}) {
           timeout,
           maxBuffer,
           windowsHide: true,
+          ...(command && { file: command }),
           // A file called "*.js" or ":(top)" is that file, not a pattern. Never stop to ask for a
           // password: nobody would see the question. And answer in English, whatever the user's
           // language: some of what git says is read here.

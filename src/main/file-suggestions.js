@@ -1,10 +1,10 @@
 // A short-lived, bounded list of the files a contact can mention, and that All files searches. Git supplies
 // its ignore rules; ordinary folders are walked without following links into another tree. Past FILES_MAX
 // files, or a moment's walk, the list stops and says it is `limited`: a huge folder is searched in part.
-import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { matchingFiles } from '../shared/file-suggestions.js';
+import { spawnTool } from './git-command.js';
 
 const FILES_MAX = 20_000;
 const SKIP = new Set(['.git', 'node_modules', '.venv', '.DS_Store']);
@@ -18,7 +18,7 @@ const SKIP = new Set(['.git', 'node_modules', '.venv', '.DS_Store']);
  */
 function gitFiles(root, most) {
   return new Promise((resolve, reject) => {
-    const git = spawn('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '.'], {
+    const git = spawnTool('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '.'], {
       cwd: root,
       windowsHide: true,
       env: { ...process.env, LC_ALL: 'C', GIT_TERMINAL_PROMPT: '0' },

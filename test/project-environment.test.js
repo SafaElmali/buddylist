@@ -142,6 +142,45 @@ test('a project’s own variables win over the shared ones, and a typed one over
   });
 });
 
+test('a file sets ordinary variables, never the ones that say which programs start or what they load', () => {
+  const { projects } = setup();
+  const project = folder();
+  fs.writeFileSync(
+    path.join(project.root, '.env'),
+    [
+      'API_URL=http://localhost:3000',
+      'NODE_ENV=development',
+      'PATH=/Users/example/bin',
+      'NODE_OPTIONS=--max-old-space-size=512',
+      'BASH_ENV=/Users/example/.bashrc',
+      'export ZDOTDIR=/Users/example/zsh',
+      'DYLD_LIBRARY_PATH=/Users/example/lib',
+      'LD_PRELOAD=/Users/example/lib/one.so',
+      'GIT_SSH_COMMAND=ssh -v',
+      'MY_PATH=/Users/example/data',
+    ].join('\n')
+  );
+  projects.update(project.key, { envFiles: ['.env'] });
+  const env = projects.environment(project, project.root);
+  assert.equal(env.API_URL, 'http://localhost:3000');
+  assert.equal(env.NODE_ENV, 'development');
+  assert.equal(env.MY_PATH, '/Users/example/data');
+  for (const name of [
+    'PATH',
+    'NODE_OPTIONS',
+    'BASH_ENV',
+    'ZDOTDIR',
+    'DYLD_LIBRARY_PATH',
+    'LD_PRELOAD',
+    'GIT_SSH_COMMAND',
+  ]) {
+    assert.equal(name in env, false, name);
+  }
+  // One typed in Settings is the user's own, and is used.
+  projects.update(project.key, { env: [{ name: 'NODE_OPTIONS', value: '--max-old-space-size=512' }] });
+  assert.equal(projects.environment(project, project.root).NODE_OPTIONS, '--max-old-space-size=512');
+});
+
 test('a file not named in full is the contact’s own: each worktree reads its copy', () => {
   const { projects } = setup();
   const project = folder('shop');

@@ -2,9 +2,9 @@
 // `gh` CLI in the project's folder, and lists the open ones to choose it from.
 // It only ever reads: nothing here comments on, edits, closes or creates
 // anything on GitHub.
-import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import { parseReference, REFERENCE_HELP, repositoryOf, sameRepository } from '../shared/github-item.js';
+import { execTool } from './git-command.js';
 
 /** @typedef {import('../shared/github-item.js').GitHubItem} GitHubItem */
 /** @typedef {import('../shared/github-item.js').ListedItem} ListedItem */
@@ -31,7 +31,7 @@ const SEARCH_LIMIT = 20;
 export function runGh(cwd, args, timeout = GH_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     try {
-      execFile(
+      execTool(
         'gh',
         args,
         // Never stop to ask anything: nobody would see the question.

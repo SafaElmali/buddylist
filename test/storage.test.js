@@ -523,6 +523,10 @@ test('a contact started from a pull request keeps that its setup script waits fo
   assert.equal('setupWaits' in new Store(dir, defaults).getContact(branch.id), false);
   store.updateContact(pull.id, { setupWaits: null });
   assert.equal(new Store(dir, defaults).getContact(pull.id).setupWaits, null);
+  // One an agent drafted keeps that it is set up once it starts.
+  const drafted = store.addContact({ ...fields, setupOnStart: true });
+  assert.equal(new Store(dir, defaults).getContact(drafted.id).setupOnStart, true);
+  assert.equal('setupOnStart' in new Store(dir, defaults).getContact(branch.id), false);
 });
 
 test('history appends, updates entries, and clears', () => {

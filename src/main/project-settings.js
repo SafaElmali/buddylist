@@ -1,7 +1,6 @@
 // What each project is set up with, as the rest of the main process asks for
 // it: the settings kept under its key, the variables its scripts, terminals and
 // agents are started with, and the projects there are for Settings.
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,8 +12,10 @@ import {
   cleanProjectPatch,
   parseEnvFile,
   projectSettings,
+  takenFromFile,
 } from '../shared/project-settings.js';
 import { THIS_COMPUTER, onComputer } from '../shared/projects.js';
+import { execToolSync } from './git-command.js';
 import { describeProject, describeProjectSync, projectOfKey, suggestScripts } from './run-command.js';
 
 /** @typedef {import('./run-command.js').Project} Project */
@@ -51,7 +52,7 @@ function keptByGit(files, folder) {
   const own = files.filter((file) => !path.isAbsolute(file));
   if (!own.length) return new Set();
   try {
-    const said = execFileSync('git', ['ls-files', '-z', '--', ...own], {
+    const said = execToolSync('git', ['ls-files', '-z', '--', ...own], {
       cwd: folder,
       timeout: LS_TIMEOUT_MS,
       windowsHide: true,
@@ -73,7 +74,8 @@ function keptByGit(files, folder) {
  * The variables in some files, the later ones winning. A file that is gone or can't be read
  * says nothing: a worktree may not have its copy yet. In a worktree, one its branch has in git
  * is read from the main checkout instead. The branch can be anyone's pull request, and what it
- * sets would reach the agent, ANTHROPIC_BASE_URL say. Its own copy, one git doesn't keep, is its own.
+ * sets would reach the agent, ANTHROPIC_BASE_URL say. Its own copy, one git doesn't keep, is its own. No file sets
+ * which programs start or what they load as they do (see takenFromFile): that is typed in Settings.
  * @param {string[]} files
  * @param {string} folder  where one that is not named in full is looked for
  * @param {string} [mainFolder]  the same folder in the main checkout, for a folder in a worktree
@@ -84,7 +86,9 @@ function readEnvFiles(files, folder, mainFolder) {
   for (const file of files) {
     try {
       const at = theirs.has(path.resolve(folder, file)) ? path.resolve(mainFolder, file) : path.resolve(folder, file);
-      if (fs.statSync(at).size <= ENV_FILE_MAX) Object.assign(variables, parseEnvFile(fs.readFileSync(at, 'utf8')));
+      if (fs.statSync(at).size <= ENV_FILE_MAX) {
+        Object.assign(variables, takenFromFile(parseEnvFile(fs.readFileSync(at, 'utf8'))));
+      }
     } catch {
       // not there
     }

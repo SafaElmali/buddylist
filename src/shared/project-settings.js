@@ -421,6 +421,51 @@ export function parseEnvFile(text) {
   return variables;
 }
 
+/**
+ * The variables that say which programs start, or what a program or a shell loads and runs as it starts: the
+ * system's loader, a shell's startup files, and the startup options of Node, Python, Perl, Ruby, Java and git.
+ * What starts is the user's to say, in Settings, not a file's in the folder. Windows writes a variable's name in
+ * any case.
+ */
+const STARTS_PROGRAMS = new RegExp(
+  `^(?:${[
+    'PATH',
+    'DYLD_\\w*',
+    'LD_\\w*',
+    'BASH_ENV',
+    'ENV',
+    'ZDOTDIR',
+    'PROMPT_COMMAND',
+    'SHELLOPTS',
+    'BASHOPTS',
+    'PS4',
+    'NODE_OPTIONS',
+    'PYTHONSTARTUP',
+    'PYTHONPATH',
+    'PERL5OPT',
+    'PERL5LIB',
+    'RUBYOPT',
+    'RUBYLIB',
+    'JAVA_TOOL_OPTIONS',
+    'JDK_JAVA_OPTIONS',
+    '_JAVA_OPTIONS',
+    'GIT_SSH',
+    'GIT_SSH_COMMAND',
+    'GIT_EXEC_PATH',
+    'GIT_CONFIG_\\w+',
+  ].join('|')})$`,
+  'i'
+);
+
+/**
+ * The variables of a file that are taken from it: all but the ones that say which programs start and what they
+ * load (see STARTS_PROGRAMS). One of those is typed in Settings by whoever needs it.
+ * @param {Record<string, string>} variables
+ * @returns {Record<string, string>}
+ */
+export const takenFromFile = (variables) =>
+  Object.fromEntries(Object.entries(variables).filter(([name]) => !STARTS_PROGRAMS.test(name)));
+
 /** @param {Variable[]} variables @returns {Record<string, string>} */
 export const asEnvironment = (variables) => Object.fromEntries(variables.map(({ name, value }) => [name, value]));
 

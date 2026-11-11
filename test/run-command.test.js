@@ -439,7 +439,15 @@ test(
     const dir = tmp();
     const plain = (name, content) => scriptFileCommand(script(dir, name, content, false), [dir]);
     assert.equal(plain('scripts/start.sh', '#!/usr/bin/env bash\nset -e\n'), 'bash scripts/start.sh');
-    assert.equal(plain('scripts/serve', '#! /bin/zsh -f\r\n'), '/bin/zsh -f scripts/serve');
+    // The program alone: not the rest of the line.
+    assert.equal(plain('scripts/serve', '#! /bin/zsh -f\r\n'), '/bin/zsh scripts/serve');
+    assert.equal(plain('scripts/check', '#!/bin/sh -e; echo checked\n'), '/bin/sh scripts/check');
+    assert.equal(plain('scripts/env-s', '#!/usr/bin/env -S node --no-warnings\n'), 'node scripts/env-s');
+    assert.equal(plain('scripts/env-var', '#!/usr/bin/env LANG=C python3\n'), 'python3 scripts/env-var');
+    // A name that is not a plain one is no program: sh runs the script.
+    assert.equal(plain('scripts/odd', '#!$(echo sh)\n'), 'sh scripts/odd');
+    assert.equal(plain('scripts/quoted', "#!'/opt/my tool/run'\n"), 'sh scripts/quoted');
+    assert.equal(plain('scripts/dash', '#!-x\n'), 'sh scripts/dash');
     assert.equal(plain('dev.sh', 'pnpm dev\n'), 'sh ./dev.sh');
     assert.equal(plain('empty.sh', ''), 'sh ./empty.sh');
     // On Windows Git Bash reads the first line itself.
