@@ -48,6 +48,9 @@ const MERGED_BY = { squash: 'squash and merge', merge: 'merge', rebase: 'rebase 
 /** How the checks stand, beside the menu's way to them: in full while one fails, in a word otherwise. */
 const CHECKS_HINT = { running: 'running', passed: 'passed' };
 
+/** What a pull request linked by hand says of itself. */
+const LINKED = 'Linked to this conversation, not found by its branch';
+
 /** What a pull request without one is, for the faces that ask for one. */
 const NO_PULL_REQUEST = {
   tag: null,
@@ -121,7 +124,7 @@ export function pullRequestButton(contact, who, settings = {}) {
       pullRequestLine(pr),
       pr.title,
       autoMerge && `Auto-merge is on: ${autoMergeText(autoMerge, pr.appMerges)}`,
-      pr.linked && 'Linked to this conversation, not found by its branch.',
+      pr.linked && `${LINKED}.`,
       'Click to open it on GitHub.',
     ]
       .filter(Boolean)
@@ -151,12 +154,7 @@ export function pullRequestButton(contact, who, settings = {}) {
       name: `PR #${pr.number}`,
       tag,
       more: 'Create another pull request on this branch',
-      title: [
-        pullRequestLine(pr),
-        pr.title,
-        pr.linked && 'Linked to this conversation, not found by its branch.',
-        'Click to open it on GitHub.',
-      ]
+      title: [pullRequestLine(pr), pr.title, pr.linked && `${LINKED}.`, 'Click to open it on GitHub.']
         .filter(Boolean)
         .join('\n'),
       url: pr.url,
@@ -292,6 +290,14 @@ export function pullRequestMenuItems(
 }
 
 /**
+ * The number of the pull request linked to a conversation by hand, whether it is the one shown or the other.
+ * @param {PullRequest & { linked?: boolean, other?: { number: number, linked?: true } } | null | undefined} pr  as
+ *   the contact list shows it
+ * @returns {number | null}  null when none is linked
+ */
+export const linkedNumber = (pr) => (pr?.linked ? pr.number : pr?.other?.linked ? pr.other.number : null);
+
+/**
  * The ▼'s ways to link a pull request by hand: one its branch doesn't lead to, as one pushed under another name. Once
  * one is linked, which it is, the branch's own where there is one too, and Unlink.
  * @param {Face} face
@@ -299,35 +305,25 @@ export function pullRequestMenuItems(
  * @returns {import('../renderer/lib/menu.js').MenuItem[]}
  */
 function linkItems(face, { link, unlink, showOther }) {
-  const { number, other } = face;
   if (!face.url) return [{ label: 'Link pull request...', action: link }];
   const another = { label: 'Link another pull request...', action: link };
-  // The linked one shown, maybe with the branch's own beside it.
-  if (face.linked) {
-    return [
-      {
-        label: other
-          ? `Showing #${number}, linked here. This branch has #${other.number}.`
-          : 'Linked to this conversation, not found by its branch',
-        note: true,
-      },
-      ...(other
-        ? [{ label: `Show #${other.number} of this branch instead`, action: () => showOther?.('branch') }]
-        : []),
-      another,
-      { label: `Unlink #${number}`, action: unlink },
-    ];
-  }
-  // The branch's own shown, with one linked beside it.
-  if (other?.linked) {
-    return [
-      { label: `Showing #${number} of this branch. #${other.number} is linked here.`, note: true },
-      { label: `Show linked #${other.number} instead`, action: () => showOther?.('linked') },
-      another,
-      { label: `Unlink #${other.number}`, action: unlink },
-    ];
-  }
-  return [another];
+  const { number, other } = face;
+  const linked = face.linked ? number : other?.linked ? other.number : null;
+  if (!linked) return [another];
+  // Which of the two is shown, where the branch has its own besides the linked one, and the way to the other.
+  const both = other && {
+    note: face.linked
+      ? `Showing #${number}, linked here. This branch has #${other.number}.`
+      : `Showing #${number} of this branch. #${other.number} is linked here.`,
+    label: face.linked ? `Show #${other.number} of this branch instead` : `Show linked #${other.number} instead`,
+    which: face.linked ? 'branch' : 'linked',
+  };
+  return [
+    { label: both ? both.note : LINKED, note: true },
+    ...(both ? [{ label: both.label, action: () => showOther?.(both.which) }] : []),
+    another,
+    { label: `Unlink #${linked}`, action: unlink },
+  ];
 }
 
 // ---- the page on GitHub where you open one yourself ------------------------------------------

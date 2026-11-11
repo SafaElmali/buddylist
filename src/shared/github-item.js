@@ -54,6 +54,9 @@ const NOUN = { issue: 'Issue', pull: 'Pull request' };
 /** What the user is told when what they typed is neither a number nor a link. */
 export const REFERENCE_HELP = 'Type the number of an issue or pull request, such as 123, or paste its link.';
 
+/** What is said when a pull request to link to a conversation is named by neither a number nor a link. */
+export const LINK_HELP = 'Say which pull request: its number, such as #12, or the link to its page.';
+
 const oneLine = (text) =>
   String(text ?? '')
     .replace(/\s+/g, ' ')

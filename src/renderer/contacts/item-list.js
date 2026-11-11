@@ -11,19 +11,23 @@ import { closeMenu, openPopover, position } from '../lib/menu.js';
 
 // Long enough to finish a word before GitHub is searched for what was typed.
 const SEARCH_PAUSE_MS = 400;
-/** "issue or pull request" of "issues or pull requests". */
-const singular = (noun) => noun.replace(/(\w)s\b/g, '$1');
+/** What the list says while it has nothing to show, of open issues and pull requests. */
+const ITEMS = {
+  looking: 'Looking for open issues and pull requests...',
+  none: 'There are no open issues or pull requests.',
+  unmatched: (text) => `No open issue or pull request matches “${text}”.`,
+};
 const NOTHING = { pulls: [], issues: [] };
 
 /**
  * Gives the GitHub field its list. The project is asked at once, so the list is there by the time it is wanted.
  * @param {HTMLInputElement} input
  * @param {(search?: string) => Promise<ItemList>} ask  the project's open ones; with `search`, what GitHub finds for those words
- * @param {{ hint?: (item: ListedItem) => string, noun?: string }} [opts]  `hint`: what each row says at its end, yours
- *   or a draft unless it says. `noun`: what the list is of, in what it says while it has none
+ * @param {{ hint?: (item: ListedItem) => string, words?: typeof ITEMS }} [opts]  `hint`: what each row says at its
+ *   end, yours or a draft unless it says. `words`: what the list says while it has nothing to show
  * @returns {{ open: () => void }}  shows the list, as for a contact that is to be started from one
  */
-export function itemList(input, ask, { hint = listedHint, noun = 'issues or pull requests' } = {}) {
+export function itemList(input, ask, { hint = listedHint, words = ITEMS } = {}) {
   /** @type {ItemList | null} */
   let list = null;
   let failure = '';
@@ -73,14 +77,14 @@ export function itemList(input, ask, { hint = listedHint, noun = 'issues or pull
   /** What the list shows for what the field says now; null when there is nothing to show at all. */
   function content() {
     if (failure) return [note(failure)];
-    if (!list) return [note(`Looking for open ${noun.replace(' or ', ' and ')}...`)];
+    if (!list) return [note(words.looking)];
     const text = input.value.trim();
     const { pulls, issues } = matching(text);
     if (pulls.length || issues.length) return [...group('Pull requests', pulls), ...group('Issues', issues)];
     // A number or a link that isn't listed is looked up all the same, and the line under the field says what it is.
     if (parseReference(text)) return null;
-    if (!text) return [note(`There are no open ${noun}.`)];
-    return [note(found.has(text) ? `No open ${singular(noun)} matches “${text}”.` : 'Searching GitHub...')];
+    if (!text) return [note(words.none)];
+    return [note(found.has(text) ? words.unmatched(text) : 'Searching GitHub...')];
   }
 
   // Enter takes the highlighted row: the first, which once you type is the best match.

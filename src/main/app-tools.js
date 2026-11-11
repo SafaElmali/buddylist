@@ -14,7 +14,7 @@ import {
   howMany,
   instructionPart,
 } from '../shared/app-tools.js';
-import { DRAFT_LIMIT } from '../shared/github-item.js';
+import { DRAFT_LIMIT, LINK_HELP } from '../shared/github-item.js';
 import { BRIEF_MAX, MESSAGE_MAX, REPORT_UP_MAX, SOURCES_MAX } from '../shared/managers.js';
 import { cleanInstructions } from '../shared/project-settings.js';
 import { pullRequestStatus } from '../shared/pull-request-text.js';
@@ -488,9 +488,8 @@ function linkPullRequest(hostId, links, readOnly = false) {
     },
     ask: () => false,
     run: async ({ pull_request: text, unlink = false }, context) => {
-      if (!unlink && !String(text ?? '').trim()) {
-        throw new Error('Say which pull request: its number, such as #12, or the link to its page.');
-      }
+      // Nothing to ask the user about.
+      if (!unlink && !String(text ?? '').trim()) throw new Error(LINK_HELP);
       if (readOnly) {
         const answer = await context.ask({
           kind: 'tool',

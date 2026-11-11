@@ -609,6 +609,12 @@ const demoNewBranches = new Map();
 const demoPullRequest = (contact) =>
   demoNewBranches.has(contact.cwd) ? null : (DEMO_PROJECTS[contact.cwd.split('/').pop()]?.pr ?? null);
 
+/** The made-up pull request a contact's conversation shows, by its id: null for none, or no such contact. */
+const shownPullRequest = (id) => {
+  const contact = store.getContact(id);
+  return (contact && demoPullRequest(contact)) ?? null;
+};
+
 const WORKTREES_HOME = '/Users/you/.buddylist/worktrees';
 /** What the preview says to a schedule: they run in the app. */
 const NO_SCHEDULES = 'Schedules run in the app: the preview has none.';
@@ -1106,18 +1112,12 @@ const handlers = {
     broadcastContacts();
     return { method: pr.autoMerge ?? null };
   },
-  // The preview has no GitHub to look a pull request up on, nor one linked to take away or switch.
+  // The preview has no GitHub to look a pull request up on, nor one linked to take away or switch: what is shown stays.
   [REQUESTS.contactLinkPullRequest]: () => {
     throw new Error('This is the demo: no pull request is looked up on GitHub.');
   },
-  [REQUESTS.contactUnlinkPullRequest]: (_win, id) => {
-    const contact = store.getContact(id);
-    return (contact && demoPullRequest(contact)) ?? null;
-  },
-  [REQUESTS.contactShowPullRequest]: (_win, id) => {
-    const contact = store.getContact(id);
-    return (contact && demoPullRequest(contact)) ?? null;
-  },
+  [REQUESTS.contactUnlinkPullRequest]: (_win, id) => shownPullRequest(id),
+  [REQUESTS.contactShowPullRequest]: (_win, id) => shownPullRequest(id),
   [REQUESTS.contactRepository]: (_win, folder) => demoRepository(folder),
   // As in the app: This computer, and the projects the contacts work on, by name.
   [REQUESTS.contactPlaces]: () => {

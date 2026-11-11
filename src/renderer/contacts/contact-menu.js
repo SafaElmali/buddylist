@@ -4,7 +4,7 @@
 import { newBranchItems } from '../../shared/new-branch.js';
 import { KEYWORDS } from '../../shared/palette.js';
 import { THIS_COMPUTER } from '../../shared/projects.js';
-import { pullRequestButton } from '../../shared/pull-request-button.js';
+import { linkedNumber, pullRequestButton } from '../../shared/pull-request-button.js';
 import { isOpen } from '../../shared/pull-request-text.js';
 import { plural } from '../lib/format.js';
 import { shownPullRequest } from './rows.js';
@@ -113,8 +113,7 @@ export function actionItems(contact, on) {
  */
 function linkItems(contact, on) {
   if (!on.linkPullRequest || on.links?.() === false || contact?.manages) return [];
-  const pr = contact?.pullRequest;
-  const linked = pr?.linked ? pr.number : pr?.other?.linked ? pr.other.number : null;
+  const linked = linkedNumber(contact?.pullRequest);
   return [
     {
       label: linked ? 'Link another pull request...' : 'Link pull request...',

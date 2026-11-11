@@ -47,7 +47,14 @@ export function linkPullRequestDialog(contact) {
   itemList(
     input,
     (search) => api.contacts.githubItems(contact.cwd, search).then(({ pulls }) => ({ pulls, issues: [] })),
-    { hint: pullRequestHint, noun: 'pull requests' }
+    {
+      hint: pullRequestHint,
+      words: {
+        looking: 'Looking for open pull requests...',
+        none: 'There are no open pull requests.',
+        unmatched: (text) => `No open pull request matches “${text}”.`,
+      },
+    }
   );
   const result = formDialog({
     title: 'Link a Pull Request',

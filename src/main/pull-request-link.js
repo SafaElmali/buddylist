@@ -3,18 +3,18 @@
 // link_pull_request. It has to be one of the conversation's own repository, or of a fork of it among its remotes.
 // It only reads: nothing on GitHub changes by linking one.
 import fs from 'node:fs';
-import { parseReference } from '../shared/github-item.js';
+import { LINK_HELP, parseReference } from '../shared/github-item.js';
 import { ghPullRequest, parsePullRequest } from './contact-card.js';
 import { ghTrouble, lastWord } from './github-lookup.js';
 import { pullRequestContext, pullRequestRepositories } from './pull-request-association.js';
 
 /** @typedef {import('./contact-card.js').PullRequest} PullRequest */
 
-/** What the user or agent is told when what they gave is neither a number nor a link. */
-export const LINK_HELP = 'Say which pull request: its number, such as #12, or the link to its page.';
+export { LINK_HELP };
 
-// What gh says of a number that is no pull request there: an issue's, or none at all.
-const NOT_A_PULL_REQUEST = /Could not resolve to a PullRequest|no pull requests? found/i;
+// What gh says of a number that is no pull request there: an issue's, or none at all. A branch with none it answers
+// with nothing (see ghPullRequest).
+const NOT_A_PULL_REQUEST = /Could not resolve to a PullRequest/i;
 
 /** "acme/shop" of "github.com/acme/shop". */
 const ownerAndName = (repository) => repository.split('/').slice(1).join('/');
@@ -50,21 +50,20 @@ export async function pullRequestToLink(
   // A link is asked about as a pull request's page, whichever of its tabs it was to, or its issue page.
   const host = /^(?:https?:\/\/)?([^/\s]+)\//i.exec(typed)?.[1];
   const ref = reference.repo ? `https://${host}/${reference.repo}/pull/${reference.number}` : String(reference.number);
-  const where = reference.repo ?? here;
+  const missing = () => new Error(`There is no pull request #${reference.number} in ${reference.repo ?? here}.`);
   let output;
   try {
     output = await run(cwd, ref);
   } catch (err) {
     const trouble = ghTrouble(err);
     if (trouble) throw new Error(trouble, { cause: err });
-    if (NOT_A_PULL_REQUEST.test(String(err?.stderr ?? ''))) {
-      throw new Error(`There is no pull request #${reference.number} in ${where}.`, { cause: err });
-    }
+    if (NOT_A_PULL_REQUEST.test(String(err?.stderr ?? ''))) throw Object.assign(missing(), { cause: err });
     throw new Error(`GitHub could not look it up: ${lastWord(err)}`, { cause: err });
   }
-  if (!output) throw new Error(`There is no pull request #${reference.number} in ${where}.`);
+  if (!output) throw missing();
   const pr = parsePullRequest(output);
   if (!pr) throw new Error('The answer from GitHub could not be read. Try again in a moment.');
+  // parsePullRequest has read it as JSON already.
   const { base, head } = pullRequestRepositories(pr.url, JSON.parse(output));
   if (!repositories.includes(base) && !(head && repositories.includes(head))) {
     throw new Error(

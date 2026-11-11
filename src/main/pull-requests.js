@@ -76,6 +76,8 @@ const DEMO_PULL_REQUESTS = Object.freeze(
  *   ended that may have pushed it, or a pull request was linked to it. An answer asked for before the last time is
  *   about how it stood before
  * @property {PullRequest | null} [branchPr]  the pull request of its branch, as GitHub last said; unset until it has
+ * @property {number} [branchAt]  when its branch was last asked about: a linked folder's rounds ask about the branch
+ *   at the branch's own pace
  * @property {Link} [link]  the pull request linked to it by hand, if any
  */
 
@@ -273,12 +275,7 @@ export class PullRequests {
    */
   link(cwd, pr) {
     if (this.demo || !cwd) return null;
-    const folder = this.#folder(cwd);
-    folder.moves = (folder.moves || 0) + 1;
-    folder.link = { pr: plain(pr) };
-    this.saveLink(cwd, folder.link);
-    this.#heard(cwd, folder, this.#shown(folder), false);
-    return folder.pr ?? null;
+    return this.#relink(cwd, this.#folder(cwd), { pr: plain(pr) });
   }
 
   /**
@@ -288,12 +285,7 @@ export class PullRequests {
    */
   unlink(cwd) {
     const folder = this.#folders.get(cwd) ?? (cwd && !this.demo ? this.#folder(cwd) : null);
-    if (!folder?.link) return folder?.pr ?? null;
-    folder.moves = (folder.moves || 0) + 1;
-    delete folder.link;
-    this.saveLink(cwd, null);
-    this.#heard(cwd, folder, this.#shown(folder), false);
-    return folder.pr ?? null;
+    return folder?.link ? this.#relink(cwd, folder, null) : (folder?.pr ?? null);
   }
 
   /**
@@ -305,8 +297,21 @@ export class PullRequests {
   show(cwd, which) {
     const folder = this.#folders.get(cwd);
     if (!folder?.link) return folder?.pr ?? null;
-    folder.link = which === 'branch' ? { ...folder.link, show: 'branch' } : { pr: folder.link.pr };
-    this.saveLink(cwd, folder.link);
+    return this.#relink(cwd, folder, { pr: folder.link.pr, ...(which === 'branch' && { show: 'branch' }) });
+  }
+
+  /**
+   * Keeps the folder's link as it is now, or none, and shows what that makes it show. Another one shown is no news
+   * of it: a merged one linked now archives nobody. What GitHub is still saying about the one before is not heard.
+   * @param {string} cwd
+   * @param {Folder} folder
+   * @param {Link | null} link
+   */
+  #relink(cwd, folder, link) {
+    folder.moves = (folder.moves || 0) + 1;
+    if (link) folder.link = link;
+    else delete folder.link;
+    this.saveLink(cwd, link);
     this.#heard(cwd, folder, this.#shown(folder), false);
     return folder.pr ?? null;
   }
@@ -372,7 +377,7 @@ export class PullRequests {
       }
     }
     for (const cwd of watched.keys()) {
-      if (this.#due(cwd)) await this.#ask(cwd);
+      if (this.#due(cwd)) await this.#ask(cwd, { round: true });
     }
   }
 
@@ -420,18 +425,28 @@ export class PullRequests {
   /**
    * Asks GitHub about a folder and takes in what it says.
    * @param {string} cwd
+   * @param {{ round?: boolean }} [opts]  `round`: one of the rounds, which ask about a linked folder's branch at the
+   *   branch's own pace, not the linked one's
    * @returns {Promise<PullRequest | null>}  the answer, or what was known when there is none
    */
-  async #ask(cwd) {
+  async #ask(cwd, { round = false } = {}) {
     const folder = this.#folder(cwd);
+    const now = this.now();
     // Asked counts even without an answer: a gh that is missing isn't tried again every minute.
-    folder.at = this.now();
+    folder.at = now;
     const { moves, link } = folder;
     const request = (folder.request = (folder.request || 0) + 1);
+    const branchDue =
+      !round ||
+      !link ||
+      folder.branchAt === undefined ||
+      now < (folder.hotUntil || 0) ||
+      now - folder.branchAt >= freshFor(folder.branchPr);
+    if (branchDue) folder.branchAt = now;
     // The branch's own and the linked one are asked about side by side. Either that GitHub doesn't answer about
     // stands as it was: a linked one as it was kept, so a restart while offline still shows it.
     const [branch, linked] = await Promise.all([
-      this.#askBranch(cwd, folder).catch(() => null),
+      branchDue && this.#askBranch(cwd, folder).catch(() => null),
       link && this.askLink(cwd, link.pr.url).catch(() => null),
     ]);
     // no gh, not signed in, offline, too slow: what was known stands until it works again
@@ -440,7 +455,8 @@ export class PullRequests {
     if (folder.moves !== moves || folder.request !== request || this.#folders.get(cwd) !== folder) {
       return this.#known(cwd);
     }
-    let fromBranch = true;
+    // Recovered or restored, the branch's is no news (see #heard): not a merge that happened.
+    let historical = false;
     if (branch) {
       const { pr, record, recovered = false } = branch;
       // Checkout failures hide the displayed PR but keep its durable evidence. Restoring that
@@ -452,7 +468,7 @@ export class PullRequests {
         this.save(cwd, record);
       }
       folder.branchPr = pr;
-      fromBranch = !recovered && !restored;
+      historical = recovered || restored;
     }
     if (link && linked?.url === link.pr.url && JSON.stringify(linked) !== JSON.stringify(link.pr)) {
       folder.link = { ...link, pr: plain(linked) };
@@ -462,8 +478,8 @@ export class PullRequests {
     const before = folder.pr;
     // A link shows another pull request than before, as one of the branch's turns up: no news of either.
     const switched = Boolean(folder.link && before && shown && before.url !== shown.url);
-    const ofBranch = !folder.link || shown?.url === folder.branchPr?.url;
-    this.#heard(cwd, folder, shown, (ofBranch ? fromBranch : true) && !switched);
+    const quiet = switched || (historical && shown?.url === folder.branchPr?.url);
+    this.#heard(cwd, folder, shown, !quiet);
     return folder.pr;
   }
 

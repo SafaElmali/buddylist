@@ -277,9 +277,9 @@ export async function associatedPullRequest(
         const elsewhere =
           retained && record.headRefName && record.headRefName !== current.branch ? record.pr.url : null;
         let output = elsewhere ? await run(cwd, elsewhere) : await run(cwd);
-        for (const name of elsewhere ? [] : otherHeads(current)) {
-          if (output) break;
-          output = await run(cwd, name);
+        // The other names it may be found by, asked side by side; the first that has one, in order.
+        if (!output && !elsewhere) {
+          output = (await Promise.all(otherHeads(current).map((name) => run(cwd, name)))).find(Boolean) ?? null;
         }
         if (!output) return empty;
         found = verified(output, current, retained ? record.pr.url : null);

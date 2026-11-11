@@ -334,3 +334,28 @@ test('a link is kept with every contact of the folder in the store, and read bac
   store = new Store(profile, { defaultProvider: 'claude' });
   assert.equal(store.getContact(one.id).pullRequestLink, undefined);
 });
+
+test('a linked folder’s rounds ask about the linked one each round, and about its branch at the branch’s pace', async () => {
+  let time = 1_000_000;
+  let branchAsks = 0;
+  const { prs, state } = watcher({
+    kept: { pr: pr(45) },
+    now: () => time,
+    ask: async () => {
+      branchAsks += 1;
+      return null;
+    },
+  });
+  state.linked[`${SHOP}/pull/45`] = pr(45);
+  await prs.check();
+  time += 60 * 1000;
+  await prs.check();
+  assert.equal(state.asked.length, 2, 'the linked one, still open, every round');
+  assert.equal(branchAsks, 1, 'a branch with no pull request of its own waits out its quiet pace');
+  time += 15 * 60 * 1000;
+  await prs.check();
+  assert.equal(branchAsks, 2);
+  // Someone looking, as the hover card does, asks about both at once.
+  await prs.look(worker.cwd);
+  assert.equal(branchAsks, 3);
+});
