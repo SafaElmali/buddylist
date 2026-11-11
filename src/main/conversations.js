@@ -146,11 +146,6 @@ const asksSomething = (markdown) =>
       .slice(-ASKS_WITHIN)
   );
 /**
- * What was offered after the newest reply, kept with the result of the turn it ended (see Conversations.#suggest):
- * none once anything was said after it. A command still running as the turn ended can add its line later.
- * @param {HistoryEntry[]} entries
- */
-/**
  * What the user asked a worker's manager in its conversation with nobody there named too, or the manager answered
  * (see Conversations#managerAnswered): its own agent wasn't asked it, and is told it apart (see #exchange).
  * @param {HistoryEntry} entry
@@ -160,6 +155,11 @@ const notExchanged = (entry) => !exchanged(entry);
 /** Such a line the host's agent hasn't been told yet. @param {HistoryEntry} entry */
 const untoldExchange = (entry) => exchanged(entry) && !entry.toldHost;
 
+/**
+ * What was offered after the newest reply, kept with the result of the turn it ended (see Conversations.#suggest):
+ * none once anything was said after it. A command still running as the turn ended can add its line later.
+ * @param {HistoryEntry[]} entries
+ */
 const keptSuggestion = (entries) => {
   const last = entries.findLast((entry) => ['user', 'assistant', 'result'].includes(entry.kind));
   return last?.kind === 'result' ? last.suggested : undefined;
@@ -1899,18 +1899,22 @@ export class Conversations {
     const participants = recipient && this.participants(contactId);
     const target = recipient && requestRecipients(text, participants, recipient, contact.answerOrder);
     if (target?.blocked) return { blocked: target.blocked, participants };
-    this.#stoppedManagers.delete(contactId);
-    this.#atPlanLimit.delete(contactId);
-    this.#cancelRecovery(contactId);
-    this.#limited.delete(contactId);
-    // The message it was given to start with has been sent, or something else was said instead.
-    if (contact.draft) this.store.updateContact(contactId, { draft: null });
-    // What was offered under the last reply was instead of this, or not wanted.
-    this.#suggested.delete(contactId);
-    const group = this.#group(contactId);
     // `@` and its manager's name: the manager answers here too (see #tagged), or alone, when nobody here is named.
     const tag = typed && !recipient ? this.#tagged(contact, text) : null;
     const onlyManager = Boolean(tag?.only);
+    // A message to the manager alone is none to this conversation's agents: what waits for one to write here, such as
+    // its Stop, its plan's limit or a drafted first message, waits on.
+    if (!onlyManager) {
+      this.#stoppedManagers.delete(contactId);
+      this.#atPlanLimit.delete(contactId);
+      this.#cancelRecovery(contactId);
+      this.#limited.delete(contactId);
+      // The message it was given to start with has been sent, or something else was said instead.
+      if (contact.draft) this.store.updateContact(contactId, { draft: null });
+    }
+    // What was offered under the last reply was instead of this, or not wanted.
+    this.#suggested.delete(contactId);
+    const group = this.#group(contactId);
     // On its own, a contact is sent what you say as you say it.
     const session = group || onlyManager ? null : this.#session(contactId);
     // Keep the original separately from the compact preview. The provider gets its own image payload;

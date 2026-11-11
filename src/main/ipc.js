@@ -1524,7 +1524,8 @@ export function registerIpc({
       // Typed in a message box and sent, here or on a phone: only such a message can tag a manager.
       ...(message?.typed === true && { typed: true }),
     });
-    if (drafted && said && !said.blocked) draftStarted(contactId).catch(() => {});
+    // A message to its manager alone starts no draft (see Conversations#tagged).
+    if (drafted && said && !said.blocked && !said.onlyManager) draftStarted(contactId).catch(() => {});
     // Its id pins it. Only one sent to an agent that can go back to it is editable.
     return said;
   };

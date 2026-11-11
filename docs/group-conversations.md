@@ -41,7 +41,7 @@ Taking turns, they answer in that order, one after another. All at once, they al
 
 The Agents tab lists the host first, then the guests as they joined. **Drag a row** by the grip at its start to change who answers first, or right-click it and pick **Move up** or **Move down**. With the grip focused, the up and down arrow keys move it too. The host can go below a guest: it still owns the conversation and still takes slash commands. The order is kept with the host, and the conversation says so: "Codex answers first now, then Claude." A message already waiting keeps its line; the next one goes by the new order.
 
-In a conversation under a project's [manager](project-managers.md#asking-it-from-a-workers-conversation), `@` also names that manager, first in the list. It isn't in the conversation: it answers from its own, and its answer appears here under its name. A message that names only the manager gets no turn from anyone here, and the agents hear the manager's answer as news, which hands nobody a turn. One that also names an agent here gives that agent its turn as usual.
+In a conversation under a project's [manager](project-managers.md), `@` also names that manager, first in the list. It isn't in the conversation: it answers from its own, and its answer appears here under its name. A message that names only the manager gets no turn from anyone here, and the agents hear the manager's answer as news, which hands nobody a turn. One that also names an agent here gives that agent its turn as usual.
 
 A mention is `@` and the contact's name, in any letter case. So two contacts with the same name can't be in one conversation. A file you send, like `@CLAUDE.md`, is not a mention.
 

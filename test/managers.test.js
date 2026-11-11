@@ -4155,3 +4155,13 @@ test('a tag’s note is known for what it is, with the worker it is about, for a
     name: 'Claude (tags)',
   });
 });
+
+test('a tag of the manager alone starts no drafted worker: its first message still waits for the user', async (t) => {
+  const { app, ask, worker, sessionOf } = tagging(t);
+  app.store.updateContact(worker.id, { draft: 'Round the cart total before tax.' });
+  const entry = ask(TAGGED);
+  assert.equal(entry.onlyManager, true);
+  assert.equal(app.store.getContact(worker.id).draft, 'Round the cart total before tax.', 'still a draft');
+  assert.equal(sessionOf(worker.id), undefined);
+  await settled();
+});

@@ -1610,3 +1610,7 @@ body:has(> .ph-connection:not([hidden])) > .ph-screen {
   color: var(--text-dim);
   font-size: calc(13rem / 15);
 }
+
+.ph-answered-from a {
+  color: var(--link);
+}
