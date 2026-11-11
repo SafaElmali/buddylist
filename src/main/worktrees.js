@@ -2,11 +2,11 @@
 // branch of a pull request, so several contacts can work on one repository
 // without touching each other's files. Worktrees live outside the repository,
 // whichever service the contact uses.
-import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { freeBranchName, taskBranchName } from '../shared/branch-names.js';
+import { execTool } from './git-command.js';
 
 // Looking at a repository should feel instant; past this the folder counts as having none.
 const LOOK_TIMEOUT_MS = 4000;
@@ -49,7 +49,7 @@ export const OLD_WORKTREES_HOME = path.join(os.homedir(), '.agent-messenger', 'w
  */
 export function git(cwd, args, timeout = LOOK_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
-    execFile(
+    execTool(
       'git',
       args,
       // Never stop to ask for a password: nobody would see the question. And answer in
@@ -547,6 +547,51 @@ export async function workplaceFor({
   return createWorktree({ cwd, base, ...from, ...making, branch: branch ?? (await suggestBranch(cwd, repo, prefix)) });
 }
 
+// ---- whose code a worktree has --------------------------------------------------------------
+
+/**
+ * Where the commit a folder is on comes from, as far as git can say: the project's main line, a branch of the
+ * project's own, here or on its remote, or somewhere else, such as a commit fetched on its own. A fork's pull
+ * request is checked out on a branch here too, so a branch with a pull request's commits on it that the main line
+ * doesn't have is not the project's own. The folder's own branch counts for nothing: a worktree made just now is
+ * on a branch of its own already.
+ * @param {string} cwd
+ * @param {{ remote?: string, mainLine?: string }} [opts]  as `describeRepository` takes them
+ * @returns {Promise<'main' | 'own' | 'other'>}  'other' too where git can't say
+ */
+export async function codeOrigin(cwd, { remote, mainLine } = {}) {
+  try {
+    const repo = await describeRepository(cwd, { remote, mainLine });
+    if (!repo) return 'other';
+    const commit = await git(cwd, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}']);
+    const main = repo.defaultBranch && `refs/remotes/${repo.defaultBranch}`;
+    if (main && (await works(cwd, ['merge-base', '--is-ancestor', commit, main]))) return 'main';
+    const own = await git(cwd, ['symbolic-ref', '--quiet', 'HEAD']).catch(() => '');
+    const holders = await git(
+      cwd,
+      ['for-each-ref', `--contains=${commit}`, '--format=%(refname)', 'refs/heads', `refs/remotes/${repo.remote}`],
+      FETCH_TIMEOUT_MS
+    );
+    if (!listed(holders).some((ref) => ref !== own)) return 'other';
+    // GitHub's own name for a pull request's newest commit, which a fork's is fetched as (see pullRequestBranch).
+    const pulled = await git(
+      cwd,
+      [
+        'for-each-ref',
+        '--count=1',
+        '--format=%(refname)',
+        `--merged=${commit}`,
+        ...(main ? [`--no-merged=${main}`] : []),
+        'refs/pull',
+      ],
+      FETCH_TIMEOUT_MS
+    );
+    return pulled ? 'other' : 'own';
+  } catch {
+    return 'other';
+  }
+}
+
 // ---- the files git does not keep ------------------------------------------------------------
 
 // A pattern is meant for a handful of files. One that matches a folder of thousands is cut short.
@@ -569,9 +614,50 @@ export async function untrackedFiles(root, patterns) {
 }
 
 /**
+ * Copies a file of the main checkout into a worktree, at the same place from the top of each. Only into the
+ * worktree itself: a link its branch has, to a folder or a file, is never followed to wherever it points, and
+ * nothing there already is written over. The copy is for the user alone to read, as such files hold secrets.
+ * @param {string} root  the top of the main checkout
+ * @param {string} top  the top of the worktree
+ * @param {string} file  as git names it from the top
+ * @returns {boolean}  whether it was copied
+ */
+function copyInto(root, top, file) {
+  const parts = file.split(/[\\/]/);
+  const name = parts.pop();
+  if (!name || parts.some((part) => part === '..')) return false;
+  // Each folder on the way is the worktree's own, made here where it is not there yet.
+  let folder = top;
+  for (const part of parts.filter((one) => one && one !== '.')) {
+    folder = path.join(folder, part);
+    try {
+      if (!fs.lstatSync(folder).isDirectory()) return false;
+    } catch {
+      fs.mkdirSync(folder);
+    }
+  }
+  if (!isInside(top, folder)) return false;
+  const from = path.join(root, file);
+  const mode = fs.statSync(from).mode & 0o700 || 0o600;
+  const { O_WRONLY, O_CREAT, O_EXCL, O_NOFOLLOW = 0 } = fs.constants;
+  // Made new, or not at all: a file, or a link, there already stays as it is.
+  const out = fs.openSync(path.join(folder, name), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, mode);
+  const into = fs.openSync(from, 'r');
+  try {
+    const chunk = Buffer.alloc(64 * 1024);
+    for (let read; (read = fs.readSync(into, chunk)) > 0;) fs.writeSync(out, chunk, 0, read);
+  } finally {
+    fs.closeSync(into);
+    fs.closeSync(out);
+  }
+  return true;
+}
+
+/**
  * Gives a new worktree its copy of the files git does not keep that its project says every
  * worktree needs, from the project's main checkout. A file the worktree already has is left as it
- * is. Never fails: a file that can't be copied is one the worktree goes without.
+ * is, and so is a link its branch has where a file or a folder of them goes (see copyInto). Never
+ * fails: a file that can't be copied is one the worktree goes without.
  * @param {string} root  the project's main checkout
  * @param {string} cwd  a folder in the worktree
  * @param {string[]} patterns
@@ -583,14 +669,10 @@ export async function copyUntracked(root, cwd, patterns) {
   if (!top || real(top) === real(root)) return [];
   const copied = [];
   for (const file of await untrackedFiles(root, patterns)) {
-    const to = path.join(top, file);
     try {
-      if (fs.existsSync(to)) continue;
-      fs.mkdirSync(path.dirname(to), { recursive: true });
-      fs.copyFileSync(path.join(root, file), to);
-      copied.push(file);
+      if (copyInto(root, top, file)) copied.push(file);
     } catch {
-      // a folder where a file was expected, or one that can't be read
+      // there already, a folder where a file was expected, or one that can't be read
     }
   }
   return copied;

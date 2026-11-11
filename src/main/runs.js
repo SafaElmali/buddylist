@@ -436,8 +436,9 @@ export class Runs {
 
   /**
    * Runs the script that sets up a contact's new worktree, if its project has one. It is shown
-   * and stopped like any other run. A pull request's worktree is not set up by itself: the script
-   * would run the pull request's code, so it waits for the user to start it (see `setupWaits`).
+   * and stopped like any other run. A worktree with code that is not on the project's own branches,
+   * a pull request's above all, is not set up by itself: the script would run that code, so it waits
+   * for the user to start it (see `setupWaits`).
    * @param {string} contactId
    * @returns {Promise<RunView | null>}  null for a project without one, and while the script waits
    */
@@ -506,8 +507,14 @@ export class Runs {
       // install would only fail too, further from the reason. A setup script goes on, as it always has.
       stopOnError: !setup && script.command.includes('\n'),
     });
-    // Started by the user: a pull request's setup script waits no more.
-    if (setup && contact.setupWaits) this.store.updateContact(contactId, { setupWaits: null });
+    // Started by the user: a pull request's setup script waits no more, and one of a drafted conversation is not
+    // started again when the conversation is.
+    if (setup && (contact.setupWaits || contact.setupOnStart)) {
+      this.store.updateContact(contactId, {
+        ...(contact.setupWaits && { setupWaits: null }),
+        ...(contact.setupOnStart && { setupOnStart: null }),
+      });
+    }
 
     const run = {
       contactId,

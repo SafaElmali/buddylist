@@ -263,6 +263,20 @@ test('one the agent thought of waits for the user, with the prompt in its messag
   assert.match(answer, /Nothing runs until the user sends it\./);
 });
 
+test('the agent is told when the new conversation’s setup script waits for the user, and when it doesn’t', async () => {
+  const waits =
+    /Its project’s setup script waits for the user to start it: its branch has code that is not on the project’s own branches\./;
+  const started = { name: 'Claude (roster)', worktree: true, setupWaits: true };
+  const now = await setup({ started }).start.run({ prompt: 'Review it', asked_by_user: true, from_this_branch: true });
+  assert.match(now, /has started, in a worktree of its own\..*It is listed under this conversation\./s);
+  assert.match(now, waits);
+  const drafted = await setup({ started }).start.run({ prompt: 'Review it', from_this_branch: true });
+  assert.match(drafted, /Nothing runs until the user sends it\./);
+  assert.match(drafted, waits);
+  const own = await setup().start.run({ prompt: 'Review it', asked_by_user: true, from_this_branch: true });
+  assert.doesNotMatch(own, /setup script/);
+});
+
 test('the agent is told that one it thought of waits for the user', () => {
   const { start } = setup();
   assert.match(

@@ -162,11 +162,11 @@ test('a setup script’s line says what it is for, and names no port or page', (
   assert.doesNotMatch(markup(line), /href|port/);
 });
 
-test('a pull request’s worktree has a line that says its setup script waits for the user, and why', () => {
+test('a worktree whose setup waits has a line that says the script waits for the user, and why', () => {
   const line = waitingText('pnpm install');
   assert.equal(
     words(line),
-    'This worktree is not set up yet: its setup script, pnpm install, would run the pull request’s code. Press Run setup in the Setup tab once you have looked it over.'
+    'This worktree is not set up yet: its setup script, pnpm install, would run code that is not on the project’s own branches, such as a pull request’s. Press Run setup in the Setup tab once you have looked it over.'
   );
   assert.doesNotMatch(markup(waitingText('echo "<img src=x>"')), /<img/);
 });
