@@ -193,19 +193,30 @@ function belongs(record, context) {
   );
 }
 
-function verified(output, context, knownUrl = null) {
-  const pr = parsePullRequest(output);
-  if (!pr || !pullRequestPageOf(pr.url)) return null;
-  const raw = JSON.parse(output);
-  if (!oid(raw.headRefOid) || !raw.headRefName) return null;
-  const page = new URL(pr.url);
+/**
+ * The repositories a pull request is of, as host/owner/name: the one it is to be merged into, from its page, and the
+ * one its branch is in, which is another for a fork's. `head` is null when GitHub no longer knows the fork.
+ * @param {string} url  its page
+ * @param {{ headRepository?: { nameWithOwner?: string, name?: string } | null, headRepositoryOwner?: { login?: string } | null }} raw
+ *   what gh printed of it
+ */
+export function pullRequestRepositories(url, raw) {
+  const page = new URL(url);
   const base = `${page.hostname}${page.pathname.replace(/\/pull\/\d+.*$/, '')}`.toLowerCase();
   const fork =
     raw.headRepository?.nameWithOwner ||
     (raw.headRepositoryOwner?.login &&
       raw.headRepository?.name &&
       `${raw.headRepositoryOwner.login}/${raw.headRepository.name}`);
-  const headRepo = fork && `${page.hostname}/${fork}`.toLowerCase();
+  return { base, head: fork ? `${page.hostname}/${fork}`.toLowerCase() : null };
+}
+
+function verified(output, context, knownUrl = null) {
+  const pr = parsePullRequest(output);
+  if (!pr || !pullRequestPageOf(pr.url)) return null;
+  const raw = JSON.parse(output);
+  if (!oid(raw.headRefOid) || !raw.headRefName) return null;
+  const { base, head: headRepo } = pullRequestRepositories(pr.url, raw);
   if (!context.scope.repositories.includes(base) && !context.scope.repositories.includes(headRepo)) return null;
   // GitHub loses the fork metadata when its repository is deleted. A previously verified
   // URL in the same checkout still identifies that PR; this does not establish a new one.
@@ -213,7 +224,7 @@ function verified(output, context, knownUrl = null) {
   if (
     raw.isCrossRepository &&
     !context.scope.repositories.includes(headRepo) &&
-    context.tracking?.repository !== headRepo &&
+    !(headRepo && context.tracking?.repository === headRepo) &&
     !deletedKnownFork
   )
     return null;

@@ -1155,10 +1155,16 @@ img.emoticon {
 .group-form,
 .project-form,
 .feedback-form,
-.manager-form {
+.manager-form,
+.link-pr-form {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Link a Pull Request: wide enough for a pull request's title, branch and author in its list. */
+.dialog:has(.link-pr-form) {
+  --dialog-width: 460px;
 }
 
 /* "Assign to manager...": a choice for each of the project's managers, and one for none, with what each oversees. */

@@ -59,6 +59,9 @@ export function appDone(activity) {
   if (activity.action === 'save-brief') return 'saved the project’s brief';
   if (activity.action === 'read-sources') return 'read the project’s sources';
   if (activity.action === 'save-sources') return 'updated the project’s sources';
+  if (activity.action === 'link-pr') {
+    return activity.unlink ? 'unlinked the pull request' : `linked pull request ${activity.label || ''}`.trim();
+  }
   if (activity.action !== 'conversation') return `opened ${terminals(activity)}`;
   return activity.started ? 'started a conversation' : 'added a conversation for you to start';
 }
@@ -77,6 +80,7 @@ const APP_STATUS = {
   'save-brief': 'Saving the project’s brief',
   'read-sources': 'Reading the project’s sources',
   'save-sources': 'Updating the project’s sources',
+  'link-pr': 'Linking a pull request',
 };
 
 /** And what it asks to do, where it is asked about. */
@@ -222,6 +226,11 @@ export function activityRequest(activity, showPath = basename) {
         return activity.label
           ? `answer ${activity.label}’s ${questions(activity).replace(/^a /, '')}`
           : `answer ${questions(activity)}`;
+      // A pull request to link, by its number.
+      if (activity.action === 'link-pr') {
+        if (activity.unlink) return 'unlink the pull request of this conversation';
+        return `link ${activity.label ? `pull request ${activity.label}` : 'a pull request'} to this conversation`;
+      }
       if (APP_REQUEST[activity.action]) return APP_REQUEST[activity.action];
       // Which command is under the request, as for one the agent runs itself.
       return activity.command

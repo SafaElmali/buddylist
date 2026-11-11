@@ -23,6 +23,8 @@ const VERSION = 7;
  * @property {string} cwd            the folder this contact works in
  * @property {object | null} [pullRequestAssociation] verified PR snapshot and checkout identity, or a reset
  *   marker after Continue; validated against git before it is shown (see pull-request-association.js)
+ * @property {import('../pull-requests.js').Link} [pullRequestLink]  the pull request linked to its folder's
+ *   conversations by hand, as it last stood, shown where its branch would show one (see pull-request-link.js)
  * @property {number} [port]         the port its project's run command is started on; none until it first ran
  * @property {string} model          '' = the provider's default
  * @property {string | null} [effort]  the effort level it answers with; its model's own if unset

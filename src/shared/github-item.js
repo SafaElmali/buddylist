@@ -25,6 +25,8 @@ import { prefixed, shortBranchWords } from './branch-names.js';
  * @property {string} url
  * @property {boolean} draft  a pull request that isn't ready for review yet
  * @property {boolean} mine   a pull request you opened, or an issue given to you
+ * @property {string} [branch]  a pull request's branch; '' when GitHub didn't say
+ * @property {string} [author]  who opened a pull request, by their login; '' when GitHub didn't say
  */
 
 /** @typedef {{ pulls: ListedItem[], issues: ListedItem[] }} ItemList */

@@ -7,7 +7,7 @@
 // A merge it sees happen is told as well, for the contacts in that folder to be put away.
 import fs from 'node:fs';
 import { checksNews, isOpen } from '../shared/pull-request-text.js';
-import { forgetPullRequest } from './contact-card.js';
+import { forgetPullRequest, ghPullRequest, parsePullRequest } from './contact-card.js';
 import { associatedPullRequest, forgetPullRequestAssociation } from './pull-request-association.js';
 
 /** @typedef {import('./contact-card.js').PullRequest} PullRequest */
@@ -73,8 +73,22 @@ const DEMO_PULL_REQUESTS = Object.freeze(
  * @property {number} [at]              when it was last asked, whether or not it answered
  * @property {number} [hotUntil]        a turn ended here: every round asks until then
  * @property {number} [moves]           how often its branch moved on here: it was put on a new branch, or a turn
- *   ended that may have pushed it. An answer asked for before the last time is about how it stood before
+ *   ended that may have pushed it, or a pull request was linked to it. An answer asked for before the last time is
+ *   about how it stood before
+ * @property {PullRequest | null} [branchPr]  the pull request of its branch, as GitHub last said; unset until it has
+ * @property {Link} [link]  the pull request linked to it by hand, if any
  */
+
+/**
+ * A pull request linked to a folder's conversations by hand (see pull-request-link.js): how it last stood, kept
+ * with them so a restart, or GitHub out of reach, still shows it, and which one to show where its branch has another.
+ * @typedef {Object} Link
+ * @property {PullRequest} pr
+ * @property {'branch'} [show]  the branch's own is shown instead, until the user says otherwise
+ */
+
+/** A pull request as it is kept: without what is worked out each time it is shown. */
+const plain = ({ linked: _linked, other: _other, ...pr }) => pr;
 
 /**
  * How long an answer stands before GitHub is asked again. A pull request still to be merged
@@ -107,6 +121,10 @@ export class PullRequests {
    * @param {typeof associatedPullRequest} [opts.resolve] verifies the checkout and returns durable PR evidence
    * @param {(cwd: string) => object | null} [opts.load] reads the contact's saved PR evidence
    * @param {(cwd: string, record: object | null) => void} [opts.save] saves accepted evidence for contacts there
+   * @param {(cwd: string) => Link | null} [opts.loadLink]  the pull request linked to the folder's contacts, if any
+   * @param {(cwd: string, link: Link | null) => void} [opts.saveLink]  keeps it with them, or takes it away
+   * @param {(cwd: string, url: string) => Promise<PullRequest | null>} [opts.askLink]  asks `gh` how a linked pull
+   *   request stands, rejecting when it can't tell; replaceable in tests
    * @param {(cwd: string) => void} [opts.forget]  drops what `ask` still remembers of a folder; replaceable in tests
    * @param {Pick<import('./app-merges.js').AppMerges, 'of' | 'heard'>} [opts.appMerges]  the pull requests the app
    *   merges itself once their checks pass
@@ -124,6 +142,9 @@ export class PullRequests {
     resolve = associatedPullRequest,
     load = () => null,
     save = () => {},
+    loadLink = () => null,
+    saveLink = () => {},
+    askLink = (cwd, url) => ghPullRequest({ cwd, page: url }).then((output) => output && parsePullRequest(output)),
     forget = forgetPullRequest,
     appMerges = null,
     intervalMs = POLL_MS,
@@ -139,6 +160,9 @@ export class PullRequests {
     this.resolve = resolve;
     this.load = load;
     this.save = save;
+    this.loadLink = loadLink;
+    this.saveLink = saveLink;
+    this.askLink = askLink;
     this.forget = forget;
     this.appMerges = appMerges;
     this.intervalMs = intervalMs;
@@ -194,9 +218,15 @@ export class PullRequests {
     } else {
       const folder = this.#folder(cwd);
       folder.moves = (folder.moves || 0) + 1;
-      folder.record = { reset: true, after: this.now(), excluded: folder.pr?.url || folder.record?.pr?.url };
+      folder.record = { reset: true, after: this.now(), excluded: folder.branchPr?.url || folder.record?.pr?.url };
       folder.pr = null;
+      folder.branchPr = null;
       this.save(cwd, folder.record);
+      // A pull request linked to the work it left is not the new branch's either.
+      if (folder.link) {
+        delete folder.link;
+        this.saveLink(cwd, null);
+      }
       folder.at = this.now();
       this.forget(cwd);
       forgetPullRequestAssociation(cwd);
@@ -217,14 +247,82 @@ export class PullRequests {
     folder.moves = (folder.moves || 0) + 1;
     this.forget(cwd);
     forgetPullRequestAssociation(cwd);
-    const pr = Object.fromEntries(
-      Object.entries({ ...folder.pr, ...patch }).filter(([, value]) => value !== undefined)
+    const pr = /** @type {PullRequest} */ (
+      Object.fromEntries(Object.entries({ ...folder.pr, ...patch }).filter(([, value]) => value !== undefined))
     );
-    if (folder.record?.pr) {
-      folder.record = { ...folder.record, pr };
+    // Whichever it is of: the branch's, the one linked, or both.
+    if (folder.record?.pr && folder.record.pr.url === pr.url) {
+      folder.record = { ...folder.record, pr: plain(pr) };
       this.save(cwd, folder.record);
     }
-    this.#heard(cwd, folder, /** @type {PullRequest} */ (pr));
+    if (folder.branchPr?.url === pr.url) folder.branchPr = plain(pr);
+    if (folder.link?.pr.url === pr.url) {
+      folder.link = { ...folder.link, pr: plain(pr) };
+      this.saveLink(cwd, folder.link);
+    }
+    this.#heard(cwd, folder, folder.branchPr || folder.link ? this.#shown(folder) : pr);
+  }
+
+  /**
+   * A pull request is linked to the folder's conversations by hand: it is shown from now on, as one of its branch
+   * is, and kept with them. One that was linked before is replaced. Showing another one than before is no news of
+   * it: a merged one linked now does not archive anyone.
+   * @param {string} cwd
+   * @param {PullRequest} pr  as GitHub said just now (see pull-request-link.js)
+   * @returns {PullRequest | null}  what is shown now
+   */
+  link(cwd, pr) {
+    if (this.demo || !cwd) return null;
+    const folder = this.#folder(cwd);
+    folder.moves = (folder.moves || 0) + 1;
+    folder.link = { pr: plain(pr) };
+    this.saveLink(cwd, folder.link);
+    this.#heard(cwd, folder, this.#shown(folder), false);
+    return folder.pr ?? null;
+  }
+
+  /**
+   * The folder's linked pull request is taken away: its branch's own is shown again, if it has one.
+   * @param {string} cwd
+   * @returns {PullRequest | null}  what is shown now
+   */
+  unlink(cwd) {
+    const folder = this.#folders.get(cwd) ?? (cwd && !this.demo ? this.#folder(cwd) : null);
+    if (!folder?.link) return folder?.pr ?? null;
+    folder.moves = (folder.moves || 0) + 1;
+    delete folder.link;
+    this.saveLink(cwd, null);
+    this.#heard(cwd, folder, this.#shown(folder), false);
+    return folder.pr ?? null;
+  }
+
+  /**
+   * Where the branch has a pull request of its own besides the linked one, which of the two is shown.
+   * @param {string} cwd
+   * @param {'linked' | 'branch'} which
+   * @returns {PullRequest | null}  what is shown now
+   */
+  show(cwd, which) {
+    const folder = this.#folders.get(cwd);
+    if (!folder?.link) return folder?.pr ?? null;
+    folder.link = which === 'branch' ? { ...folder.link, show: 'branch' } : { pr: folder.link.pr };
+    this.saveLink(cwd, folder.link);
+    this.#heard(cwd, folder, this.#shown(folder), false);
+    return folder.pr ?? null;
+  }
+
+  /**
+   * What a folder shows: its branch's pull request, or the one linked to it. Where the two differ, the linked one,
+   * unless the user chose the branch's, and the shown one says which other there is.
+   * @param {Folder} folder
+   * @returns {PullRequest | null}
+   */
+  #shown({ link, branchPr = null }) {
+    if (!link) return branchPr;
+    const linked = link.pr;
+    if (!branchPr || branchPr.url === linked.url) return { ...linked, linked: true };
+    if (link.show === 'branch') return { ...branchPr, other: { number: linked.number, linked: true } };
+    return { ...linked, linked: true, other: { number: branchPr.number } };
   }
 
   /**
@@ -305,7 +403,11 @@ export class PullRequests {
 
   /** What is known about a folder, started when nothing is yet. */
   #folder(cwd) {
-    return this.#folders.get(cwd) || this.#folders.set(cwd, { record: this.load(cwd) }).get(cwd);
+    if (!this.#folders.has(cwd)) {
+      const link = this.loadLink(cwd);
+      this.#folders.set(cwd, { record: this.load(cwd), ...(link?.pr && { link }) });
+    }
+    return /** @type {Folder} */ (this.#folders.get(cwd));
   }
 
   #due(cwd) {
@@ -324,32 +426,58 @@ export class PullRequests {
     const folder = this.#folder(cwd);
     // Asked counts even without an answer: a gh that is missing isn't tried again every minute.
     folder.at = this.now();
-    const { moves } = folder;
+    const { moves, link } = folder;
     const request = (folder.request = (folder.request || 0) + 1);
-    let pr;
-    let record;
-    let recovered = false;
-    try {
-      // A folder with no branch checked out is asked about by the pull request it had.
-      if (this.ask) pr = await this.ask(cwd, folder.pr ?? null);
-      else ({ pr, record, recovered = false } = await this.resolve(cwd, folder.record));
-    } catch {
-      // no gh, not signed in, offline, too slow: what was known stands until it works again
-      return folder.pr ?? null;
-    }
-    // Put on a new branch while gh was answering: this is about the branch it left.
+    // The branch's own and the linked one are asked about side by side. Either that GitHub doesn't answer about
+    // stands as it was: a linked one as it was kept, so a restart while offline still shows it.
+    const [branch, linked] = await Promise.all([
+      this.#askBranch(cwd, folder).catch(() => null),
+      link && this.askLink(cwd, link.pr.url).catch(() => null),
+    ]);
+    // no gh, not signed in, offline, too slow: what was known stands until it works again
+    if (!branch && !link) return folder.pr ?? null;
+    // Put on a new branch while gh was answering, or another one linked: this is about how it stood before.
     if (folder.moves !== moves || folder.request !== request || this.#folders.get(cwd) !== folder) {
       return this.#known(cwd);
     }
-    // Checkout failures hide the displayed PR but keep its durable evidence. Restoring that
-    // same already-merged PR is not a new merge, whether GitHub answered or we used its snapshot.
-    const restored = pr?.state === 'merged' && folder.record?.pr?.state === 'merged' && pr.url === folder.record.pr.url;
-    if (record !== undefined) {
-      folder.record = record;
-      this.save(cwd, record);
+    let fromBranch = true;
+    if (branch) {
+      const { pr, record, recovered = false } = branch;
+      // Checkout failures hide the displayed PR but keep its durable evidence. Restoring that
+      // same already-merged PR is not a new merge, whether GitHub answered or we used its snapshot.
+      const restored =
+        pr?.state === 'merged' && folder.record?.pr?.state === 'merged' && pr.url === folder.record.pr.url;
+      if (record !== undefined) {
+        folder.record = record;
+        this.save(cwd, record);
+      }
+      folder.branchPr = pr;
+      fromBranch = !recovered && !restored;
     }
-    this.#heard(cwd, folder, pr, !recovered && !restored);
+    if (link && linked?.url === link.pr.url && JSON.stringify(linked) !== JSON.stringify(link.pr)) {
+      folder.link = { ...link, pr: plain(linked) };
+      this.saveLink(cwd, folder.link);
+    }
+    const shown = this.#shown(folder);
+    const before = folder.pr;
+    // A link shows another pull request than before, as one of the branch's turns up: no news of either.
+    const switched = Boolean(folder.link && before && shown && before.url !== shown.url);
+    const ofBranch = !folder.link || shown?.url === folder.branchPr?.url;
+    this.#heard(cwd, folder, shown, (ofBranch ? fromBranch : true) && !switched);
     return folder.pr;
+  }
+
+  /**
+   * GitHub's answer about the pull request of the folder's branch, with the evidence that it is the branch's.
+   * @param {string} cwd
+   * @param {Folder} folder
+   * @returns {Promise<{ pr: PullRequest | null, record?: object | null, recovered?: boolean }>}  rejects when GitHub
+   *   can't be asked
+   */
+  async #askBranch(cwd, folder) {
+    // A folder with no branch checked out is asked about by the pull request it had.
+    if (this.ask) return { pr: await this.ask(cwd, folder.branchPr ?? null) };
+    return this.resolve(cwd, folder.record);
   }
 
   /**

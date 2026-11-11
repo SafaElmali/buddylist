@@ -15,8 +15,9 @@ const GH_TIMEOUT_MS = 10 * 1000;
 
 const ISSUE_FIELDS = 'number,title,body,url,state';
 const PULL_FIELDS = `${ISSUE_FIELDS},isDraft,headRefName,headRepository,headRepositoryOwner,isCrossRepository`;
-// What a list needs to name each one. The rest is looked up once one is chosen.
-const LIST_FIELDS = { pull: 'number,title,url,isDraft,author', issue: 'number,title,url,assignees' };
+// What a list needs to name each one, and for a pull request its branch, as Link a Pull Request shows it. The rest
+// is looked up once one is chosen.
+const LIST_FIELDS = { pull: 'number,title,url,isDraft,author,headRefName', issue: 'number,title,url,assignees' };
 // The newest open ones, as many of each as the list has room for. A search finds the older ones.
 const LIST_LIMIT = 30;
 const SEARCH_LIMIT = 20;
@@ -139,7 +140,11 @@ export function parseList(output, kind, you = '') {
       const item = readItem(entry);
       if (!item) return [];
       const { number, title, url, state } = item;
-      return [{ kind, number, title, url, draft: state === 'draft', mine: mine(entry) }];
+      const pull = kind === 'pull' && {
+        branch: typeof entry.headRefName === 'string' ? entry.headRefName : '',
+        author: typeof entry.author?.login === 'string' ? entry.author.login : '',
+      };
+      return [{ kind, number, title, url, draft: state === 'draft', mine: mine(entry), ...pull }];
     })
     .sort((a, b) => Number(b.mine) - Number(a.mine));
 }

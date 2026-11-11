@@ -17,6 +17,7 @@ import {
 import { DRAFT_LIMIT } from '../shared/github-item.js';
 import { BRIEF_MAX, MESSAGE_MAX, REPORT_UP_MAX, SOURCES_MAX } from '../shared/managers.js';
 import { cleanInstructions } from '../shared/project-settings.js';
+import { pullRequestStatus } from '../shared/pull-request-text.js';
 import { ROLE_NAME_MAX } from '../shared/teams.js';
 import { cleanTerminalName } from '../shared/terminal.js';
 
@@ -440,6 +441,86 @@ function projectInstructions(hostId, project) {
   };
 }
 
+/**
+ * What a conversation's agent does about the pull request shown for it (see pull-request-link.js).
+ * @typedef {Object} PullRequestLinks
+ * @property {(hostId: string) => boolean} offered  the conversation works in a repository, and wears a pull request's
+ *   status: not a project's manager, nor one on This computer
+ * @property {(hostId: string, text: string) => Promise<import('./contact-card.js').PullRequest | null>} link  links the
+ *   pull request `text` names, answering with what is shown now; throws why it can't, in a sentence
+ * @property {(hostId: string) => import('./contact-card.js').PullRequest | null} unlink  answers with what is shown now
+ */
+
+/** What the card for a link a read-only agent wants says of what a link changes. */
+export const LINK_ACTS =
+  'Auto-merge, Fix conflicts and Archive once merged act on the pull request shown for this conversation.';
+
+/**
+ * Links a pull request to the conversation, or takes it away: shown as the one of its branch is. Nothing on GitHub
+ * changes, and Unlink takes it back, so an agent that changes files does it unasked, as the user told it to. A
+ * read-only agent is asked about on a card every time: what is shown is what Auto-merge, Fix conflicts and Archive
+ * once merged act on.
+ * @param {string} hostId
+ * @param {PullRequestLinks} links
+ * @param {boolean} [readOnly]
+ * @returns {AppTool}
+ */
+function linkPullRequest(hostId, links, readOnly = false) {
+  return {
+    name: APP_TOOLS.link,
+    description:
+      'Link a pull request to this conversation, so the app shows its status where it shows the one of this ' +
+      'conversation’s branch: its checks, reviews, conflicts and merge, in the title bar, the contact list and on ' +
+      'the phone. Use it when the user asks you to link or watch a pull request here, or after you pushed the work ' +
+      'under another branch name than this folder’s branch, or from the main checkout: the app finds only the ' +
+      'pull request of the branch checked out. Only a pull request of this conversation’s repository, or of a fork ' +
+      'among its remotes. It changes nothing on GitHub. Linking another replaces it; unlink takes it away.',
+    input: {
+      pull_request: z
+        .string()
+        .max(300)
+        .optional()
+        .describe('Its number, such as #12, or the link to its page. Leave it out to unlink.'),
+      unlink: z
+        .boolean()
+        .optional()
+        .describe('True to take the linked pull request away, so the one of the branch is shown again.'),
+    },
+    ask: () => false,
+    run: async ({ pull_request: text, unlink = false }, context) => {
+      if (!unlink && !String(text ?? '').trim()) {
+        throw new Error('Say which pull request: its number, such as #12, or the link to its page.');
+      }
+      if (readOnly) {
+        const answer = await context.ask({
+          kind: 'tool',
+          canAlways: false,
+          activity: appActivity(APP_TOOLS.link, { pull_request: text, unlink }),
+          reason: LINK_ACTS,
+        });
+        if (answer.decision === 'cancelled') {
+          throw new Error('The turn ended before the user answered. Nothing was linked or unlinked.');
+        }
+        if (!['allow', 'always'].includes(answer.decision)) {
+          throw new Error(answer.message || 'The user chose not to. Nothing was linked or unlinked.');
+        }
+      }
+      if (unlink) {
+        const shown = links.unlink(hostId);
+        return shown
+          ? `Unlinked. The title bar shows pull request #${shown.number} of this branch again.`
+          : 'Unlinked. This conversation shows no pull request now.';
+      }
+      const shown = await links.link(hostId, String(text));
+      if (!shown) throw new Error('The pull request could not be linked here.');
+      return (
+        `Linked pull request #${shown.number}${shown.title ? ` (${shown.title})` : ''} to this conversation: ` +
+        `${pullRequestStatus(shown)}. The title bar, the contact list and the phone show its status from now on.`
+      );
+    },
+  };
+}
+
 /** @typedef {Pick<import('./managers.js').Managers, 'oversees' | 'say' | 'answer' | 'questionsOf' | 'invite' | 'look' | 'brief' | 'sources' | 'leads' | 'leadOf' | 'teams' | 'tellManager' | 'report' | 'startsAtOnce'>} Managing */
 
 /**
@@ -770,6 +851,7 @@ function projectManagerTools(hostId, managers) {
  * @param {Partial<Managing>} [deps.managers]  what a project’s manager does with its tools; no contact is one when left out
  * @param {{ id: string, name: string }[]} [deps.agents]  the services whose agents can join a conversation one
  *   starts; none when left out
+ * @param {PullRequestLinks} [deps.links]  links a pull request to a conversation; nobody is offered it when left out
  * @returns {(hostId: string, speakerId?: string, seat?: Seat) => AppTool[]}  tools bound to the agent answering in
  *   that conversation, as its session has it
  */
@@ -780,6 +862,7 @@ export function appTools({
   instructions,
   managers: given = {},
   agents = [],
+  links = null,
 }) {
   // What a stand-in leaves out does nothing: no contact leads, and a conversation the user asked for starts. Each is
   // bound to what was given, a Managers or a plain stand-in: a class's methods are on its prototype, not its own.
@@ -847,6 +930,7 @@ export function appTools({
         drafts
       ),
       projectInstructions(hostId, instructions),
+      ...(links?.offered(hostId) ? [linkPullRequest(hostId, links, readOnly)] : []),
       ...(managers.oversees(contact) ? managerTools(hostId, managers, leadName, invites) : []),
     ];
   };

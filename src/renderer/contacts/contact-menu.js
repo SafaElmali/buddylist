@@ -18,6 +18,9 @@ import { shownPullRequest } from './rows.js';
  * @property {(contact: any) => void} openFolder
  * @property {(contact: any) => void} copyPath        its folder's, to paste elsewhere
  * @property {(contact: any) => void} copyBranch      the name of the branch its folder is on
+ * @property {(contact: any) => void} [linkPullRequest]  Link pull request...: one its branch doesn't lead to, shown for it
+ * @property {(contact: any) => void} [unlinkPullRequest]  the one linked taken away
+ * @property {() => boolean} [links]  whether pull requests can be linked here: not in the browser preview
  * @property {(contact: any) => void} history         open its message history
  * @property {(contact: any) => void} toggleUnread    to come back to later, or nothing left to see
  * @property {(contact: any) => void} addFrom         another contact on its project
@@ -75,6 +78,7 @@ export function actionItems(contact, on) {
             disabled: !contact || contact.status === 'offline',
             action: () => on.copyBranch(contact),
           },
+          ...linkItems(contact, on),
         ]),
     {
       label: 'View message history',
@@ -97,6 +101,29 @@ export function actionItems(contact, on) {
       action: () => on.addFrom(contact),
     },
     ...newBranchItems(contact, on.startBranch),
+  ];
+}
+
+/**
+ * Link pull request..., for a pull request its branch doesn't lead to, and Unlink once one is. A project's manager
+ * wears no pull request's status.
+ * @param {any} contact  null when no contact is selected
+ * @param {ContactHandlers} on
+ * @returns {MenuItem[]}
+ */
+function linkItems(contact, on) {
+  if (!on.linkPullRequest || on.links?.() === false || contact?.manages) return [];
+  const pr = contact?.pullRequest;
+  const linked = pr?.linked ? pr.number : pr?.other?.linked ? pr.other.number : null;
+  return [
+    {
+      label: linked ? 'Link another pull request...' : 'Link pull request...',
+      disabled: !contact || contact.status === 'offline',
+      action: () => on.linkPullRequest(contact),
+    },
+    ...(linked && on.unlinkPullRequest
+      ? [{ label: `Unlink #${linked}`, action: () => on.unlinkPullRequest(contact) }]
+      : []),
   ];
 }
 

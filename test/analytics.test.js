@@ -599,6 +599,7 @@ test('no other counted request passes on anything it was asked with', async () =
     REQUESTS.contactAssignAll,
     REQUESTS.projectContinueWorker,
     REQUESTS.contactAutoMerge,
+    REQUESTS.contactShowPullRequest,
     REQUESTS.chatSetMode,
     REQUESTS.chatSetEffort,
     REQUESTS.chatSetFastMode,

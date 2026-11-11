@@ -62,6 +62,12 @@ function fixture(t) {
         store.updateContact(contact.id, { pullRequestAssociation: record });
       }
     },
+    loadLink: (cwd) => store.contacts.find((contact) => contact.cwd === cwd)?.pullRequestLink,
+    saveLink: (cwd, link) => {
+      for (const contact of store.contacts.filter((contact) => contact.cwd === cwd)) {
+        store.updateContact(contact.id, { pullRequestLink: link ?? undefined });
+      }
+    },
     ask: (folder) => pullRequest(folder, { run: (dir) => answers.run(dir) }),
     onChange: () => {},
     notify: () => assert.fail('a fresh branch has no checks to announce'),
@@ -199,5 +205,89 @@ test(
     await update('yes');
     assert.equal(app.store.getContact(contact.id).archiveMerged, undefined);
     assert.equal(saved(), undefined, 'back to what Settings says');
+  }
+);
+
+// ---- Link pull request... ---------------------------------------------------------------------------------
+
+/** A `gh` on PATH that answers `pr view` with `answer`, and notes what it was asked. */
+function scriptedGh(t, answer) {
+  const bin = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cm-ipc-gh-')));
+  fs.writeFileSync(path.join(bin, 'answer.json'), answer);
+  fs.writeFileSync(
+    path.join(bin, 'gh'),
+    `#!/bin/sh\nprintf '%s\\n' "$*" >> '${bin}/asked'\ncat '${bin}/answer.json'\n`,
+    { mode: 0o755 }
+  );
+  const before = process.env.PATH;
+  process.env.PATH = `${bin}${path.delimiter}${before}`;
+  t.after(() => {
+    process.env.PATH = before;
+    fs.rmSync(bin, { recursive: true, force: true });
+  });
+  return { asked: () => fs.readFileSync(path.join(bin, 'asked'), 'utf8').trim().split('\n') };
+}
+
+const linkable = JSON.stringify({
+  number: 45,
+  url: 'https://github.com/example/shop/pull/45',
+  title: 'Round the cart total before tax',
+  state: 'OPEN',
+  isDraft: false,
+  headRefName: 'cart-rounding',
+  headRepository: { name: 'shop', nameWithOwner: 'example/shop' },
+  headRepositoryOwner: { login: 'example' },
+  isCrossRepository: false,
+});
+
+test(
+  'Link pull request... links one of the repository, kept with the contact, and Unlink takes it away',
+  { skip: opts.skip || process.platform === 'win32' },
+  async (t) => {
+    const app = fixture(t);
+    git(app.repo, 'remote', 'add', 'origin', 'https://github.com/example/shop.git');
+    app.answers.run = async () => null;
+    const contact = await app.add();
+    const gh = scriptedGh(t, linkable);
+    const shown = await app.invoke(REQUESTS.contactLinkPullRequest, contact.id, '#45');
+    assert.equal(shown.number, 45);
+    assert.equal(shown.linked, true);
+    assert.match(gh.asked()[0], /^pr view 45 --json /);
+    assert.equal(app.pullRequests.of(contact).number, 45);
+    const saved = () =>
+      new Store(path.dirname(app.store.file), { defaultProvider: 'claude' }).getContact(contact.id).pullRequestLink;
+    assert.equal(saved().pr.number, 45, 'kept for a restart');
+    assert.equal(await app.invoke(REQUESTS.contactUnlinkPullRequest, contact.id), null);
+    assert.equal(saved(), undefined);
+    assert.deepEqual(app.merges, []);
+  }
+);
+
+test(
+  'a pull request of another repository is refused, and nothing is linked',
+  { skip: opts.skip || process.platform === 'win32' },
+  async (t) => {
+    const app = fixture(t);
+    git(app.repo, 'remote', 'add', 'origin', 'https://github.com/example/shop.git');
+    app.answers.run = async () => null;
+    const contact = await app.add();
+    scriptedGh(
+      t,
+      JSON.stringify({
+        ...JSON.parse(linkable),
+        url: 'https://github.com/someone/else/pull/9',
+        number: 9,
+        headRepository: { name: 'else', nameWithOwner: 'someone/else' },
+        headRepositoryOwner: { login: 'someone' },
+      })
+    );
+    await assert.rejects(
+      app.invoke(REQUESTS.contactLinkPullRequest, contact.id, 'https://github.com/someone/else/pull/9'),
+      {
+        message: '#9 is a pull request of someone/else, but this conversation works on example/shop.',
+      }
+    );
+    assert.equal(app.pullRequests.of(contact), null);
+    assert.equal(app.store.getContact(contact.id).pullRequestLink, undefined);
   }
 );

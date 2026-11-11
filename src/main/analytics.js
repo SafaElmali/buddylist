@@ -182,6 +182,8 @@ const managerAdded = (_answered, _key, picked) =>
 
 /** Auto-merge for a contact's pull request, on or off. */
 const autoMergeToggled = (_answered, _contactId, on) => (typeof on === 'boolean' ? { on } : null);
+const pullRequestShown = (_answered, _contactId, which) =>
+  ['branch', 'linked'].includes(which) ? { shown: which } : null;
 
 /** Reconnect, turn off or on, or sign in to one of an agent's MCP servers: one of MCP_ACTIONS. Its name stays here. */
 const mcpAct = (_answered, _contactId, _name, action) => (MCP_ACTIONS.includes(action) ? { action } : null);
@@ -583,6 +585,11 @@ export const COUNTED = Object.freeze({
   [REQUESTS.contactAutoMerge]: { event: 'auto merge toggled', about: autoMergeToggled },
   // Create PR manually, from the same ▼: GitHub's page for a new pull request of the branch.
   [REQUESTS.contactPullRequestPage]: { event: 'pull request page opened', about: happened },
+  // Link a Pull Request..., from the same ▼ or a contact's right-click menu, and taking it away. What is linked stays here.
+  [REQUESTS.contactLinkPullRequest]: { event: 'pull request linked', about: happened },
+  [REQUESTS.contactUnlinkPullRequest]: { event: 'pull request unlinked' },
+  // Where the branch has its own besides the linked one: which of the two the button shows.
+  [REQUESTS.contactShowPullRequest]: { event: 'pull request shown switched', about: pullRequestShown },
   [REQUESTS.projectClone]: { event: 'project cloned' },
   [REQUESTS.projectCreate]: { event: 'project created' },
   [REQUESTS.projectRemove]: { event: 'project removed' },

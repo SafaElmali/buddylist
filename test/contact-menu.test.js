@@ -907,3 +907,21 @@ test('deleting the contacts on This computer asks about the files they made, not
   assert.match(asked.hint, /kept, unless you tick the box/);
   assert.equal(deleteAllQuestion('shop', many, 2).box, undefined, 'a project’s box is about its worktrees');
 });
+
+test('a contact on a project can have a pull request linked, and unlinked, from its right-click menu', () => {
+  const { on, chosen } = recorder();
+  on.linkPullRequest = (contact) => chosen.push(['link', contact.id]);
+  on.unlinkPullRequest = (contact) => chosen.push(['unlink', contact.id]);
+  const plain = labels(contactItems(claude, on));
+  assert.equal(plain[plain.indexOf('Copy branch name') + 1], 'Link pull request...');
+  const linked = contactItems({ ...claude, pullRequest: { number: 45, state: 'open', linked: true } }, on);
+  chooseAll(linked.filter((item) => /Link another|Unlink #45/.test(item.label ?? '')));
+  assert.deepEqual(chosen, [
+    ['link', claude.id],
+    ['unlink', claude.id],
+  ]);
+  // A project's manager wears no pull request, and the preview has no GitHub to link one from.
+  assert.equal(labels(contactItems({ ...claude, manages: 'git:/x/.git' }, on)).includes('Link pull request...'), false);
+  on.links = () => false;
+  assert.equal(labels(contactItems(claude, on)).includes('Link pull request...'), false);
+});

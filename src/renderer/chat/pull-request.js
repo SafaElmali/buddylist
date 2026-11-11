@@ -14,6 +14,7 @@ import { api } from '../lib/api.js';
 import { confirmDialog } from '../lib/dialog.js';
 import { $, el, errorText, html, raw } from '../lib/dom.js';
 import { tagIcon } from '../lib/icons.js';
+import { linkPullRequestDialog } from '../lib/link-pr-dialog.js';
 import { openMenu } from '../lib/menu.js';
 import { continueButton, newBranchItems, newBranchQuestion } from '../../shared/new-branch.js';
 import {
@@ -63,13 +64,15 @@ export class PullRequestButton {
     const face = this.#face();
     button.disabled = more.disabled = face.disabled;
     button.dataset.tip = face.title;
-    // A pull request that is merged or closed wears its tag after its number, as on the contact's row.
+    // A pull request that is merged or closed wears its tag after its number, as on the contact's row. One linked by
+    // hand says so, as its branch didn't lead to it.
     const tag =
       face.tag &&
       el(
         html`<span class="pr-tag" data-kind="${face.tag.kind}">${raw(tagIcon[face.tag.kind]())}${face.tag.text}</span>`
       );
-    $('.tb-label', button).replaceChildren(face.name, ...(tag ? [tag] : []));
+    const linked = face.linked && el('<span class="pr-tag" data-kind="linked">Linked</span>');
+    $('.tb-label', button).replaceChildren(face.name, ...[tag, linked].filter(Boolean));
     // The mark on its drawing, red, amber or green, is how the checks stand.
     if (face.checks) button.dataset.checks = face.checks;
     else delete button.dataset.checks;
@@ -131,6 +134,9 @@ export class PullRequestButton {
         autoMerge: (on) => this.#autoMerge(on),
         fixConflicts: () => this.fixConflicts(),
         archiveMerged: (on) => this.#archiveMerged(on),
+        link: () => this.#link(),
+        unlink: () => this.#unlink(),
+        showOther: (which) => this.#showOther(which),
       },
       this.ctx.participants
     );
@@ -201,6 +207,30 @@ export class PullRequestButton {
   async #archiveMerged(on) {
     try {
       await api.contacts.update(this.ctx.contactId, { archiveMerged: on });
+    } catch (err) {
+      this.handlers.error(errorText(err));
+    }
+  }
+
+  /** Link a Pull Request...: one the branch doesn't lead to, in its own dialog. The button shows it once linked. */
+  async #link() {
+    const shown = await linkPullRequestDialog({ id: this.ctx.contactId, cwd: this.ctx.contact.cwd });
+    if (shown) this.handlers.notice(`Linked pull request #${shown.number} to this conversation.`);
+  }
+
+  /** Unlink #12: the branch's own is shown again, if it has one. */
+  async #unlink() {
+    try {
+      await api.contacts.unlinkPullRequest(this.ctx.contactId);
+    } catch (err) {
+      this.handlers.error(errorText(err));
+    }
+  }
+
+  /** @param {'branch' | 'linked'} which  the branch's own pull request, or the linked one */
+  async #showOther(which) {
+    try {
+      await api.contacts.showPullRequest(this.ctx.contactId, which);
     } catch (err) {
       this.handlers.error(errorText(err));
     }

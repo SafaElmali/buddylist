@@ -59,6 +59,7 @@ import { mediaToDownload } from './media.js';
 import { FileSuggestions } from './file-suggestions.js';
 import { pullRequestPage } from './pull-request-page.js';
 import { pullRequestStack } from './pr-stack.js';
+import { pullRequestToLink } from './pull-request-link.js';
 import { branchOf, installedApps, onGitHub, openFolderIn } from './open-in.js';
 import { NOT_READY } from './updates.js';
 import { replyToThread, resolveThread, reviewThreads } from './review-threads.js';
@@ -2042,6 +2043,19 @@ export function registerIpc({
     const known = await pullRequests.look(cwd);
     return pullRequestStack(cwd, { known });
   });
+
+  // Link a Pull Request..., from the ▼ of the PR button or a contact's right-click menu: one its branch doesn't lead
+  // to, shown from then on as the branch's would be. Only one of the folder's repository, or a fork among its remotes.
+  // It only reads GitHub. Unlinking shows the branch's own again; where both are there, `which` says which is shown.
+  handleWithPath(REQUESTS.contactLinkPullRequest, async (_e, contactId, text) => {
+    if (demo) throw new Error('This is the demo: no pull request is looked up on GitHub.');
+    const cwd = folderOf(contactId);
+    return pullRequests.link(cwd, await pullRequestToLink(cwd, text));
+  });
+  handle(REQUESTS.contactUnlinkPullRequest, (_e, contactId) => pullRequests.unlink(folderOf(contactId)));
+  handle(REQUESTS.contactShowPullRequest, (_e, contactId, which) =>
+    pullRequests.show(folderOf(contactId), which === 'branch' ? 'branch' : 'linked')
+  );
 
   // Auto-merge for the folder's own pull request, on or off, from the ▼ of the View PR button. Written to
   // GitHub only when you click for it. Where its base branch requires nothing GitHub could wait for, the

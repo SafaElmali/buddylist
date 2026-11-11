@@ -36,6 +36,10 @@ import {
  *   Fix conflicts is there for that
  * @property {boolean} archiveMerged  its contact is archived once the app sees it merged: the contact's own
  *   choice, or else what Settings > Git says
+ * @property {number | null} number  the pull request's; null while it asks for one
+ * @property {boolean} linked  it was linked to the conversation by hand, not found by its branch: it wears a Linked tag
+ * @property {{ number: number, linked?: true } | null} other  where the branch has one of its own besides the linked
+ *   one, the one not shown: `linked` when that is the linked one
  */
 
 /** How GitHub merges, in the words of its own merge button. */
@@ -54,7 +58,13 @@ const NO_PULL_REQUEST = {
   draft: false,
   conflict: false,
   archiveMerged: false,
+  number: null,
+  linked: false,
+  other: null,
 };
+
+/** Where it came from, as the shown pull request says: linked by hand, and the other one there is, if any. */
+const origin = (pr) => ({ number: pr.number, linked: pr.linked === true, other: pr.other ?? null });
 
 /**
  * What auto-merge does, as a sentence: "GitHub will squash and merge it when its requirements are met."
@@ -111,6 +121,7 @@ export function pullRequestButton(contact, who, settings = {}) {
       pullRequestLine(pr),
       pr.title,
       autoMerge && `Auto-merge is on: ${autoMergeText(autoMerge, pr.appMerges)}`,
+      pr.linked && 'Linked to this conversation, not found by its branch.',
       'Click to open it on GitHub.',
     ]
       .filter(Boolean)
@@ -129,6 +140,7 @@ export function pullRequestButton(contact, who, settings = {}) {
       draft: pr.state === 'draft',
       conflict: hasConflict(pr),
       archiveMerged: contact.archiveMerged ?? Boolean(settings.archiveMerged),
+      ...origin(pr),
     };
   }
   if (pr) {
@@ -139,9 +151,17 @@ export function pullRequestButton(contact, who, settings = {}) {
       name: `PR #${pr.number}`,
       tag,
       more: 'Create another pull request on this branch',
-      title: [pullRequestLine(pr), pr.title, 'Click to open it on GitHub.'].filter(Boolean).join('\n'),
+      title: [
+        pullRequestLine(pr),
+        pr.title,
+        pr.linked && 'Linked to this conversation, not found by its branch.',
+        'Click to open it on GitHub.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
       url: pr.url,
       disabled: false,
+      ...origin(pr),
     };
   }
   return {
@@ -212,15 +232,20 @@ export function fixConflictsMessage(number, { to = null } = {}) {
  * @param {(on: boolean) => void} [actions.autoMerge]  turns auto-merge on or off
  * @param {() => void} [actions.fixConflicts]  asks for its conflicts to be resolved
  * @param {(on: boolean) => void} [actions.archiveMerged]  has the contact archived once it is merged, or not
+ * @param {() => void} [actions.link]  links a pull request to the conversation by hand, in its own dialog
+ * @param {() => void} [actions.unlink]  takes the linked one away
+ * @param {(which: 'branch' | 'linked') => void} [actions.showOther]  shows the branch's own, or the linked one
  * @param {{ id: string, name: string }[]} [participants]  with several agents, choose who creates it
  * @returns {import('../renderer/lib/menu.js').MenuItem[]}
  */
 export function pullRequestMenuItems(
   face,
-  { open, create, manually, checks, stack, autoMerge, fixConflicts, archiveMerged },
+  { open, create, manually, checks, stack, autoMerge, fixConflicts, archiveMerged, link, unlink, showOther },
   participants = []
 ) {
   const stackItem = face.url && stack ? [{ label: 'View PR stack...', action: stack }] : [];
+  // A folder that is gone has nothing to link one to.
+  const linking = link && !face.disabled ? [{ separator: true }, ...linkItems(face, { link, unlink, showOther })] : [];
   if (face.url && !face.tag) {
     const on = Boolean(face.autoMerge);
     return [
@@ -244,6 +269,7 @@ export function pullRequestMenuItems(
         checked: face.archiveMerged,
         action: () => archiveMerged?.(!face.archiveMerged),
       },
+      ...linking,
     ];
   }
   const creation = (label, draft) => ({
@@ -262,7 +288,46 @@ export function pullRequestMenuItems(
     creation('Create draft PR', true),
     { label: 'Create PR manually', action: manually },
   ].map((item) => ({ ...item, disabled: face.disabled }));
-  return face.url ? [{ label: face.label, action: open }, ...stackItem, ...ways] : ways;
+  return face.url ? [{ label: face.label, action: open }, ...stackItem, ...ways, ...linking] : [...ways, ...linking];
+}
+
+/**
+ * The ▼'s ways to link a pull request by hand: one its branch doesn't lead to, as one pushed under another name. Once
+ * one is linked, which it is, the branch's own where there is one too, and Unlink.
+ * @param {Face} face
+ * @param {{ link: () => void, unlink?: () => void, showOther?: (which: 'branch' | 'linked') => void }} actions
+ * @returns {import('../renderer/lib/menu.js').MenuItem[]}
+ */
+function linkItems(face, { link, unlink, showOther }) {
+  const { number, other } = face;
+  if (!face.url) return [{ label: 'Link pull request...', action: link }];
+  const another = { label: 'Link another pull request...', action: link };
+  // The linked one shown, maybe with the branch's own beside it.
+  if (face.linked) {
+    return [
+      {
+        label: other
+          ? `Showing #${number}, linked here. This branch has #${other.number}.`
+          : 'Linked to this conversation, not found by its branch',
+        note: true,
+      },
+      ...(other
+        ? [{ label: `Show #${other.number} of this branch instead`, action: () => showOther?.('branch') }]
+        : []),
+      another,
+      { label: `Unlink #${number}`, action: unlink },
+    ];
+  }
+  // The branch's own shown, with one linked beside it.
+  if (other?.linked) {
+    return [
+      { label: `Showing #${number} of this branch. #${other.number} is linked here.`, note: true },
+      { label: `Show linked #${other.number} instead`, action: () => showOther?.('linked') },
+      another,
+      { label: `Unlink #${other.number}`, action: unlink },
+    ];
+  }
+  return [another];
 }
 
 // ---- the page on GitHub where you open one yourself ------------------------------------------

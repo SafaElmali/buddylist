@@ -1106,6 +1106,18 @@ const handlers = {
     broadcastContacts();
     return { method: pr.autoMerge ?? null };
   },
+  // The preview has no GitHub to look a pull request up on, nor one linked to take away or switch.
+  [REQUESTS.contactLinkPullRequest]: () => {
+    throw new Error('This is the demo: no pull request is looked up on GitHub.');
+  },
+  [REQUESTS.contactUnlinkPullRequest]: (_win, id) => {
+    const contact = store.getContact(id);
+    return (contact && demoPullRequest(contact)) ?? null;
+  },
+  [REQUESTS.contactShowPullRequest]: (_win, id) => {
+    const contact = store.getContact(id);
+    return (contact && demoPullRequest(contact)) ?? null;
+  },
   [REQUESTS.contactRepository]: (_win, folder) => demoRepository(folder),
   // As in the app: This computer, and the projects the contacts work on, by name.
   [REQUESTS.contactPlaces]: () => {

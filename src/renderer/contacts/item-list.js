@@ -11,15 +11,19 @@ import { closeMenu, openPopover, position } from '../lib/menu.js';
 
 // Long enough to finish a word before GitHub is searched for what was typed.
 const SEARCH_PAUSE_MS = 400;
+/** "issue or pull request" of "issues or pull requests". */
+const singular = (noun) => noun.replace(/(\w)s\b/g, '$1');
 const NOTHING = { pulls: [], issues: [] };
 
 /**
  * Gives the GitHub field its list. The project is asked at once, so the list is there by the time it is wanted.
  * @param {HTMLInputElement} input
  * @param {(search?: string) => Promise<ItemList>} ask  the project's open ones; with `search`, what GitHub finds for those words
+ * @param {{ hint?: (item: ListedItem) => string, noun?: string }} [opts]  `hint`: what each row says at its end, yours
+ *   or a draft unless it says. `noun`: what the list is of, in what it says while it has none
  * @returns {{ open: () => void }}  shows the list, as for a contact that is to be started from one
  */
-export function itemList(input, ask) {
+export function itemList(input, ask, { hint = listedHint, noun = 'issues or pull requests' } = {}) {
   /** @type {ItemList | null} */
   let list = null;
   let failure = '';
@@ -46,7 +50,7 @@ export function itemList(input, ask) {
       html`<div class="menu-item" role="menuitem" title="${item.title}">
         <span class="menu-check">${raw(item.kind === 'pull' ? listIcon.pullRequest() : listIcon.issue())}</span>
         <span class="menu-label"><span class="item-number">#${item.number}</span> ${item.title}</span>
-        <span class="menu-hint">${listedHint(item)}</span>
+        <span class="menu-hint">${hint(item)}</span>
       </div>`
     );
     entry.addEventListener('mouseenter', () => {
@@ -69,14 +73,14 @@ export function itemList(input, ask) {
   /** What the list shows for what the field says now; null when there is nothing to show at all. */
   function content() {
     if (failure) return [note(failure)];
-    if (!list) return [note('Looking for open issues and pull requests...')];
+    if (!list) return [note(`Looking for open ${noun.replace(' or ', ' and ')}...`)];
     const text = input.value.trim();
     const { pulls, issues } = matching(text);
     if (pulls.length || issues.length) return [...group('Pull requests', pulls), ...group('Issues', issues)];
     // A number or a link that isn't listed is looked up all the same, and the line under the field says what it is.
     if (parseReference(text)) return null;
-    if (!text) return [note('There are no open issues or pull requests.')];
-    return [note(found.has(text) ? `No open issue or pull request matches “${text}”.` : 'Searching GitHub...')];
+    if (!text) return [note(`There are no open ${noun}.`)];
+    return [note(found.has(text) ? `No open ${singular(noun)} matches “${text}”.` : 'Searching GitHub...')];
   }
 
   // Enter takes the highlighted row: the first, which once you type is the best match.
