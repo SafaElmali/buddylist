@@ -280,12 +280,16 @@ export function guestName(provider, model, participants) {
 
 /**
  * The mentions to mark in a message you sent. Only with several agents here does a
- * mention pick who answers, and a slash command is the host's whoever it names.
+ * mention pick who answers, and a slash command is the host's whoever it names. The
+ * conversation's manager, which a tag asks here (see manager-tag.js), is marked either way.
  * @param {string} text
  * @param {{ id: string, name: string }[]} participants
+ * @param {{ id: string, name: string }[]} [managers]  the manager that can be tagged here, if any
  */
-export const sentMentions = (text, participants) =>
-  isGroup(participants) && !text.startsWith('/') ? mentionRanges(text, participants) : [];
+export const sentMentions = (text, participants, managers = []) => {
+  const people = [...(isGroup(participants) ? participants : []), ...managers];
+  return people.length && !text.startsWith('/') ? mentionRanges(text, people) : [];
+};
 
 /**
  * The conversations a message you sent tags, in a project's manager's conversation (see conversation-tags.js).
@@ -303,14 +307,15 @@ export const sentTags = (text, tags) => (text.startsWith('/') ? [] : tagRanges(t
  * @param {string} text
  * @param {{ id: string, name: string }[]} participants
  * @param {{ id: string, name: string }[]} [tags]  the conversations that can be tagged: none but in a manager's
+ * @param {{ id: string, name: string }[]} [managers]  the manager that can be tagged, in a worker's
  * @returns {{ start: number, end: number, link?: true, file?: string, tag?: string }[]}  `file`: the path it
  *   names. `tag`: the conversation it tags, by id
  */
-export function sentMarks(text, participants, tags = []) {
+export function sentMarks(text, participants, tags = [], managers = []) {
   const links = linkRanges(text);
   const overlaps = (a, b) => a.start < b.end && b.start < a.end;
   const inLink = (range) => links.some((link) => overlaps(range, link));
-  const mentions = sentMentions(text, participants).filter((mention) => !inLink(mention));
+  const mentions = sentMentions(text, participants, managers).filter((mention) => !inLink(mention));
   const tagged = sentTags(text, tags).filter(
     (tag) => !inLink(tag) && !mentions.some((mention) => overlaps(tag, mention))
   );

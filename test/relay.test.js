@@ -649,3 +649,43 @@ test('what an agent changed itself is no news to it, and changes before it joine
   c.does(claude, { kind: 'edit', path: 'src/login.js', changes: [] });
   assert.equal(new Relay().changedFor(c.entries, codex.id, claude.id), true);
 });
+
+// ---- a worker's manager tagged in its conversation ---------------------------------------------------------------
+
+const MANAGER = { id: 'boss', name: 'shop manager' };
+
+test('the manager’s answer here is told as the manager’s, from its own conversation, asking nothing of anyone', () => {
+  const c = conversation();
+  c.user('hello both');
+  c.compose(codex, { me: 'Alex' });
+  c.add({ kind: 'user', text: '@shop manager subtotal?', toManager: MANAGER, onlyManager: true });
+  c.add({
+    kind: 'assistant',
+    text: 'Subtotal. @Codex can check it.',
+    speaker: MANAGER.id,
+    speakerName: MANAGER.name,
+    managerAnswer: true,
+  });
+  assert.equal(
+    body(c.compose(codex, { me: 'Alex' }).text),
+    [
+      'Alex (to shop manager alone: nobody here was asked): @shop manager subtotal?',
+      '[shop manager, who oversees this project, answered Alex here from its own conversation. What follows is shop ' +
+        'manager’s, not Alex’s, and asks nothing of anyone here by itself.]\nshop manager: Subtotal. @Codex can check it.',
+    ].join('\n\n')
+  );
+});
+
+test('on its own, a contact isn’t sent the user’s message to the manager as its own, nor asked it', () => {
+  const c = conversation([claude]);
+  c.user('first');
+  c.compose(claude, { alone: true });
+  c.add({ kind: 'user', text: '@shop manager subtotal?', toManager: MANAGER, onlyManager: true });
+  c.add({ kind: 'assistant', text: 'Subtotal.', speaker: MANAGER.id, speakerName: MANAGER.name, managerAnswer: true });
+  c.user('do that');
+  const { text, asked } = c.compose(claude, { alone: true });
+  assert.equal(text, 'do that', 'the exchange is told apart, marked whose it is (see Conversations#exchange)');
+  assert.equal(asked, 'do that');
+  c.add({ kind: 'user', text: '@shop manager and tax?', toManager: MANAGER, onlyManager: true });
+  assert.equal(c.compose(claude, { alone: true }).asked, 'do that', 'what it was asked is still the user’s last to it');
+});

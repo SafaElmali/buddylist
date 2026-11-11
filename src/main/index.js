@@ -450,6 +450,8 @@ function startApp(errorReports, electronUpdater) {
       questionAsked: (contactId, prompt) => managers.questionAsked(contactId, prompt),
       noteTaken: (contactId, note, how) => managers.noteTaken(contactId, note, how),
       notePutBack: (contactId, note) => managers.notePutBack(contactId, note),
+      tagTarget: (contact) => managers.tagTarget(contact),
+      ask: (contactId, asked) => managers.ask(contactId, asked),
     },
     // Before the turn, or during it: never the amounts, nor which account.
     onPlanLimit: ({ when }) => analytics.capture('stopped at plan limit', { provider: 'claude', when }),

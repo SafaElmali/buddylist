@@ -422,3 +422,17 @@ test('answer only approves a plan only in the mode that asks before each change;
     { decision: 'approve-plan', mode: 'acceptEdits' },
   ]);
 });
+
+test('a phone tags a worker’s manager only with full access, as it sends anything, and passes typed through', async () => {
+  const tag = ['c1', { text: '@shop manager subtotal?', clientId: 'k1', typed: true }];
+  for (const access of ['read', 'answer']) {
+    let called = false;
+    const requests = new Map([[REQUESTS.chatSend, () => (called = true)]]);
+    await assert.rejects(route({ requests, client: client('d1', access), channel: REQUESTS.chatSend, args: tag }));
+    assert.equal(called, false, access);
+  }
+  const calls = [];
+  const requests = new Map([[REQUESTS.chatSend, (_event, ...args) => (calls.push(args), { id: 'm1' })]]);
+  await route({ requests, client: client(), channel: REQUESTS.chatSend, args: tag });
+  assert.deepEqual(calls, [tag], 'the main process decides what tags the manager, from the message as typed');
+});

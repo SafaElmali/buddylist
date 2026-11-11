@@ -1517,8 +1517,15 @@ export function registerIpc({
     // The first thing a contact is asked to do names its branch, before its agent reads what the branch is called.
     await nameBranchFor(contactId, text);
     const drafted = store.getContact(contactId)?.setupOnStart;
-    const said = conversations.send(contactId, { text, images: message?.images || [], recipient: message?.recipient });
-    if (drafted && said && !said.blocked) draftStarted(contactId).catch(() => {});
+    const said = conversations.send(contactId, {
+      text,
+      images: message?.images || [],
+      recipient: message?.recipient,
+      // Typed in a message box and sent, here or on a phone: only such a message can tag a manager.
+      ...(message?.typed === true && { typed: true }),
+    });
+    // A message to its manager alone starts no draft (see Conversations#tagged).
+    if (drafted && said && !said.blocked && !said.onlyManager) draftStarted(contactId).catch(() => {});
     // Its id pins it. Only one sent to an agent that can go back to it is editable.
     return said;
   };
@@ -1547,7 +1554,7 @@ export function registerIpc({
     quickSend.send(senderWindow(event), text, async (id, text) => {
       const contact = store.getContact(id);
       if (!contact || contact.archived || conversations.view(contact).status === 'offline') return null;
-      const said = await sendMessage(id, { text });
+      const said = await sendMessage(id, { text, typed: true });
       // The regular composer draws its own message; this one lives in another window.
       if (said) {
         chats.send(id, { type: 'user-message', entry: said });

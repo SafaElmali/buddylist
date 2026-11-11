@@ -48,6 +48,14 @@ export const WRITE_EVERY_MS = 250;
  *   just before it, and so it can be edited (see Conversations.edit)
  * @property {true} [pinned]         on what you or an agent said: its window keeps it in sight, over the
  *   conversation (see Conversations.pin)
+ * @property {{ id: string, name: string }} [toManager]  on what you said: it tagged the conversation's manager,
+ *   which was asked it (see Conversations#tagged)
+ * @property {true} [onlyManager]    and nobody in the conversation was: it went to the manager alone
+ * @property {true} [managerAnswer]  on a reply: the conversation's manager's answer to what you tagged it with, said
+ *   in its own conversation (see Conversations#managerAnswered). `speaker` is the manager
+ * @property {string} [answers]      on that answer: the message of yours it answers, by id
+ * @property {true} [toldHost]       on what you asked the manager alone, or its answer: the conversation's agent was
+ *   told it (see Conversations#exchange)
  * @property {true} [dropped]        on what you said: a Stop dropped it while it waited, before anyone read it, so
  *   it was never sent (see Conversations.interrupt)
  * @property {{ replies: string[], nextMessage: string }} [suggested]  on a result: what was offered after the

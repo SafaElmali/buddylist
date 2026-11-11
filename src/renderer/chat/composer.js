@@ -621,7 +621,12 @@ export class Composer {
     return read;
   }
 
-  submit() {
+  /**
+   * Sends what is in the box, as Send does.
+   * @param {{ typed?: boolean }} [how]  `typed: false` for words an agent wrote, such as a draft started as it was
+   *   written: they can't tag the conversation's manager (see manager-tag.js)
+   */
+  submit({ typed: byYou = true } = {}) {
     if (this.#readingPictures) return;
     if (
       this.attachments.some(
@@ -659,7 +664,9 @@ export class Composer {
     this.files = [];
     this.outputs = [];
     this.#renderAttachments();
-    this.handlers.send({ text: text || PICTURES_ONLY, images });
+    // Typed here: only such a message can tag the conversation's manager (see manager-tag.js). A manager's note you
+    // took to edit began as its words, and doesn't.
+    this.handlers.send({ text: text || PICTURES_ONLY, images, typed: byYou });
   }
 
   /** An edited/returned attachment reads its original only when sent again. Failure keeps the draft. */

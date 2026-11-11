@@ -1,7 +1,8 @@
 // The list that opens over the message box to finish what you are typing: a
-// slash command after "/", a file after "@", and in a group, the agents' names
-// first. In a project's manager's conversation, the conversations it oversees
-// come after them. Then the terminals beside the conversation, and before the
+// slash command after "/", a file after "@", and in a group, the agents' names.
+// In a worker's conversation, its manager comes first (see manager-tag.js): greyed
+// out, with why, while it can't be asked. In a project's manager's conversation,
+// the conversations it oversees come after the agents. Then the terminals beside the conversation, and before the
 // files: picking one takes the "@" out and puts a card in the box, as Send Files
 // does a file. Comments on changes complete names only. Arrow keys with
 // Enter or Tab pick one, or the mouse does, and Esc puts the list away. A name's
@@ -11,8 +12,10 @@ import { closeMenu, openMenu, position } from '../lib/menu.js';
 import { letterAt } from './caret-line.js';
 import { commandAt, commandNames, completeCommand } from './command-completion.js';
 import { taggable } from './conversation-tags.js';
+import { managerRow, tagManagerOf } from './manager-tag.js';
 import { completeMention, dropMention, mentionAt, outputAt } from './mention-completion.js';
 import { buddyStatus, isGroup } from './participants.js';
+import { sameName } from '../../shared/mentions.js';
 import { completeFile, fileAt } from './file-completion.js';
 
 // Keys that move the caret without typing anything.
@@ -23,7 +26,7 @@ const CARET_KEYS = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
  * @property {string} key  what is on offer, to tell when typing changes that
  * @property {number} [from]  where the word it finishes starts in the box: the @ of a name or a file, where the
  *   list opens. A command has none, as it starts the message: its list opens against the whole box
- * @property {{ label?: string, icon?: string, hint?: string, disabled?: boolean, separator?: boolean, complete?: (text: string, caret: number) => { text: string, caret: number }, picked?: () => void }[]} items
+ * @property {{ label?: string, icon?: string, hint?: string, title?: string, ariaLabel?: string, disabled?: boolean, separator?: boolean, complete?: (text: string, caret: number) => { text: string, caret: number }, picked?: () => void }[]} items
  *   `complete` gives the message with the item written out, and where the caret goes. `picked`: what else
  *   picking it does, once it is written. A separator sets the next kind apart
  */
@@ -33,14 +36,22 @@ const after = (before, items) => (before.length && items.length ? [{ separator: 
 
 /**
  * Who an @ can name in a conversation: in a group, the agents in it, a mention of which says who answers; in a
- * project's manager's conversation, the conversations it oversees, which a tag points at (see
+ * worker's conversation, its manager, which answers here (see manager-tag.js), and `held`, the one that can't be
+ * asked now; in a project's manager's conversation, the conversations it oversees, which a tag points at (see
  * conversation-tags.js). With one agent, and no conversation it oversees, nobody.
  * @param {{ participants: { id: string, name: string }[], contact: any, contacts?: any[] }} ctx
  */
-export const nameable = ({ participants, contact, contacts = [] }) => ({
-  mentionable: isGroup(participants) ? participants : [],
-  tags: taggable(contact, contacts, participants),
-});
+export const nameable = ({ participants, contact, contacts = [] }) => {
+  const tag = tagManagerOf(contact, contacts);
+  // A guest by the manager's name is the one a mention names.
+  const own = tag && !participants.some((one) => one.id === tag.manager.id || sameName(one.name, tag.manager.name));
+  return {
+    mentionable: isGroup(participants) ? participants : [],
+    manager: own && !tag.why ? tag.manager : null,
+    held: own && tag.why ? tag : null,
+    tags: taggable(contact, contacts, participants),
+  };
+};
 
 /**
  * What can be finished at the caret: the command the message starts with, or a mention or a tag. The agents in
@@ -65,18 +76,38 @@ export function completionAt(value, caret, ctx, commands = true, { outputs = [],
       })),
     };
   }
-  const { mentionable, tags } = nameable(ctx);
-  const mention = mentionAt(value, caret, [...mentionable, ...tags]);
+  const { mentionable, manager, held, tags } = nameable(ctx);
+  // The manager first: it answers here, whoever else is named.
+  const mention = mentionAt(value, caret, [...(manager ? [manager] : []), ...mentionable, ...tags]);
+  // One that can't be asked is said once its name is begun, to say why: it is never written in.
+  const greyed = held && mentionAt(value, caret, [held.manager]);
   const output = outputAt(value, caret, outputs);
-  if (!mention && !output) return null;
-  const from = (mention ?? output).at;
+  if (!mention && !output && !greyed) return null;
+  const from = (mention ?? output ?? greyed).at;
   const folderGone = ctx.contact.status === 'offline';
-  const people = (mention?.matches ?? []).map((person) => ({
-    label: person.name,
-    // A conversation to tag wears its buddy as the contact list has it, an agent here as the Agents tab has it.
-    icon: buddy(tags.includes(person) ? person.status : buddyStatus(person.state, folderGone, person.paused)),
-    complete: (text, at) => completeMention(text, from, at, person),
-  }));
+  const people = (mention?.matches ?? []).map((person) =>
+    person === manager
+      ? {
+          label: person.name,
+          // As the contact list has it: its buddy with the star of a manager.
+          icon: buddy(person.status, 16, { lead: true }),
+          ...managerRow({ manager: person, why: null }),
+          complete: (text, at) => completeMention(text, from, at, person),
+        }
+      : {
+          label: person.name,
+          // A conversation to tag wears its buddy as the contact list has it, an agent here as the Agents tab has it.
+          icon: buddy(tags.includes(person) ? person.status : buddyStatus(person.state, folderGone, person.paused)),
+          complete: (text, at) => completeMention(text, from, at, person),
+        }
+  );
+  if (greyed) {
+    people.unshift({
+      label: held.manager.name,
+      icon: buddy('offline', 16, { lead: true }),
+      ...managerRow(held),
+    });
+  }
   const terminals = (output?.matches ?? []).map((card) => ({
     label: card.name,
     icon: smallIcon.terminal(),
@@ -85,7 +116,7 @@ export function completionAt(value, caret, ctx, commands = true, { outputs = [],
     picked: () => pick(card),
   }));
   return {
-    key: `${from}:${[...(mention?.matches ?? []), ...(output?.matches ?? [])].map((one) => one.id).join()}`,
+    key: `${from}:${[...(greyed ? [held.manager] : []), ...(mention?.matches ?? []), ...(output?.matches ?? [])].map((one) => one.id).join()}`,
     from,
     items: [...people, ...after(people, terminals)],
   };
@@ -166,8 +197,8 @@ export class CompletionMenu {
     const file =
       this.files && this.ctx.contact?.cwd && selectionStart === selectionEnd ? fileAt(value, selectionStart) : null;
     // A fully typed agent name remains ready to send, as before file completion existed. So does a tag.
-    const { mentionable, tags } = nameable(this.ctx);
-    const named = [...mentionable, ...tags].some(
+    const { mentionable, manager, tags } = nameable(this.ctx);
+    const named = [...mentionable, ...(manager ? [manager] : []), ...tags].some(
       (person) => person.name.trim().toLowerCase() === file?.query.toLowerCase()
     );
     if (!file || named || found?.key.startsWith('/')) return this.#draw(found);
@@ -261,7 +292,7 @@ export class CompletionMenu {
     // Opening the list closed the one before it, which emptied `offered`.
     this.offered = offered;
     const choices = [...this.node.querySelectorAll('.menu-item:not(.disabled)')];
-    for (const row of choices) row.title = row.querySelector('.menu-label').textContent;
+    for (const row of choices) row.title ||= row.querySelector('.menu-label').textContent;
     (choices.find((row) => row.querySelector('.menu-label').textContent === selected) ?? choices[0])?.classList.add(
       'active'
     );

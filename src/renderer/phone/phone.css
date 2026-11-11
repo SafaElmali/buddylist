@@ -1603,3 +1603,14 @@ body:has(> .ph-connection:not([hidden])) > .ph-screen {
   justify-content: flex-start;
   margin: 6px 0 10px;
 }
+
+/* A worker's manager's answer to what you tagged it with here: where it came from, with a link to its conversation. */
+.ph-answered-from {
+  margin: 6px 0 0;
+  color: var(--text-dim);
+  font-size: calc(13rem / 15);
+}
+
+.ph-answered-from a {
+  color: var(--link);
+}
