@@ -11,6 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
+## v0.7.4
+
+- **Link a pull request to a conversation** — Choose **Link pull request...** in the ▼ of **Create PR** or **View PR**, or in a contact’s right-click menu, and its checks, reviews and merge show as for one its branch found, after a restart too. An agent links one when you ask, and work pushed under another branch name is now found by itself.
+
 ## v0.7.3 — 2026-11-11
 
 - **Ask a worker’s manager from the worker’s conversation** — Type `@` in a worker’s message box and its manager is first in the list. Ask it something, as in `@shop manager should this round per line or on the subtotal?`, and it answers right there, under its name, knowing what the worker is doing. The worker doesn’t answer that message, but hears the exchange with your next one, so “do that” just works. A busy manager answers once it’s free; one that is turned off or put away is greyed out, with why.

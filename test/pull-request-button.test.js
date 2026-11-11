@@ -593,3 +593,73 @@ test("a branch's files have a page of their own, its name kept as the compare pa
   assert.equal(branchPage('/Users/me/repos/shop.git', 'main'), null);
   assert.equal(branchPage('https://github.com/acme/shop.git', ''), null);
 });
+
+// ---- a pull request linked by hand ------------------------------------------------------------------------
+
+const linking = () => {
+  const did = actions();
+  return {
+    ...did,
+    link: () => did.calls.push('link'),
+    unlink: () => did.calls.push('unlink'),
+    showOther: (which) => did.calls.push({ show: which }),
+  };
+};
+
+test('without a pull request, the ▼ offers to link one after the ways to create one', () => {
+  const did = linking();
+  const items = pullRequestMenuItems(pullRequestButton(contact(), 'Claude'), did);
+  assert.deepEqual(
+    items.map((item) => (item.separator ? '-' : item.label)),
+    ['Create PR', 'Create draft PR', 'Create PR manually', '-', 'Link pull request...']
+  );
+  items.at(-1).action();
+  assert.deepEqual(did.calls, ['link']);
+  // Without a way to link one, as in a window that has none, nothing is added.
+  assert.equal(pullRequestMenuItems(pullRequestButton(contact(), 'Claude'), actions()).length, 3);
+});
+
+test('a linked pull request wears a Linked tag, says so in its helper line, and offers Unlink', () => {
+  const face = faceOf(pr({ linked: true }));
+  assert.equal(face.linked, true);
+  assert.equal(face.number, 12);
+  assert.match(face.title, /Linked to this conversation, not found by its branch\./);
+  const did = linking();
+  const items = pullRequestMenuItems(face, did);
+  const tail = items.slice(items.findIndex((item) => item.separator) + 1);
+  assert.deepEqual(
+    tail.map(({ label, note }) => (note ? `(${label})` : label)),
+    ['(Linked to this conversation, not found by its branch)', 'Link another pull request...', 'Unlink #12']
+  );
+  for (const item of tail) item.action?.();
+  assert.deepEqual(did.calls, ['link', 'unlink']);
+  assert.equal(faceOf(pr()).linked, false, 'one found by the branch is not linked');
+});
+
+test('where the branch has its own too, the ▼ says which is shown and switches to the other', () => {
+  const did = linking();
+  const linkedShown = pullRequestMenuItems(faceOf(pr({ linked: true, other: { number: 48 } })), did);
+  assert.ok(entry(linkedShown, 'Showing #12, linked here. This branch has #48.').note);
+  entry(linkedShown, 'Show #48 of this branch instead').action();
+  const branchShown = pullRequestMenuItems(faceOf(pr({ number: 48, other: { number: 12, linked: true } })), did);
+  assert.ok(entry(branchShown, 'Showing #48 of this branch. #12 is linked here.').note);
+  entry(branchShown, 'Show linked #12 instead').action();
+  entry(branchShown, 'Unlink #12').action();
+  assert.deepEqual(did.calls, [{ show: 'branch' }, { show: 'linked' }, 'unlink']);
+});
+
+test('a merged linked pull request keeps its link items after the ways to another', () => {
+  const items = pullRequestMenuItems(faceOf(pr({ state: 'merged', linked: true })), linking());
+  assert.deepEqual(items.map((item) => (item.separator ? '-' : item.label)).slice(-4), [
+    '-',
+    'Linked to this conversation, not found by its branch',
+    'Link another pull request...',
+    'Unlink #12',
+  ]);
+});
+
+test('a branch’s own pull request can still have another linked in its place', () => {
+  const items = pullRequestMenuItems(faceOf(pr()), linking());
+  assert.equal(items.at(-1).label, 'Link another pull request...');
+  assert.equal(entry(items, 'Unlink #12'), undefined);
+});

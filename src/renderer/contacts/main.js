@@ -11,6 +11,7 @@ import { mountFrame } from '../lib/frame.js';
 import { feedbackDialog } from '../lib/feedback-dialog.js';
 import { aboutItem, coffeeItem, docsItem, showShortcuts, whatsNewItem } from '../lib/help.js';
 import { voiceDialog } from '../lib/voice-dialog.js';
+import { linkPullRequestDialog } from '../lib/link-pr-dialog.js';
 import { openMenu } from '../lib/menu.js';
 import { togglePalette } from '../lib/palette.js';
 import { setPack } from '../lib/pack.js';
@@ -102,6 +103,11 @@ const on = {
   openFolder: (contact) => api.chat.openFolder(contact.id),
   copyPath,
   copyBranch,
+  linkPullRequest: (contact) => linkPullRequestDialog(contact),
+  unlinkPullRequest: (contact) =>
+    api.contacts.unlinkPullRequest(contact.id).catch((err) => infoDialog('buddylist', messageBody(errorText(err)))),
+  // The preview has no GitHub to look one up on.
+  links: () => state.platform !== 'web',
   history: (contact) => api.history.open(contact.id),
   toggleUnread: (contact) => api.contacts.setUnread(contact.id, !contact.unread),
   addFrom: addContactFrom,

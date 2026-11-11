@@ -88,6 +88,10 @@ export function describeActivity(a, cwd) {
         return html`${appDone(a)}${a.names?.length ? html`: <i>${a.names.join(', ')}</i>` : ''}`;
       }
       if (['look', 'read-brief', 'save-brief', 'read-sources'].includes(a.action)) return html`${appDone(a)}`;
+      // A pull request linked to the conversation is told by its number.
+      if (a.action === 'link-pr') {
+        return a.unlink || !a.label ? html`${appDone(a)}` : html`linked pull request <b>${a.label}</b>`;
+      }
       return html`${appDone(a)}${a.names?.length ? html`: <i>${a.names.join(', ')}</i>` : ''}${
         a.command ? html`, to run ${code(a.command)}` : ''
       }`;

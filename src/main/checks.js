@@ -133,13 +133,15 @@ async function reasonFor(cwd, check, run) {
 /**
  * The page of the pull request gh is asked about for a folder. One on no branch, as an agent leaves it with
  * `git checkout origin/main` once its pull request is merged, has no branch for gh to find one of: the one the
- * contact list knows it by is still its own (see contact-card.js).
+ * contact list knows it by is still its own (see contact-card.js). So is one linked to it by hand.
  * @param {string} cwd
  * @param {Asking} asking
  * @returns {Promise<string | null>}  null to ask about the branch it is on
  */
 async function pageFor(cwd, { known = null, onBranch = branchCheckedOut }) {
   const page = pullRequestPageOf(known?.url);
+  // One linked by hand is not the branch's: gh is asked about it by its page wherever the folder is.
+  if (page && known.linked) return page;
   return page && (await onBranch(cwd)) === false ? page : null;
 }
 

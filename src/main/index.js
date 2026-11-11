@@ -34,6 +34,7 @@ import { IdleRestart } from './idle-restart.js';
 import { mediaType, Pack } from './pack.js';
 import { registerIpc } from './ipc.js';
 import { PullRequests } from './pull-requests.js';
+import { pullRequestToLink } from './pull-request-link.js';
 import { ArchiveMerged } from './archive-merged.js';
 import { createArchiveContact } from './archive-contact.js';
 import { AppMerges } from './app-merges.js';
@@ -394,6 +395,16 @@ function startApp(errorReports, electronUpdater) {
         }
       }
     },
+    // A pull request linked by hand is kept with every contact in the folder, as the branch's evidence is.
+    loadLink: (cwd) =>
+      store.contacts.find((contact) => contact.cwd === cwd && contact.pullRequestLink)?.pullRequestLink,
+    saveLink: (cwd, link) => {
+      for (const contact of store.contacts) {
+        if (contact.cwd === cwd && JSON.stringify(contact.pullRequestLink) !== JSON.stringify(link ?? undefined)) {
+          store.updateContact(contact.id, { pullRequestLink: link ?? undefined });
+        }
+      }
+    },
     onChange: () => broadcastContacts(),
     notify: notifyAbout,
     appMerges,
@@ -671,6 +682,19 @@ function startApp(errorReports, electronUpdater) {
     instructions: projectInstructions,
     managers,
     agents: providers.list(),
+    // The pull request shown for a conversation, linked by its agent: as Link pull request... in its ▼ does.
+    links: {
+      offered: (hostId) => {
+        const contact = store.getContact(hostId);
+        return Boolean(contact && !contact.manages && !isOnComputer(contact.cwd));
+      },
+      link: async (hostId, text) => {
+        if (DEMO) throw new Error('This is the demo: no pull request is looked up on GitHub.');
+        const { cwd } = store.getContact(hostId) ?? {};
+        return pullRequests.link(cwd, await pullRequestToLink(cwd, text));
+      },
+      unlink: (hostId) => pullRequests.unlink(store.getContact(hostId)?.cwd),
+    },
   });
   const contacts = showContactsWindow();
   // A new install starts with the wizard, in front of a contact list that has nobody on it yet.

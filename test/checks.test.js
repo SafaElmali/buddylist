@@ -88,3 +88,11 @@ test('Re-run failed in a folder on no branch starts over the runs of the pull re
     'run rerun 7 --failed -R github.com/o/r',
   ]);
 });
+
+test('a pull request linked by hand has its own checks listed, whatever branch the folder is on', async () => {
+  const gh = noBranchGh();
+  const onBranch = async () => assert.fail('a linked one is asked about by its page, without asking git');
+  const answer = await pullRequestChecks('/work/cart', { ...gh, known: { ...known, linked: true }, onBranch });
+  assert.equal(answer.pullRequest, true);
+  assert.equal(gh.asked[0], 'pr checks https://github.com/o/r/pull/12 --json name,workflow,bucket,link');
+});

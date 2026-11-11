@@ -12,6 +12,7 @@
 // so the windows word it like everything else an agent does.
 
 import { defaultsOf, newContactStart } from './contact-defaults.js';
+import { parseReference } from './github-item.js';
 import { fallbackPermissionModes } from './limit-fallbacks.js';
 import { REVIEW_ROLE } from './teams.js';
 
@@ -24,6 +25,7 @@ export const APP_TOOLS = Object.freeze({
   terminals: 'open_terminals',
   conversation: 'start_conversation',
   instructions: 'project_instructions',
+  link: 'link_pull_request',
   // A project's manager's alone.
   message: 'message_conversation',
   answer: 'answer_question',
@@ -302,6 +304,13 @@ export function appActivity(tool, input = {}) {
     const added = names((Array.isArray(input.add) ? input.add : []).map((source) => source?.name || source?.url));
     const changes = added.length > 0 || (Array.isArray(input.remove) && input.remove.length > 0);
     return changes ? { kind: 'app', action: 'save-sources', names: added } : { kind: 'app', action: 'read-sources' };
+  }
+  // By its number, however it was named; taking it away names none.
+  if (tool === APP_TOOLS.link) {
+    if (input.unlink === true) return { kind: 'app', action: 'link-pr', unlink: true };
+    const said = String(input.pull_request ?? '').trim();
+    const number = parseReference(said)?.number;
+    return { kind: 'app', action: 'link-pr', ...(said && { label: number ? `#${number}` : said }) };
   }
   if (tool !== APP_TOOLS.terminals) return null;
   const command = cleanCommand(input.command);

@@ -25,6 +25,8 @@ import { prefixed, shortBranchWords } from './branch-names.js';
  * @property {string} url
  * @property {boolean} draft  a pull request that isn't ready for review yet
  * @property {boolean} mine   a pull request you opened, or an issue given to you
+ * @property {string} [branch]  a pull request's branch; '' when GitHub didn't say
+ * @property {string} [author]  who opened a pull request, by their login; '' when GitHub didn't say
  */
 
 /** @typedef {{ pulls: ListedItem[], issues: ListedItem[] }} ItemList */
@@ -51,6 +53,9 @@ const NOUN = { issue: 'Issue', pull: 'Pull request' };
 
 /** What the user is told when what they typed is neither a number nor a link. */
 export const REFERENCE_HELP = 'Type the number of an issue or pull request, such as 123, or paste its link.';
+
+/** What is said when a pull request to link to a conversation is named by neither a number nor a link. */
+export const LINK_HELP = 'Say which pull request: its number, such as #12, or the link to its page.';
 
 const oneLine = (text) =>
   String(text ?? '')

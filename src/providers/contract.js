@@ -46,7 +46,7 @@
  *   the project's instructions it saves, a manager's message, what an agent it invites is to do first, or the brief
  *   it saves (`app`)
  * @property {string} [source]       where a generic tool comes from, e.g. an MCP server
- * @property {'fallback' | 'terminals' | 'conversation' | 'read-instructions' | 'save-instructions' | 'message' | 'invite' | 'look' | 'teams' | 'read-brief' | 'save-brief' | 'read-sources' | 'save-sources' | 'set' | 'cancel' | 'list'} [action]
+ * @property {'fallback' | 'terminals' | 'conversation' | 'read-instructions' | 'save-instructions' | 'message' | 'invite' | 'look' | 'teams' | 'read-brief' | 'save-brief' | 'read-sources' | 'save-sources' | 'link-pr' | 'set' | 'cancel' | 'list'} [action]
  *   what the app itself was asked for (`app`, see shared/app-tools.js), or what the agent did about its check-ins
  *   (`schedule`, see shared/check-ins.js)
  * @property {string} [schedule]     when a check-in is due, as a cron expression (`schedule`)
@@ -59,6 +59,7 @@
  * @property {string[]} [names]      what they are to be called, as far as that was said (`app`)
  * @property {boolean} [started]     a conversation the user asked for, so it started at once: one the agent thought
  *   of waits for the user to send it its first message (`app`)
+ * @property {boolean} [unlink]      the pull request linked to the conversation was taken away (`app`, `link-pr`)
  */
 
 /**

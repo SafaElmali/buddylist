@@ -564,3 +564,104 @@ test('a checkout changed while GitHub is answering cannot publish the previous b
   });
   assert.equal(answer.pr, null);
 });
+
+// gh finds a branch's PR by its local name. It follows an upstream of another name only under push.default=upstream,
+// so work pushed under another name was never found (2026-11-11).
+const open = { state: 'OPEN', closedAt: null };
+const pushedAs = (repo, name) => async (_cwd, ref) =>
+  ref === name ? output(repo, { ...open, headRefName: name }) : null;
+
+test('work pushed with an upstream of another name is asked about by that name', opts, async (t) => {
+  const repo = repository(t, { branch: 'cart-total' });
+  run(repo.cwd, 'config', 'branch.cart-total.remote', 'origin');
+  run(repo.cwd, 'config', 'branch.cart-total.merge', 'refs/heads/cart-rounding');
+  const asked = [];
+  const answer = await associatedPullRequest(repo.cwd, null, {
+    run: async (cwd, ref) => {
+      asked.push(ref);
+      return pushedAs(repo, 'cart-rounding')(cwd, ref);
+    },
+  });
+  assert.equal(answer.pr?.number, 7);
+  assert.equal(answer.record.headRefName, 'cart-rounding');
+  assert.deepEqual(asked, [undefined, 'cart-rounding']);
+});
+
+test(
+  'work pushed as HEAD:other without an upstream is found by the remote branch at HEAD, and kept after new commits',
+  opts,
+  async (t) => {
+    const repo = repository(t, { branch: 'cart-total' });
+    run(repo.cwd, 'update-ref', 'refs/remotes/origin/cart-rounding', repo.head);
+    const answer = await associatedPullRequest(repo.cwd, null, { run: pushedAs(repo, 'cart-rounding') });
+    assert.equal(answer.pr?.number, 7);
+    assert.equal(answer.record.headRefName, 'cart-rounding');
+
+    // A local commit leaves no remote branch at HEAD: the PR it proved is asked about by its page.
+    commit(repo.cwd, 'unpushed.txt');
+    forgetPullRequestAssociation(repo.cwd);
+    const asked = [];
+    const later = await associatedPullRequest(repo.cwd, answer.record, {
+      run: async (_cwd, ref) => {
+        asked.push(ref);
+        return output(repo, { ...open, headRefName: 'cart-rounding' });
+      },
+    });
+    assert.equal(later.pr?.number, 7);
+    assert.deepEqual(asked, [URL]);
+  }
+);
+
+test('a remote branch at HEAD is not asked about while the main line is there too', opts, async (t) => {
+  const repo = repository(t);
+  run(repo.cwd, 'checkout', '--quiet', '-b', 'fresh', repo.base);
+  // Someone's branch merged by rebase leaves its tip where main is.
+  run(repo.cwd, 'update-ref', 'refs/remotes/origin/merged-elsewhere', repo.base);
+  const asked = [];
+  const answer = await associatedPullRequest(repo.cwd, null, {
+    run: async (_cwd, ref) => {
+      asked.push(ref);
+      return ref ? output(repo, { headRefName: 'merged-elsewhere', headRefOid: repo.base }) : null;
+    },
+  });
+  assert.equal(answer.pr, null);
+  assert.deepEqual(asked, [undefined]);
+});
+
+test('a PR found by another name must still be that name’s and contain no foreign head', opts, async (t) => {
+  for (const changes of [{ headRefName: 'someone-elses-work' }, { headRefOid: 'f'.repeat(40) }]) {
+    await t.test(JSON.stringify(changes), async (t) => {
+      const repo = repository(t, { branch: 'cart-total' });
+      run(repo.cwd, 'update-ref', 'refs/remotes/origin/cart-rounding', repo.head);
+      const answer = await associatedPullRequest(repo.cwd, null, {
+        run: async (_cwd, ref) => (ref ? output(repo, { ...open, headRefName: 'cart-rounding', ...changes }) : null),
+      });
+      assert.equal(answer.pr, null);
+    });
+  }
+});
+
+test('an open PR this checkout proved stays when its head moves on GitHub before a fetch', opts, async (t) => {
+  const repo = repository(t);
+  const initial = await discover(repo, open);
+  assert.equal(initial.pr?.number, 7);
+  forgetPullRequestAssociation(repo.cwd);
+  // "Update branch" on GitHub, or a teammate's push: the new head is not in this checkout yet.
+  const moved = await associatedPullRequest(repo.cwd, initial.record, {
+    run: async () => output(repo, { ...open, headRefOid: 'a'.repeat(40) }),
+  });
+  assert.equal(moved.pr?.number, 7);
+  assert.equal(moved.record?.pr?.url, URL);
+});
+
+test('a moved head does not keep a PR that is over, nor one never proved here', opts, async (t) => {
+  const repo = repository(t);
+  const initial = await discover(repo, open);
+  forgetPullRequestAssociation(repo.cwd);
+  const merged = await associatedPullRequest(repo.cwd, initial.record, {
+    run: async () => output(repo, { headRefOid: 'a'.repeat(40) }),
+  });
+  assert.equal(merged.pr, null);
+  forgetPullRequestAssociation(repo.cwd);
+  assert.equal((await discover(repo, { ...open, headRefOid: 'a'.repeat(40) })).pr, null);
+});

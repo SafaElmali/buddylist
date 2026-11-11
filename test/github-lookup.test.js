@@ -360,7 +360,7 @@ test('whatever is looked up, gh is only ever asked to show something', async () 
 
 // ---- the open ones, to choose from --------------------------------------------------------------
 
-// What `gh pr list --json number,title,url,isDraft,author` prints, newest first.
+// What `gh pr list --json number,title,url,isDraft,author,headRefName` prints, newest first.
 const PULLS = JSON.stringify([
   {
     number: 50,
@@ -368,6 +368,7 @@ const PULLS = JSON.stringify([
     url: 'https://github.com/acme/shop/pull/50',
     isDraft: false,
     author: { login: 'octocat' },
+    headRefName: 'tidy-footer',
   },
   {
     number: 48,
@@ -375,6 +376,7 @@ const PULLS = JSON.stringify([
     url: 'https://github.com/acme/shop/pull/48',
     isDraft: true,
     author: { login: 'Me' },
+    headRefName: 'hover-card',
   },
   {
     number: 45,
@@ -414,6 +416,8 @@ test('the open ones are listed, yours first and otherwise newest first', async (
     url: 'https://github.com/acme/shop/pull/48',
     draft: true,
     mine: true,
+    branch: 'hover-card',
+    author: 'Me',
   });
   assert.deepEqual(
     issues.map(({ kind, number, mine }) => ({ kind, number, mine })),
@@ -427,7 +431,7 @@ test('the open ones are listed, yours first and otherwise newest first', async (
     calls.map((call) => call.args.join(' ')),
     [
       'api user --jq .login',
-      'pr list --state open --limit 30 --json number,title,url,isDraft,author',
+      'pr list --state open --limit 30 --json number,title,url,isDraft,author,headRefName',
       'issue list --state open --limit 30 --json number,title,url,assignees',
     ]
   );
@@ -444,7 +448,7 @@ test('words are searched for on GitHub, in fewer of each', async () => {
   assert.equal(issues.length, 2);
   assert.deepEqual(calls[1].args.slice(-4), [
     '--json',
-    'number,title,url,isDraft,author',
+    'number,title,url,isDraft,author,headRefName',
     '--search',
     'login  redirect',
   ]);
@@ -488,7 +492,16 @@ test('a list that cannot be read is said to be that, and entries without a page 
     'pull'
   );
   assert.deepEqual(kept, [
-    { kind: 'pull', number: 3, title: '', url: 'https://github.com/a/b/pull/3', draft: false, mine: false },
+    {
+      kind: 'pull',
+      number: 3,
+      title: '',
+      url: 'https://github.com/a/b/pull/3',
+      draft: false,
+      mine: false,
+      branch: '',
+      author: '',
+    },
   ]);
 });
 

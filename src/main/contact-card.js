@@ -260,7 +260,8 @@ export function ghPullRequest({ cwd, page }) {
         (err, stdout, stderr) => {
           if (!err) resolve(stdout);
           else if (NO_PULL_REQUEST.test(stderr)) resolve(null);
-          else reject(err);
+          // What gh wrote as it gave up tells one failure from another (see ghTrouble).
+          else reject(Object.assign(err, { stderr }));
         }
       );
     } catch (err) {
