@@ -47,13 +47,15 @@ function sourceFromHead(entries, name) {
 
 /** Only the most recent checkout can recover a lost association; never search chat or sibling trees. */
 export async function pullRequestContext(cwd) {
-  const [dir, head, branch, remotes, log, start] = await Promise.all([
+  const [dir, head, branch, remotes, log, start, atHead] = await Promise.all([
     git(cwd, ['rev-parse', '--absolute-git-dir']),
     git(cwd, ['rev-parse', 'HEAD']),
     git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']).then((value) => (value === 'HEAD' ? null : value)),
     git(cwd, ['remote', '-v']),
     git(cwd, ['reflog', 'show', '-40', '--date=unix', '--format=%H%x09%gD%x09%gs', 'HEAD']),
     branchStart(cwd),
+    // `git push origin HEAD:other` leaves origin/other here, and nothing else names the branch it was pushed as.
+    git(cwd, ['for-each-ref', '--points-at', 'HEAD', '--format=%(refname)', 'refs/remotes']).catch(() => ''),
   ]);
   const real = fs.realpathSync(dir);
   const stat = fs.statSync(real);
@@ -89,6 +91,7 @@ export async function pullRequestContext(cwd) {
   );
   const cleanup = !branch || branch === defaultRef?.replace(/^origin\//, '');
   if (!cleanup) departure = null;
+  const pushed = pushedAs(atHead, remotes, branch, defaultRef);
   const sourceBranch = departure?.branch || branch;
   let tracking = null;
   let sourceStart = start;
@@ -133,8 +136,41 @@ export async function pullRequestContext(cwd) {
       /* Reflogs can be disabled or a merged branch can have been deleted. */
     }
   }
-  return { scope, branch, start: departure ? start : sourceStart, head, departure, tracking, sourceStart };
+  return { scope, branch, start: departure ? start : sourceStart, head, departure, tracking, sourceStart, pushed };
 }
+
+/**
+ * The names HEAD was pushed under besides its own: the remote branches at exactly HEAD. None while the main line is
+ * there too, as on a branch with no commits of its own: a branch merged by rebase leaves its tip there.
+ * @param {string} atHead  what `git for-each-ref --points-at HEAD refs/remotes` printed
+ * @param {string} remotes  what `git remote -v` printed
+ * @param {string | null} branch  the local branch
+ * @param {string | null} defaultRef  the main line, as "origin/main"
+ * @returns {string[]}
+ */
+function pushedAs(atHead, remotes, branch, defaultRef) {
+  const tips = atHead
+    .split('\n')
+    .filter(Boolean)
+    .map((ref) => ref.replace(/^refs\/remotes\//, ''));
+  if (!branch || (defaultRef && tips.includes(defaultRef))) return [];
+  const names = [...new Set(remotes.split('\n').map((line) => line.split(/\s+/)[0]))].filter(Boolean);
+  const pushed = tips.flatMap((tip) => {
+    const remote = names.find((name) => tip.startsWith(`${name}/`));
+    const name = remote ? tip.slice(remote.length + 1) : '';
+    return name && name !== 'HEAD' && name !== branch ? [name] : [];
+  });
+  return [...new Set(pushed)].sort();
+}
+
+/**
+ * The other names a branch's PR can be found by. gh finds one by the local name, and follows an upstream of another
+ * name only under push.default=upstream: work pushed with `git push -u origin HEAD:other`, or without -u, is asked
+ * about by that name. A pull request's own ref (refs/pull/N/head, as gh pr checkout sets) gh follows by itself.
+ * @param {{ branch: string | null, tracking: { branch?: string } | null, pushed: string[] }} context
+ */
+const otherHeads = ({ branch, tracking, pushed = [] }) =>
+  [...new Set([tracking?.branch, ...pushed])].filter((name) => name && name !== branch && !name.startsWith('refs/'));
 
 function sameSource(a, b) {
   if (!a || !b || a.ambiguous || b.ambiguous) return false;
@@ -226,13 +262,29 @@ export async function associatedPullRequest(
         source = { branch: record.branch, start: record.start, head: record.head };
         if (!found || found.pr.url !== record.pr.url) return empty;
       } else if (current.branch && !current.departure) {
-        const output = await run(cwd);
+        // One this checkout proved under another head name is asked about by its page: gh only finds it by name.
+        const elsewhere =
+          retained && record.headRefName && record.headRefName !== current.branch ? record.pr.url : null;
+        let output = elsewhere ? await run(cwd, elsewhere) : await run(cwd);
+        for (const name of elsewhere ? [] : otherHeads(current)) {
+          if (output) break;
+          output = await run(cwd, name);
+        }
         if (!output) return empty;
         found = verified(output, current, retained ? record.pr.url : null);
         if (!found) return empty;
+        const heads = [
+          current.branch,
+          current.tracking?.branch,
+          ...(current.pushed ?? []),
+          retained && record.headRefName,
+        ];
+        // Still open, the one it proved stays its own when its head moved on GitHub before this checkout fetched it:
+        // Update branch, or a teammate's push.
+        const proved = retained && found.pr.url === record.pr.url && ['open', 'draft'].includes(found.pr.state);
         if (
-          ![current.branch, current.tracking?.branch].includes(found.raw.headRefName) ||
-          (found.raw.headRefOid !== current.head && !(await contains(cwd, found.raw.headRefOid)))
+          !heads.includes(found.raw.headRefName) ||
+          (found.raw.headRefOid !== current.head && !proved && !(await contains(cwd, found.raw.headRefOid)))
         )
           return empty;
         const ended = Date.parse(found.raw.closedAt);
@@ -276,7 +328,14 @@ export async function associatedPullRequest(
     if (!same(current, await context(cwd).catch(() => null))) return { pr: null, record };
     return {
       pr: found.pr,
-      record: { scope: current.scope, ...source, headRefOid: found.raw.headRefOid, pr: found.pr },
+      record: {
+        scope: current.scope,
+        ...source,
+        headRefOid: found.raw.headRefOid,
+        // The name it was pushed as, where that is not the branch's own: gh is asked about it by its page from then on.
+        ...(found.raw.headRefName !== source.branch && { headRefName: found.raw.headRefName }),
+        pr: found.pr,
+      },
       ...(recovered && { recovered: true }),
     };
   };
