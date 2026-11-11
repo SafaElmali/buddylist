@@ -33,7 +33,9 @@ export function environmentGroups({ env, envFiles, folder, save }) {
       'Env files',
       html`More variables, read from files written like a <code>.env</code> file each time something is started. A
         variable typed in above wins over one from a file. A file that is not named in full is looked for in the
-        contact’s own folder.`,
+        contact’s own folder. The ones that say which programs start and what they load first, such as
+        <code>PATH</code>, <code>NODE_OPTIONS</code>, <code>BASH_ENV</code> or <code>DYLD_</code> and
+        <code>LD_</code> ones, are not taken from a file: type one in above to use it.`,
       listEditor({
         items: envFiles.map((path) => ({ path })),
         fields: [{ key: 'path', placeholder: '.env.local', mono: true, label: 'File' }],

@@ -77,8 +77,8 @@ export function startedText(run) {
  * @param {string} command  the project's setup script
  */
 export const waitingText = (command) =>
-  html`This worktree is not set up yet: its setup script, <code>${clip(command)}</code>, would run the pull request’s
-    code. Press Run setup in the Setup tab once you have looked it over.`;
+  html`This worktree is not set up yet: its setup script, <code>${clip(command)}</code>, would run code that is not on
+    the project’s own branches, such as a pull request’s. Press Run setup in the Setup tab once you have looked it over.`;
 
 /** What a run is called once it has ended: its command, or what it was for. @param {RunView} run */
 const endedSubject = (run) => (run.kind === 'setup' ? 'The setup script' : html`<code>${clip(run.command)}</code>`);
@@ -259,8 +259,8 @@ export class RunCommand {
   }
 
   /**
-   * The setup line of a pull request's worktree, whose setup script was not run by itself: it
-   * says the script waits for the user. Call once `attach` is done. A project with no setup
+   * The setup line of a worktree whose setup script was not run by itself, a pull request's or one
+   * started from it: it says the script waits for the user. Call once `attach` is done. A project with no setup
    * script, or one whose script runs already, has nothing to say.
    */
   setupWaits() {

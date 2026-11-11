@@ -1,9 +1,9 @@
 // Signs the GitHub CLI in from the app. `gh auth login --web` needs no terminal: it says a
 // one-time code, waits while the user types that into GitHub's page in the browser, and leaves
 // once GitHub has heard it. The app shows the code and opens the page.
-import { spawn } from 'node:child_process';
 import os from 'node:os';
 import { NOT_SIGNED_IN } from '../providers/setup.js';
+import { spawnTool } from './git-command.js';
 import { ghProblem, ghTrouble, lastWord, runGh } from './github-lookup.js';
 
 /** @typedef {import('../providers/setup.js').SignInResult} SignInResult */
@@ -50,10 +50,10 @@ function explain(err) {
  * @param {object} [opts]
  * @param {AbortSignal} [opts.signal]  calls the sign-in off, and stops `gh`
  * @param {(step: DeviceCode) => void} [opts.onCode]  called once, with what to type where
- * @param {{ start?: typeof spawn, gh?: typeof runGh }} [deps]  replaceable in tests
+ * @param {{ start?: typeof spawnTool, gh?: typeof runGh }} [deps]  replaceable in tests
  * @returns {Promise<SignInResult>}
  */
-export function githubSignIn({ signal, onCode } = {}, { start = spawn, gh = runGh } = {}) {
+export function githubSignIn({ signal, onCode } = {}, { start = spawnTool, gh = runGh } = {}) {
   return new Promise((resolve) => {
     let stderr = '';
     let told = false;

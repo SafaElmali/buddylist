@@ -54,9 +54,10 @@ import { cleanTerminalName } from '../shared/terminal.js';
  * Makes a contact for a conversation another one's agent starts, listed under that one, with the agents
  * `invite` names in it, and starts it when `now` says to. Answers with the names of the agents
  * that joined. Throws what went wrong, in a sentence for the agent.
- * `speakerId` is bound to the calling session, never chosen by the agent's tool input.
+ * `speakerId` is bound to the calling session, never chosen by the agent's tool input. `setupWaits`: its project's
+ * setup script waits for the user to start it.
  * @typedef {(hostId: string, opts: { prompt: string, now: boolean, fromHere: boolean, invite: Invitee[], speakerId?: string }) =>
- *   Promise<{ id: string, name: string, worktree: boolean, joined: string[] }>} StartConversation
+ *   Promise<{ id: string, name: string, worktree: boolean, setupWaits?: boolean, joined: string[] }>} StartConversation
  */
 
 /** @typedef {import('../shared/project-settings.js').Instructions} Instructions */
@@ -353,10 +354,14 @@ function startConversation(
       const later =
         'You hear its first reply and later outcomes; progress waits while background work runs. Carry on meanwhile, without waiting for notes.';
       const identity = started.id ? conversationIdLine(started.id) : '';
+      // Code on none of the project's branches, a pull request's above all, is set up only once the user says so.
+      const setup = started.setupWaits
+        ? ' Its project’s setup script waits for the user to start it: its branch has code that is not on the project’s own branches.'
+        : '';
       return now
-        ? `${started.name} has started${where}${others}.${identity} It is listed under this conversation.${missed} ${later}`
+        ? `${started.name} has started${where}${others}.${identity} It is listed under this conversation.${setup}${missed} ${later}`
         : `${started.name} is in the user’s contact list${where}${others}, under this conversation, with the prompt ` +
-            `waiting in its message box.${identity} Nothing runs until the user sends it.${missed} ${later}`;
+            `waiting in its message box.${identity} Nothing runs until the user sends it.${setup}${missed} ${later}`;
     },
   };
 }

@@ -37,8 +37,11 @@ const VERSION = 7;
  *   of its folder the app merges itself once its checks have passed, and how (see app-merges.js)
  * @property {boolean} [archiveMerged]  it is archived once the app sees the pull request of its folder merged,
  *   or it is not, whatever Settings > Git says (see archive-merged.js). As Settings says, if unset
- * @property {true | null} [setupWaits]  its worktree has a pull request's code, which its project's setup script
- *   would run: the script waits until the user starts it
+ * @property {true | null} [setupWaits]  its worktree has code that is not on the project's own branches, a pull
+ *   request's or one started from it, which its project's setup script would run: the script waits until the user
+ *   starts it
+ * @property {true | null} [setupOnStart]  its worktree is set up once its conversation starts: an agent drafted it, and
+ *   nothing runs for it until the user sends its first message
  * @property {string | null} [outputStyle]  the output style it answers in; the user's own default if unset
  * @property {boolean} [fastMode]    fast where supported; Codex keeps explicit false to override its settings
  * @property {string} [avatar]       display picture id; the provider's default if unset
@@ -260,6 +263,7 @@ function newContact({
   placeholderBranch,
   placeholderName,
   setupWaits,
+  setupOnStart,
   guestOf,
   startedBy,
   tabOf,
@@ -287,6 +291,7 @@ function newContact({
     ...(placeholderBranch && { placeholderBranch }),
     ...(placeholderName && { placeholderName }),
     ...(setupWaits && { setupWaits: true }),
+    ...(setupOnStart && { setupOnStart: true }),
     ...(guestOf && { guestOf }),
     ...(startedBy && { startedBy }),
     ...(tabOf && { tabOf }),

@@ -60,6 +60,7 @@ import { AppMenu } from './app-menu.js';
 import { THIS_COMPUTER, inWorktree, madeForComputer, onComputer, projectName } from '../shared/projects.js';
 import { lookOf, paletteOf, schemeOf } from '../shared/theme.js';
 import { OLD_WORKTREES_HOME, WORKTREES_HOME, branchOf } from './worktrees.js';
+import { checkWorktreesIn } from './git-command.js';
 import { COMPUTER_HOME } from './computer.js';
 import { adoptOldData } from './renamed.js';
 import { createWindow, setLook } from './windows/common.js';
@@ -374,6 +375,8 @@ function startApp(errorReports, electronUpdater) {
   const ownData = Boolean(process.env.BUDDYLIST_USER_DATA);
   const worktreesHome = ownData ? path.join(app.getPath('userData'), 'worktrees') : WORKTREES_HOME;
   const oldWorktreesHome = ownData ? null : OLD_WORKTREES_HOME;
+  // The app's own git runs in a worktree of these only while it still belongs to its repository.
+  checkWorktreesIn([worktreesHome, oldWorktreesHome]);
   const computerHome = ownData ? path.join(app.getPath('userData'), 'this-computer') : COMPUTER_HOME;
   const isOnComputer = (cwd) => onComputer(cwd, computerHome, os.homedir());
 
