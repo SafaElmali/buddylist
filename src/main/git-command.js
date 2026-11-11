@@ -70,15 +70,23 @@ export function findTool(name, { env = process.env, platform = process.platform,
   return executablePath(name, { env: absolutePath(env, platform), platform, exists }) ?? null;
 }
 
-/** @type {Map<string, string | null>} a program and the PATH it was looked for on -> where it was found */
+/** @type {Map<string, string>} a program and the PATH it was looked for on -> where it was found */
 const found = new Map();
 const pathOf = (env) => Object.entries(env).find(([key]) => key.toUpperCase() === 'PATH')?.[1] ?? '';
 
-/** Where a program is, looked for once for each PATH the app has: the login shell's arrives after the app starts. */
+/**
+ * Where a program is, looked for once for each PATH the app has: the login shell's arrives after the app starts.
+ * One that is not there is looked for again next time, and so is one that has gone since: it may be installed, or
+ * moved, while the app is open.
+ */
 function toolPath(name, env) {
   const key = `${name}\0${pathOf(env)}`;
-  if (!found.has(key)) found.set(key, findTool(name, { env }));
-  return found.get(key);
+  const known = found.get(key);
+  if (known && fs.existsSync(known)) return known;
+  const file = findTool(name, { env });
+  if (file) found.set(key, file);
+  else found.delete(key);
+  return file;
 }
 
 // ---- a worktree's link to its repository ------------------------------------------------------------

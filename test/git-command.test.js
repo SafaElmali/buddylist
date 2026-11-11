@@ -75,6 +75,27 @@ test('a git that is nowhere on the PATH fails as a missing program does', async 
   assert.throws(() => spawnTool('gh', ['--version'], { env: { PATH: '' } }), { code: 'ENOENT' });
 });
 
+test(
+  'a program installed while the app is open is found from then on, and one moved is looked for again',
+  { skip: !POSIX },
+  async () => {
+    const bin = tmp();
+    const other = tmp();
+    const env = { PATH: `${bin}:${other}` };
+    const program = (folder, said) =>
+      fs.writeFileSync(path.join(folder, 'gh'), `#!/bin/sh\necho ${said}\n`, { mode: 0o755 });
+    const answer = () =>
+      new Promise((resolve) => execTool('gh', [], { env }, (err, stdout) => resolve(err?.code ?? stdout.trim())));
+    assert.equal(await answer(), 'ENOENT');
+    program(bin, 'installed');
+    assert.equal(await answer(), 'installed');
+    // Moved to another folder of the same PATH.
+    fs.rmSync(path.join(bin, 'gh'));
+    program(other, 'moved');
+    assert.equal(await answer(), 'moved');
+  }
+);
+
 test('git still answers as before', opts, async () => {
   const dir = repository();
   const { err, stdout } = await gitAnswer(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir });
