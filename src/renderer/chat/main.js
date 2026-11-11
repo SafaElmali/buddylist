@@ -278,7 +278,8 @@ const draftBar = new DraftBar($('#draft-bar'), {
 function startDraft() {
   if (!waitingToStart(ctx.contact)) return false;
   if (!composer.input.value.trim()) composer.setDraft(ctx.contact.draft);
-  composer.submit();
+  // The draft as the agent wrote it tags nobody: only what you changed it to is yours.
+  composer.submit({ typed: composer.input.value.trim() !== ctx.contact.draft.trim() });
   return true;
 }
 
@@ -770,7 +771,12 @@ function updateParticipant(id, patch) {
   if (who) Object.assign(who, patch);
 }
 
-async function send({ text, images, recipient }) {
+/**
+ * @param {{ text: string, images: any[], recipient?: object, typed?: boolean }} message  `typed`: the user typed it in
+ *   the message box, so it can tag the conversation's manager (see manager-tag.js). What a button, a suggestion or an
+ *   agent wrote can't
+ */
+async function send({ text, images, recipient, typed = false }) {
   // What the side pane asks for, such as a fix for a failed check, waits for the contact to be restored.
   if (archived()) {
     conversation.addNotice(`Restore ${ctx.contact.name} to continue the conversation.`);
@@ -807,7 +813,7 @@ async function send({ text, images, recipient }) {
   // As it is kept in the conversation's history, which lists it again when the window opens.
   composer.recall.add(text);
   // It can be pinned by the id it is kept under, once it is, and edited: only one sent to an agent that can go back to it.
-  kept ??= await api.chat.send(ctx.contactId, { text, images });
+  kept ??= await api.chat.send(ctx.contactId, { text, images, ...(typed && { typed: true }) });
   if (!kept) return false;
   conversation.identify(said, kept.id);
   conversation.kept(said, { id: kept.id, text, pictures, originals }, kept.editable);
@@ -1970,6 +1976,11 @@ function onSessionEvent(event) {
     renderStatus(ctx, conversation.lastReceived);
   }
   switch (event.type) {
+    case 'manager-answer':
+      // The manager's answer to what you tagged it with here: no turn of anyone's here.
+      conversation.addAssistant(event.entry);
+      shared.changed();
+      break;
     case 'user-message':
       conversation.addUser(event.entry);
       shared.changed();

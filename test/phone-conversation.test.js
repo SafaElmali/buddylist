@@ -1973,3 +1973,42 @@ test('a conversation nobody drafted for you has no bar', async (t) => {
   await open('a');
   assert.equal(draftBar(root).hidden, true);
 });
+
+// ---- a worker's manager, tagged in its conversation --------------------------------------------------------------
+
+test('the manager’s answer to a tag shows under its name, says where it came from, and links to its conversation', async (t) => {
+  const answer = {
+    id: 'r1',
+    kind: 'assistant',
+    text: 'On the subtotal.',
+    speaker: 'boss',
+    speakerName: 'shop manager',
+    managerAnswer: true,
+  };
+  const { open, root } = setup(t, {
+    history: [
+      { id: 'u1', kind: 'user', text: '@shop manager subtotal?', toManager: { id: 'boss' }, onlyManager: true },
+      answer,
+    ],
+  });
+  const screen = await open('a');
+  const reply = () => root.querySelectorAll('.ph-them');
+  assert.equal(reply().length, 1);
+  assert.equal(reply()[0].querySelector('.ph-by').textContent, 'shop manager');
+  const from = reply()[0].querySelector('.ph-answered-from');
+  assert.match(from.textContent.replace(/\s+/g, ' ').trim(), /^Answered from its own conversation\. Open it$/);
+  assert.equal(from.querySelector('a').getAttribute('href'), '#/c/boss');
+  // One that comes in while the conversation is open is drawn the same way.
+  screen.heard({ type: 'manager-answer', entry: { ...answer, id: 'r2', text: 'And tax after.' } });
+  assert.equal(reply().length, 2);
+  assert.ok(reply()[1].querySelector('.ph-answered-from'));
+});
+
+test('a message typed in the box is sent as typed, so it can tag the conversation’s manager', async (t) => {
+  const { open, type, root, sent } = setup(t);
+  await open('a');
+  type('@shop manager subtotal?');
+  root.querySelector('#composer').fire('submit');
+  await settle();
+  assert.deepEqual(sent.at(-1)[1].typed, true);
+});

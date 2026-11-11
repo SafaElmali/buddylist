@@ -34,11 +34,14 @@ Who answers depends on what you send:
 | ------------------------------ | -------------------------------------------------------------------- |
 | a message without a mention    | everyone who isn't paused, top to bottom in the Agents tab           |
 | `@Codex can you review this?`  | only the ones you mention, in the order you mention them, paused too |
+| `@shop manager is this right?` | the conversation's manager, from its own conversation; nobody here   |
 | `/compact`, or another command | the host alone, because slash commands belong to the host's provider |
 
 Taking turns, they answer in that order, one after another. All at once, they all start right away.
 
 The Agents tab lists the host first, then the guests as they joined. **Drag a row** by the grip at its start to change who answers first, or right-click it and pick **Move up** or **Move down**. With the grip focused, the up and down arrow keys move it too. The host can go below a guest: it still owns the conversation and still takes slash commands. The order is kept with the host, and the conversation says so: "Codex answers first now, then Claude." A message already waiting keeps its line; the next one goes by the new order.
+
+In a conversation under a project's [manager](project-managers.md#asking-it-from-a-workers-conversation), `@` also names that manager, first in the list. It isn't in the conversation: it answers from its own, and its answer appears here under its name. A message that names only the manager gets no turn from anyone here, and the agents hear the manager's answer as news, which hands nobody a turn. One that also names an agent here gives that agent its turn as usual.
 
 A mention is `@` and the contact's name, in any letter case. So two contacts with the same name can't be in one conversation. A file you send, like `@CLAUDE.md`, is not a mention.
 

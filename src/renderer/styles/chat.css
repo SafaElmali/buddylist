@@ -2418,6 +2418,21 @@
   flex: none;
 }
 
+/* Under a manager's answer to what you tagged it with here (see manager-tag.js): it came from its own conversation,
+   which the link shows in this window. */
+.answered-from {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.answered-from .link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+}
+
 .diff-del,
 .diff-add {
   display: block;

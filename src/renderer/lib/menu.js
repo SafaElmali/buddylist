@@ -11,6 +11,7 @@ import { smallIcon } from './icons.js';
  *   where the hint goes when it has none
  * @property {string} [icon]     trusted markup: an SVG, or an app's own icon
  * @property {string} [title]    said when it is pointed at
+ * @property {string} [ariaLabel]  what a screen reader says of it, where that is more than its label and hint
  * @property {boolean} [checked]    a tick in place of the icon; an item with an icon keeps it, with the tick at its end
  * @property {boolean} [disabled]
  * @property {boolean} [note]     `label` is a line about the rows, read and never chosen: no row, so the mouse and
@@ -218,6 +219,8 @@ function menuList(items, showSubmenu, back = null) {
       <span class="menu-hint">${item.submenu ? '▸' : tickAtEnd ? '✓' : escapeHtml(item.hint || item.key?.toUpperCase() || '')}</span>
     </div>`);
     if (item.title) row.title = item.title;
+    if (item.ariaLabel) row.setAttribute('aria-label', item.ariaLabel);
+    if (item.disabled) row.setAttribute('aria-disabled', 'true');
     if (item.key) {
       row.dataset.key = item.key;
       row.setAttribute('aria-keyshortcuts', item.key.toUpperCase());

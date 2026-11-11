@@ -11,6 +11,7 @@ import { pictureArt } from '../lib/pictures.js';
 import { StopKey } from '../chat/stop-key.js';
 import { isDoing } from '../../shared/activity-text.js';
 import { hasReply } from '../../shared/reply-text.js';
+import { ANSWERED_FROM } from '../../shared/manager-answer.js';
 import { knownTodos } from '../../shared/todo-handoff.js';
 import { accessNote, mayAnswer, maySend } from './access.js';
 import { announce } from './announce.js';
@@ -528,6 +529,9 @@ export class ConversationScreen {
         }
         announce(`${speakerOf(this.participants, event).name}: ${resultLine(event)}`);
         return this.transcript.append(...this.#entry({ ...event, kind: 'result' }));
+      case 'manager-answer':
+        announce(`${event.entry.speakerName} says: ${event.entry.text.slice(0, 200)}`);
+        return this.transcript.append(...this.#entry(event.entry));
       case 'user-message':
         if (!this.transcript.querySelector(`.ph-me[data-id="${CSS.escape(event.entry.id)}"]`))
           this.transcript.append(...this.#entry(event.entry));
@@ -611,6 +615,16 @@ export class ConversationScreen {
         if (!hasReply(entry.text)) return [];
         const node = this.#reply(entry);
         renderMarkdown(node.querySelector('.md'), entry.text, (paint) => this.#keepAtEnd(paint), this.view?.cwd);
+        // The manager's answer to what you tagged it with here: from its own conversation, which the link opens.
+        if (entry.managerAnswer) {
+          node.append(
+            el(
+              html`<p class="ph-answered-from">
+                ${ANSWERED_FROM} <a href="#/c/${encodeURIComponent(entry.speaker ?? '')}">Open it</a>
+              </p>`
+            )
+          );
+        }
         fitForPhone(node);
         return [node];
       }
@@ -1139,7 +1153,9 @@ export class ConversationScreen {
   async #send() {
     const text = this.input.value;
     if (!text.trim() || !this.#ready || this.view?.archived || !maySend()) return;
-    // A manager's message being edited goes as yours: there is nothing to put back any more.
+    // A manager's message being edited goes as yours: there is nothing to put back any more. It began as its words,
+    // so it tags nobody (see #deliver).
+    const typed = !this.#editingNote;
     if (this.#editingNote) {
       const line = this.transcript.querySelector('.ph-taken');
       line?.querySelector('button')?.remove();
@@ -1154,16 +1170,17 @@ export class ConversationScreen {
     // Known by an id of its own until the Mac answers: sent again by it, it is said once (see remote/routes.js).
     const clientId = newClientId();
     keepSend(this.contactId, clientId, { text, at: Date.now() });
-    await this.#deliver(node, { text, clientId });
+    await this.#deliver(node, { text, clientId, typed });
   }
 
   /**
    * Sends one of yours, or sends it again by the same id, and says on it how that went: sent; never sent, back in the
    * box to try again; or sent with no word back, kept to ask the Mac again once it's back.
    * @param {HTMLElement} node  its bubble
-   * @param {{ text: string, clientId: string }} sent
+   * @param {{ text: string, clientId: string, typed?: boolean }} sent  `typed`: you typed it in the box, so it can tag
+   *   the conversation's manager, as on the computer (see main's Conversations#tagged)
    */
-  async #deliver(node, { text, clientId }) {
+  async #deliver(node, { text, clientId, typed = true }) {
     const takeBack = (problem) => {
       node.remove();
       if (!this.input.value) this.#write(text);
@@ -1172,7 +1189,7 @@ export class ConversationScreen {
     };
     let kept;
     try {
-      kept = await api.chat.send(this.contactId, { text, clientId });
+      kept = await api.chat.send(this.contactId, { text, clientId, ...(typed && { typed: true }) });
     } catch (error) {
       if (error?.code === UNCONFIRMED) return this.#unsure(node, errorText(error));
       keepSend(this.contactId, clientId, null);

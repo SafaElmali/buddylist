@@ -54,6 +54,7 @@ import {
   sourceList,
   startNote,
   startedFrom,
+  taggedNote,
   takeoverNote,
   turnedOn,
   workerLines,
@@ -126,13 +127,20 @@ export class Managers {
    * startsAtOnce).
    */
   #unapproved = new Map();
+  /**
+   * manager id -> what the user tagged it with in its workers' conversations that it hasn't answered yet, by the key of
+   * its note: the worker, the user's message there, and the line in the manager's conversation that it was asked
+   * (see ask). Once the round that read it is over, its answer goes in the worker's conversation.
+   * @type {Map<string, Map<string, { worker: string, entry: string, line: string }>>}
+   */
+  #asks = new Map();
 
   /**
    * @param {object} deps
-   * @param {Pick<import('./storage/store.js').Store, 'contacts' | 'getContact' | 'addContact' | 'settings'>} deps.store
+   * @param {Pick<import('./storage/store.js').Store, 'contacts' | 'getContact' | 'addContact' | 'settings' | 'profile'>} deps.store
    * @param {Pick<import('./storage/history.js').History, 'read'>} deps.history
    * @param {Pick<import('./project-settings.js').Projects, 'known' | 'settings' | 'update'>} deps.projects
-   * @param {Pick<import('./conversations.js').Conversations, 'pass' | 'notice' | 'view' | 'end' | 'reset' | 'restoreContact' | 'setModel' | 'inviteAsked' | 'waitingOn' | 'answerFor'> & Partial<Pick<import('./conversations.js').Conversations, 'hurryNote' | 'stopped' | 'atPlanLimit' | 'switchProvider' | 'withdraw'>>} deps.conversations
+   * @param {Pick<import('./conversations.js').Conversations, 'pass' | 'notice' | 'view' | 'end' | 'reset' | 'restoreContact' | 'setModel' | 'inviteAsked' | 'waitingOn' | 'answerFor'> & Partial<Pick<import('./conversations.js').Conversations, 'hurryNote' | 'stopped' | 'atPlanLimit' | 'switchProvider' | 'withdraw' | 'managerAnswered'>>} deps.conversations
    * @param {(id: string) => import('../providers/contract.js').ProviderDescriptor} deps.descriptor  a service, by id
    * @param {string[]} deps.worktreesHomes  where contacts' worktrees go, and went before: a project's are in a folder of its name
    * @param {() => void} deps.onContactsChanged  a manager was added, put back on the list, or turned off
@@ -531,6 +539,8 @@ export class Managers {
     if (!worker) return false;
     // Before anything else is sent to it, as it is free.
     if (this.oversees(worker)) {
+      // Before a fresh session can take over, which puts this conversation in its message history.
+      this.#answeredTags(worker, read);
       this.#roundOfManager(worker, context, waiting);
       this.#answeredLead(worker, read);
       return false;
@@ -639,6 +649,151 @@ export class Managers {
     return entries.slice(at + 1).findLast((entry) => entry.kind === 'assistant')?.text ?? '';
   }
 
+  // ---- the user tags a worker's manager in the worker's conversation ---------------------------------------
+
+  /**
+   * The manager a conversation's `@` can tag, and whether it can be asked: the one it is under, as Add a Contact,
+   * Assign to manager or its starter put it there, even turned off or put away, to say why it isn't asked. A chat tab
+   * is under the one its conversation is. None for a contact under no manager, a manager, a guest, or a contact put
+   * away, nor for one under a project manager, which oversees no conversation.
+   * @param {Contact | undefined} contact
+   * @returns {{ manager: Contact, why: keyof typeof import('../shared/managers.js').NOT_ASKED | null } | null}  `why`:
+   *   null when it can be asked (see NOT_ASKED)
+   */
+  tagTarget(contact) {
+    if (!contact || contact.manages || contact.guestOf || contact.archived) return null;
+    const first = contact.tabOf ? this.store.getContact(contact.tabOf) : contact;
+    const manager = first?.managedBy ? this.store.getContact(first.managedBy) : null;
+    if (!manager?.manages || manager.leads || !this.#settingsOf(manager)) return null;
+    const why = manager.archived
+      ? 'put-away'
+      : !this.oversees(manager)
+        ? 'off'
+        : this.conversations.view(manager).status === 'offline'
+          ? 'gone'
+          : null;
+    return { manager, why };
+  }
+
+  /**
+   * The user tagged a worker's manager in the worker's conversation, with `text`: the message kept there as `entryId`.
+   * The manager is passed a note with the user's words and what the worker is at (see taggedNote), which it reads
+   * once it is free, and its answer goes in the worker's conversation (see #answeredTags). Where it can't read it at
+   * once, the worker's conversation says so: it is at work, the user stopped it, or it is at its plan's limit.
+   * @param {string} workerId
+   * @param {{ text: string, entryId: string }} asked
+   * @returns {Promise<string | null>}  the note's key; null where its manager can't be asked
+   */
+  async ask(workerId, { text, entryId }) {
+    const worker = this.store.getContact(workerId);
+    const target = this.tagTarget(worker);
+    if (!worker || !target || target.why) return null;
+    const { manager } = target;
+    const waits = this.conversations.stopped?.(manager.id)
+      ? 'was stopped, so it answers here once you write to it, or press Send now in its conversation.'
+      : this.conversations.atPlanLimit?.(manager.id)
+        ? 'is at its plan’s limit, so it answers here once you let it go on.'
+        : this.conversations.view(manager).status !== 'online'
+          ? 'is busy, so it answers here once it’s free.'
+          : '';
+    if (waits) this.conversations.notice(worker.id, `${manager.name} ${waits}`);
+    const report = await this.#report(worker);
+    const me = this.store.profile.name;
+    const key = `tag:${worker.id}:${crypto.randomUUID()}`;
+    const passed = this.conversations.pass(manager.id, {
+      key,
+      line: `${me} asked you in ${worker.name}’s conversation: ${oneLine(text, SAID_MAX)}`,
+      note: taggedNote(me, report, text),
+      from: worker.id,
+    });
+    if (!passed) {
+      this.conversations.notice(worker.id, `${manager.name} couldn’t be asked: it is put away.`);
+      return null;
+    }
+    const line = this.history.read(manager.id).findLast((entry) => entry.kind === 'notice' && entry.from === worker.id);
+    if (!this.#asks.has(manager.id)) this.#asks.set(manager.id, new Map());
+    this.#asks.get(manager.id)?.set(key, { worker: worker.id, entry: entryId, line: line?.id ?? '' });
+    return key;
+  }
+
+  /**
+   * The asks of a manager's that a round of its read, by note key, in the order they came. Taken: they are answered.
+   * @param {Contact} manager
+   * @param {string[]} read
+   */
+  #readAsks(manager, read) {
+    const asks = this.#asks.get(manager.id);
+    const taken = read.flatMap((key) => {
+      const ask = asks?.get(key);
+      asks?.delete(key);
+      return ask ? [ask] : [];
+    });
+    if (!asks?.size) this.#asks.delete(manager.id);
+    return taken;
+  }
+
+  /**
+   * A round of a manager's is over: what it said after the user's tags it read goes in the workers' conversations, as
+   * its answer, under its name. One worker that tagged it several times in the round gets the one answer. The
+   * manager's own conversation says where its answer was shown.
+   * @param {Contact} manager
+   * @param {string[]} read  the notes it read in that round, by key
+   */
+  #answeredTags(manager, read) {
+    const entries = this.history.read(manager.id);
+    const answered = new Set();
+    for (const ask of this.#readAsks(manager, read)) {
+      if (answered.has(ask.worker)) continue;
+      answered.add(ask.worker);
+      const worker = this.store.getContact(ask.worker);
+      if (!worker || worker.archived) continue;
+      const at = entries.findIndex((entry) => entry.id === ask.line);
+      const reply = entries.slice(at + 1).findLast((entry) => entry.kind === 'assistant')?.text ?? '';
+      if (!reply.trim()) {
+        this.conversations.notice(worker.id, `${manager.name} read your message and said nothing.`);
+        continue;
+      }
+      this.conversations.managerAnswered?.(worker.id, {
+        id: manager.id,
+        name: manager.name,
+        text: reply,
+        asked: ask.entry,
+      });
+      this.conversations.notice(manager.id, `Its answer is shown in ${worker.name}’s conversation too.`);
+    }
+  }
+
+  /**
+   * A round of a manager's was stopped or went wrong after it read the user's tags: the workers' conversations say
+   * so. The note was read, so it is not read again: the user asks again.
+   * @param {Contact} manager
+   * @param {string[]} read
+   */
+  #tagsCut(manager, read) {
+    const asks = this.#readAsks(manager, read);
+    if (!asks.length) return;
+    const ended = this.history.read(manager.id).findLast((entry) => entry.kind === 'result' && !entry.speaker);
+    const how = ended?.stopped ? 'was stopped' : 'went wrong';
+    for (const worker of new Set(asks.map((ask) => ask.worker))) {
+      this.conversations.notice(worker, `${manager.name}’s turn ${how} before it answered you. Tag it again to ask.`);
+    }
+  }
+
+  /**
+   * A manager was turned off, put away or deleted with the user's tags still unread: the workers' conversations say
+   * that it won't answer them.
+   * @param {Contact} manager
+   * @param {'turned-off' | 'put-away' | 'deleted'} why
+   */
+  #tagsDropped(manager, why) {
+    const asks = [...(this.#asks.get(manager.id)?.values() ?? [])];
+    this.#asks.delete(manager.id);
+    const was = { 'turned-off': 'was turned off', 'put-away': 'was put away', deleted: 'was deleted' }[why];
+    for (const worker of new Set(asks.map((ask) => ask.worker))) {
+      this.conversations.notice(worker, `${manager.name} ${was} before it answered you.`);
+    }
+  }
+
   /**
    * A round of a conversation was stopped or went wrong. Where a manager had read its project manager's message in
    * it, the project manager hears so, and that the message waits: nothing came of it yet.
@@ -647,6 +802,7 @@ export class Managers {
    */
   roundCut(contactId, { read = [] }) {
     const manager = this.store.getContact(contactId);
+    if (manager) this.#tagsCut(manager, read);
     const lead = this.leadOf(manager);
     if (!manager || !lead || !read.some((key) => key.startsWith(`${lead.id}:`))) return;
     const ended = this.history.read(manager.id).findLast((entry) => entry.kind === 'result' && !entry.speaker);
@@ -666,6 +822,7 @@ export class Managers {
    * @param {'turned-off' | 'put-away' | 'deleted'} why
    */
   #gone(manager, why) {
+    this.#tagsDropped(manager, why);
     const owed = this.#owed.get(manager.id);
     this.#owed.delete(manager.id);
     this.#unapproved.delete(manager.id);
@@ -728,9 +885,14 @@ export class Managers {
       branch,
       folder: worker.cwd,
       // A slash command is the host's alone, and no task.
-      task: entries.find((entry) => entry.kind === 'user' && !entry.text.startsWith('/'))?.text ?? '',
-      // Its own, or another agent's that answers with it: not a guest's that a manager invited, which is a review.
-      reply: entries.findLast((entry) => entry.kind === 'assistant' && !invited.has(entry.speaker))?.text ?? '',
+      // Nor a message to its manager alone, which it wasn't asked.
+      task:
+        entries.find((entry) => entry.kind === 'user' && !entry.text.startsWith('/') && !entry.onlyManager)?.text ?? '',
+      // Its own, or another agent's that answers with it: not a guest's that a manager invited, which is a review, nor
+      // its manager's answer to the user there.
+      reply:
+        entries.findLast((entry) => entry.kind === 'assistant' && !invited.has(entry.speaker) && !entry.managerAnswer)
+          ?.text ?? '',
       mainLine,
       files,
       more,
@@ -770,7 +932,9 @@ export class Managers {
     const invited = this.#invitedIn(worker);
     if (!invited.size) return [];
     const entries = this.history.read(worker.id);
-    const since = entries.findLastIndex((entry) => entry.kind === 'assistant' && !invited.has(entry.speaker));
+    const since = entries.findLastIndex(
+      (entry) => entry.kind === 'assistant' && !invited.has(entry.speaker) && !entry.managerAnswer
+    );
     const last = new Map();
     for (const entry of entries.slice(since + 1)) {
       if (entry.kind === 'assistant' && invited.has(entry.speaker)) {
@@ -1348,7 +1512,9 @@ export class Managers {
       listed.map(async (worker) => {
         const { branch, files, more } = await this.#changesOf(worker.cwd);
         const view = this.conversations.view(worker);
-        const said = this.history.read(worker.id).findLast((entry) => entry.kind === 'assistant')?.text ?? '';
+        const said =
+          this.history.read(worker.id).findLast((entry) => entry.kind === 'assistant' && !entry.managerAnswer)?.text ??
+          '';
         const pr = view.pullRequest;
         const tags = pr ? pullRequestTags(pr).map((tag) => tag.text) : [];
         return [

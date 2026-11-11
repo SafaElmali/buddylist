@@ -17,13 +17,21 @@ import { hasReply } from '../shared/reply-text.js';
 import { checkInsStatus } from '../shared/check-ins.js';
 import { firstTabOf, tabName } from '../shared/chat-tabs.js';
 import { Doing } from '../shared/doing.js';
-import { levels, sameName } from '../shared/mentions.js';
+import { levels, mentions, sameName } from '../shared/mentions.js';
 import { fallbackPolicy, fallbackKey, fallbackEligibility } from '../shared/fallback-policy.js';
 import { chooseFallback, inspectFallbackSession } from './fallback-recovery.js';
 import { requestRecipients } from '../shared/send-targets.js';
 import { fallbackPermissionModes, limitContinuation, readOnlyPermissionMode } from '../shared/limit-fallbacks.js';
 import { knownTodos } from '../shared/todo-handoff.js';
-import { cantJoinManager, invitedInstructions, invitedNote, managerSwitchMode } from '../shared/managers.js';
+import {
+  NOT_ASKED,
+  cantJoinManager,
+  invitedInstructions,
+  invitedNote,
+  managerExchange,
+  managerSwitchMode,
+  tagsManager,
+} from '../shared/managers.js';
 import { CURRENT, ELSEWHERE, matches, snippet, summarize } from './storage/archive.js';
 import {
   EFFORT_BY_FIRST,
@@ -142,6 +150,16 @@ const asksSomething = (markdown) =>
  * none once anything was said after it. A command still running as the turn ended can add its line later.
  * @param {HistoryEntry[]} entries
  */
+/**
+ * What the user asked a worker's manager in its conversation with nobody there named too, or the manager answered
+ * (see Conversations#managerAnswered): its own agent wasn't asked it, and is told it apart (see #exchange).
+ * @param {HistoryEntry} entry
+ */
+const exchanged = (entry) => Boolean(entry.onlyManager || entry.managerAnswer);
+const notExchanged = (entry) => !exchanged(entry);
+/** Such a line the host's agent hasn't been told yet. @param {HistoryEntry} entry */
+const untoldExchange = (entry) => exchanged(entry) && !entry.toldHost;
+
 const keptSuggestion = (entries) => {
   const last = entries.findLast((entry) => ['user', 'assistant', 'result'].includes(entry.kind));
   return last?.kind === 'result' ? last.suggested : undefined;
@@ -204,6 +222,10 @@ export function promptView(prompt) {
  * @property {(contactId: string, note: WaitingNote, how: { edited: boolean }) => void} [noteTaken]  the user took a
  *   note out of a conversation's queue before it was read: to edit it and send it as theirs, or dropped
  * @property {(contactId: string, note: WaitingNote) => void} [notePutBack]  one taken to edit went back in its queue
+ * @property {(contact: Contact) => { manager: Contact, why: string | null } | null} [tagTarget]  the manager a
+ *   conversation's `@` can tag, and why it can't be asked, if it can't (see Managers#tagTarget)
+ * @property {(contactId: string, asked: { text: string, entryId: string }) => Promise<string | null>} [ask]  the user
+ *   tagged it in that conversation: it is passed the user's words, and answers there (see Managers#ask)
  */
 
 /**
@@ -736,8 +758,11 @@ export class Conversations {
       return;
     const entries = this.history.read(hostId);
     // One being taken back no longer waits, but nobody read it either. Nor one a Stop dropped (see interrupt).
+    // A message to the manager alone waits in no line here.
     const said = entries
-      .filter((entry) => entry.kind === 'user' && !this.#takingBack.has(entry.id) && !entry.dropped)
+      .filter(
+        (entry) => entry.kind === 'user' && !this.#takingBack.has(entry.id) && !entry.dropped && !entry.onlyManager
+      )
       .map((entry) => entry.id);
     // `slice(-0)` would be all of them.
     const identified = queued && queued.every((id) => said.includes(id));
@@ -1859,11 +1884,13 @@ export class Conversations {
 
   /**
    * @param {string} contactId
-   * @param {{ text: string, images?: { mediaType: string, data: string, preview?: string | null }[], recipient?: { id?: string, allowPaused?: boolean, mentions?: boolean }, fixedEffort?: boolean }} message
+   * @param {{ text: string, images?: { mediaType: string, data: string, preview?: string | null }[], recipient?: { id?: string, allowPaused?: boolean, mentions?: boolean }, fixedEffort?: boolean, typed?: boolean }} message
+   *   `typed`: the user typed it in a message box and sent it, here or on a phone. Only such a message can tag the
+   *   conversation's manager (see #tagged): never what an agent wrote, nor a request a button makes
    * @returns {HistoryEntry | { blocked: string, participants: Participant[] } | undefined}  what history keeps,
    *   or a recipient choice before anything is sent. Nothing for a contact that is gone or archived
    */
-  send(contactId, { text, images = [], recipient, fixedEffort = false }) {
+  send(contactId, { text, images = [], recipient, fixedEffort = false, typed = false }) {
     const contact = this.store.getContact(contactId);
     // Nothing is sent to an archived contact: it gets no session until it is restored.
     if (!contact || contact.archived) return undefined;
@@ -1881,8 +1908,11 @@ export class Conversations {
     // What was offered under the last reply was instead of this, or not wanted.
     this.#suggested.delete(contactId);
     const group = this.#group(contactId);
+    // `@` and its manager's name: the manager answers here too (see #tagged), or alone, when nobody here is named.
+    const tag = typed && !recipient ? this.#tagged(contact, text) : null;
+    const onlyManager = Boolean(tag?.only);
     // On its own, a contact is sent what you say as you say it.
-    const session = group ? null : this.#session(contactId);
+    const session = group || onlyManager ? null : this.#session(contactId);
     // Keep the original separately from the compact preview. The provider gets its own image payload;
     // a reopened conversation must never mistake the preview for the picture that was sent.
     const { pictures, originals } = sentPictures(images);
@@ -1892,20 +1922,38 @@ export class Conversations {
     const catchUp = Boolean(session) && !command && this.#missedOthers(contactId);
     // Sent as it is said to an agent that can go back to before it, it can be edited. A slash command is no
     // message of the conversation: its agent does it, and keeps nothing to go back to.
+    // Nor one it is told something more with: what its manager was asked here meanwhile.
+    const exchanged = Boolean(session) && !command && this.#exchanged(contactId);
     const editable =
-      Boolean(session) && !command && !catchUp && Boolean(this.providers.descriptor(contact.provider).rewind);
+      Boolean(session) &&
+      !command &&
+      !catchUp &&
+      !exchanged &&
+      !tag?.asked &&
+      Boolean(this.providers.descriptor(contact.provider).rewind);
     const entry = this.history.append(contactId, {
       kind: 'user',
       text,
       images: images.length,
       ...(pictures.length && { pictures, originals }),
       ...(editable && { editable: true }),
+      ...(tag?.asked && { toManager: { id: tag.manager.id, name: tag.manager.name } }),
+      ...(onlyManager && { onlyManager: true }),
     });
+    if (tag) this.#askManager(contact, tag, entry);
+    if (onlyManager) {
+      this.#tellWaiting(contactId);
+      return entry;
+    }
     if (session) {
       inner(this.#sent, contactId).set(contactId, { images, command });
       // By the id it is kept under, to go back to it or take it out of a local queue.
       this.#guardFallback(contactId, contactId, () =>
-        this.#session(contactId).send({ text: catchUp ? this.#caughtUp(contactId) : text, images, id: entry.id })
+        this.#session(contactId).send({
+          text: [this.#exchange(contactId), catchUp ? this.#caughtUp(contactId) : text].filter(Boolean).join('\n\n'),
+          images,
+          id: entry.id,
+        })
       );
       this.#tellWaiting(contactId);
       return entry;
@@ -1933,8 +1981,9 @@ export class Conversations {
    * @param {string} contactId
    */
   #missedOthers(contactId) {
-    // What it was told along with a message of yours before it answered that message is not told again.
-    const entries = this.history.read(contactId);
+    // What it was told along with a message of yours before it answered that message is not told again. What its
+    // manager was asked and answered here, it is told otherwise (see #exchange).
+    const entries = this.history.read(contactId).filter(notExchanged);
     const told = entries.findIndex((entry) => entry.id === this.#toldAlone.get(contactId));
     return new Relay().missedOthers(entries.slice(told + 1), contactId, contactId);
   }
@@ -1948,7 +1997,7 @@ export class Conversations {
   #caughtUp(contactId) {
     const contact = this.store.getContact(contactId);
     const me = { id: contact.id, name: contact.name };
-    const entries = this.history.read(contactId);
+    const entries = this.history.read(contactId).filter(notExchanged);
     this.#toldAlone.set(contactId, entries.at(-1)?.id);
     return new Relay().compose({
       entries: this.providers.upgradeHistory(contact.provider, entries),
@@ -1958,6 +2007,96 @@ export class Conversations {
       cwd: contact.cwd,
       newcomer: !contact.sessionId,
     }).text;
+  }
+
+  /**
+   * Whether a message the user typed tags the conversation's manager, and what comes of it (see tagsManager): the
+   * manager is asked (`asked`), and alone (`only`) where no agent here is named too; or it can't be asked (`why`), and
+   * the message goes to the conversation as any other does. Null where it tags no manager.
+   * @param {Contact} contact
+   * @param {string} text
+   * @returns {{ manager: Contact, asked: boolean, only: boolean, why: string | null } | null}
+   */
+  #tagged(contact, text) {
+    const target = this.managing.tagTarget?.(contact);
+    const agents = this.participants(contact.id);
+    if (!target || !tagsManager(text, target.manager, agents)) return null;
+    if (target.why) return { manager: target.manager, asked: false, only: false, why: target.why };
+    // On its own, a contact named by its name answers too, though nothing offers it there.
+    return { manager: target.manager, asked: true, only: !mentions(text, agents).length, why: null };
+  }
+
+  /**
+   * The user tagged the conversation's manager in `entry`: it is asked (see Managers#ask), or the conversation says
+   * why it isn't, and that the message went to the conversation as usual.
+   * @param {Contact} contact
+   * @param {{ manager: Contact, asked: boolean, why: string | null }} tag  as #tagged has it
+   * @param {HistoryEntry} entry
+   */
+  #askManager(contact, tag, entry) {
+    if (!tag.asked) {
+      const to = contact.guests?.length ? 'this conversation' : contact.name;
+      this.#notice(
+        contact.id,
+        `${tag.manager.name} ${NOT_ASKED[tag.why] ?? 'can’t be asked'}, so it didn’t get this: it went to ${to} as usual.`
+      );
+      return;
+    }
+    Promise.resolve(this.managing.ask?.(contact.id, { text: entry.text, entryId: entry.id })).catch((err) =>
+      this.#notice(contact.id, `${tag.manager.name} couldn’t be asked: ${err?.message ?? err}`)
+    );
+  }
+
+  /**
+   * Whether what the user asked its manager here, or the manager answered, waits to be told to its agent.
+   * @param {string} hostId
+   */
+  #exchanged(hostId) {
+    return this.history.read(hostId).some(untoldExchange);
+  }
+
+  /**
+   * What the host's agent is told, before what it is sent next, of what the user asked its manager here, and the
+   * manager answered, while it wasn't asked (see managerExchange). Each is told once: the history keeps that it was.
+   * '' for nothing.
+   * @param {string} hostId
+   */
+  #exchange(hostId) {
+    const said = this.history.read(hostId).filter(untoldExchange);
+    for (const entry of said) this.history.update(hostId, entry.id, { toldHost: true }, { heard: false });
+    return managerExchange(this.store.profile.name, said);
+  }
+
+  /**
+   * A worker's manager answered what the user tagged it with in the worker's conversation (see Managers#ask): its
+   * answer goes in that conversation under its name. It starts no turn there: the worker's agent reads it with what
+   * it is sent next (see #exchange), and an agent here is told it as news, which hands nobody a turn.
+   * @param {string} contactId  the worker
+   * @param {{ id: string, name: string, text: string, asked?: string }} answer  the manager, by id and name, what it
+   *   said, and the user's message it answers, by id
+   * @returns {HistoryEntry | null}  as the history keeps it; null for a conversation gone or put away
+   */
+  managerAnswered(contactId, { id, name, text, asked }) {
+    const contact = this.store.getContact(contactId);
+    if (!contact || contact.archived) return null;
+    const entry = this.history.append(contactId, {
+      kind: 'assistant',
+      text,
+      speaker: id,
+      speakerName: name,
+      managerAnswer: true,
+      ...(asked && { answers: asked }),
+    });
+    this.chats.send(contactId, { type: 'manager-answer', entry });
+    this.#notify(contact, {
+      title: `${name} says:`,
+      body: plain(text).slice(0, 160),
+      avatar:
+        this.store.getContact(id)?.avatar || this.providers.descriptor(this.store.getContact(id)?.provider)?.avatar,
+      kind: 'finished',
+      name,
+    });
+    return entry;
   }
 
   /**
@@ -2396,6 +2535,12 @@ export class Conversations {
             atOnce: Boolean(host.atOnce),
             alone,
           });
+      // The host is told what its manager was asked and answered here: on its own, before what it is sent; in company,
+      // the others' news has it already.
+      if (turn.id === hostId && !turn.command) {
+        if (alone) message.text = [this.#exchange(hostId), message.text].filter(Boolean).join('\n\n');
+        else this.#exchange(hostId);
+      }
       if (check) {
         message.text = [message.text, effortCheck(check, alone)].filter(Boolean).join('\n\n');
         message.check = check.map(({ name, levels: takes }) => ({ name, levels: takes }));
@@ -4406,11 +4551,14 @@ export class Conversations {
     const entries = this.history.read(hostId);
     // The newest line is the result that ended it.
     const from = entries.slice(0, -1).findLastIndex((entry) => entry.kind === 'result' && !entry.speaker) + 1;
-    const said = entries.filter((entry) => entry.kind === 'user');
+    // What the user asked its manager alone here, and the manager answered, was nobody's turn here.
+    const said = entries.filter((entry) => entry.kind === 'user' && !entry.onlyManager);
     const waiting = new Set(said.slice(said.length - this.#waiting(hostId)).map((entry) => entry.id));
     const first = entries
       .slice(from)
-      .find((entry) => ['user', 'assistant', 'tool'].includes(entry.kind) && !waiting.has(entry.id));
+      .find(
+        (entry) => ['user', 'assistant', 'tool'].includes(entry.kind) && notExchanged(entry) && !waiting.has(entry.id)
+      );
     return first?.kind === 'user' && first !== said[0];
   }
 
@@ -4658,7 +4806,7 @@ export class Conversations {
     }
     this.#guardFallback(hostId, hostId, () => {
       const missed = this.#missedOthers(hostId) ? this.#caughtUp(hostId) : '';
-      const text = [missed, this.#takeNotes(hostId)].filter(Boolean).join('\n\n');
+      const text = [missed, this.#exchange(hostId), this.#takeNotes(hostId)].filter(Boolean).join('\n\n');
       inner(this.#sent, hostId).set(hostId, { images: [], command: false });
       this.#session(hostId)?.send({ text });
     });
