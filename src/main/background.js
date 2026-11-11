@@ -94,9 +94,10 @@ export function stayInBackground(
   for (const name of BACKGROUND_SWITCHES) app.commandLine.appendSwitch(name);
   // No Dock icon, no menu bar and no place in ⌘-Tab: nothing brings the app to the front.
   if (platform === 'darwin') app.setActivationPolicy('accessory');
-  // Every window from before it is first shown: see-through, deaf to the mouse, and not in the taskbar.
+  // Every window from before it is first shown: see-through, deaf to the mouse, and not in the taskbar. On Linux
+  // it stays opaque, as page.screenshot of a see-through window never came back there (see docs/building.md).
   app.on('browser-window-created', (_event, win) => {
-    win.setOpacity(0);
+    if (platform !== 'linux') win.setOpacity(0);
     win.setIgnoreMouseEvents(true);
     win.setSkipTaskbar(true);
   });
