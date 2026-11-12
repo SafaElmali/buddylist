@@ -2174,6 +2174,9 @@ export function registerIpc({
 
   handle(REQUESTS.windowShake, (event) => shake(senderWindow(event)));
 
+  // What the page just stored, as its side pane's pins, is on the disk now, not seconds later: a crash keeps it too.
+  handle(REQUESTS.windowSaveStorage, (event) => event.sender.session.flushStorageData());
+
   // The window's side pane opened and asks for `width` of room, or closed (0).
   handle(REQUESTS.windowSidePane, (event, width) => {
     const win = senderWindow(event);

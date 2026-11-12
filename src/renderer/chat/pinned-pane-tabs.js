@@ -31,8 +31,14 @@ export function withPinnedTabs(state, pins) {
 }
 
 export class PinnedPaneTabs {
-  constructor(contactId) {
+  /**
+   * @param {string} contactId
+   * @param {{ saved?: () => void }} [on]  `saved`: the pins changed in storage, which the browser writes to disk only
+   *   seconds later: this has it write them now, so that a crash just after keeps them too
+   */
+  constructor(contactId, { saved = () => {} } = {}) {
     this.key = PREFIX + contactId;
+    this.saved = saved;
   }
 
   read() {
@@ -43,13 +49,18 @@ export class PinnedPaneTabs {
     }
   }
 
+  /** Said with each change of the pane: only a change of its pins is stored. */
   keep(state) {
     try {
       const tabs = pinnedTabsFrom(state.tabs.filter((tab) => tab.pinned));
-      if (tabs.length) localStorage.setItem(this.key, JSON.stringify(tabs));
+      const pins = tabs.length ? JSON.stringify(tabs) : null;
+      if (localStorage.getItem(this.key) === pins) return;
+      if (pins) localStorage.setItem(this.key, pins);
       else localStorage.removeItem(this.key);
     } catch {
       // Storage can be unavailable. The current pane still keeps its pins.
+      return;
     }
+    this.saved();
   }
 }

@@ -422,6 +422,8 @@ const NOT_COUNTED = {
     REQUESTS.browserPlace,
     REQUESTS.browserHide,
     REQUESTS.windowSidePane,
+    // What a page stored written to disk at once: the side pane's pins, which are not counted either.
+    REQUESTS.windowSaveStorage,
     REQUESTS.settingsClosed,
   ],
   // A window's own buttons and edit menu, the menus it puts in the Mac's menu bar, and quitting. ⌘Q never

@@ -379,7 +379,7 @@ const tabs = new ChatTabs($('#chat-tabs'), {
   add: (button) => (isMenuOpen() ? closeMenu() : toggleMenu(button, tabMenu)),
   close: (contact, next) => closeTab(contact, next),
 });
-const panePins = new PinnedPaneTabs(ctx.contactId);
+const panePins = new PinnedPaneTabs(ctx.contactId, { saved: () => api.window.saveStorage().catch(() => {}) });
 const sidePane = new SidePane($('#side-pane'), {
   beside: $('.chat-left'),
   room: (width) => api.window.sidePane(width),

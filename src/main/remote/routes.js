@@ -52,6 +52,7 @@ export const ANSWERED_HERE = new Set([
   REQUESTS.windowToggleMaximize,
   REQUESTS.windowAlwaysOnTop,
   REQUESTS.windowShake,
+  REQUESTS.windowSaveStorage,
   REQUESTS.windowSidePane,
   REQUESTS.windowEdit,
   REQUESTS.windowMenus,
