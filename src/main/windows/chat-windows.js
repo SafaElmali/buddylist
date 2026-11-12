@@ -58,6 +58,9 @@ export class ChatWindows extends ContactWindows {
     const win = super.open(contact, this.#address(action), {
       width: WIDTH + contactsPaneRoom(settings),
       maximized: settings.openWindowsMaximized === true,
+      // Its pin is kept for the conversation it shows when it is pinned: that one's window opens on top again. While
+      // it is being made, it is not that contact's yet.
+      keptAs: (made) => this.contactOf(made) ?? contact.id,
     });
     // Whoever it shows by then: it may have moved on to another contact.
     win.on('focus', () => {

@@ -105,7 +105,7 @@ Your repositories are listed, and a new one is made, with the [GitHub CLI](https
 - **A contact.** Right-click it and choose **Pin to top**. It stays in its project or group, first in it after the project's [manager](project-managers.md), with a pin before its name. Several pinned in one section keep the order the list is sorted by. **Unpin** puts it back in its place. A pinned favorite is first among the favorites, and pinned and favorite are kept apart: one says nothing about the other.
 - **A project.** Grouped by project, right-click the project and choose **Pin project**. It is listed before the other projects, with a pin before its name, under **Waiting for you** and the favorites. Pinned projects are by name among themselves. **Unpin project** puts it back.
 - The list beside a conversation has the same pins, and the same right-click choices: see [Your contacts beside the conversation](conversations.md#your-contacts-beside-the-conversation). The pins are kept when you quit.
-- A [message](conversations.md) can be pinned too, and a window kept on top of others with the pin by its buttons.
+- A [message](conversations.md) can be pinned too, and a window kept on top of others with the pin by its buttons. That pin is kept when you quit too: see [Keep a window on top](conversations.md).
 
 **Conversations a contact started.** A Claude contact can [start another conversation](started-conversations.md) for a side task. It is listed right under the one that started it, joined to it by a line, and that one shows how many are under it.
 

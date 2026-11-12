@@ -14,6 +14,7 @@ version into package.json and package-lock.json in the release prep PR.
 ## v0.7.4
 
 - **Link a pull request to a conversation** — Choose **Link pull request...** in the ▼ of **Create PR** or **View PR**, or in a contact’s right-click menu, and its checks, reviews and merge show as for one its branch found, after a restart too. An agent links one when you ask, and work pushed under another branch name is now found by itself.
+- **A window you pin stays on top** — The pin in a window’s title bar is kept when you quit: the contact list comes back on top, and a conversation’s window opens on top again, after you close it too.
 
 ## v0.7.3 — 2026-11-11
 

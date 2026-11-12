@@ -64,7 +64,7 @@ import { OLD_WORKTREES_HOME, WORKTREES_HOME, branchOf } from './worktrees.js';
 import { checkWorktreesIn } from './git-command.js';
 import { COMPUTER_HOME } from './computer.js';
 import { adoptOldData } from './renamed.js';
-import { createWindow, setLook } from './windows/common.js';
+import { createWindow, keepWindowsIn, setLook } from './windows/common.js';
 import { showContactsWindow, contactsWindow } from './windows/contacts-window.js';
 import { ChatWindows } from './windows/chat-windows.js';
 import { HistoryWindows } from './windows/history-windows.js';
@@ -211,6 +211,8 @@ function startApp(errorReports, electronUpdater) {
   nativeTheme.themeSource = schemeOf(store.settings.theme);
   // And each is opened in this look, and in the palette of the theme.
   setLook(lookOf(store.settings.look), paletteOf(store.settings.theme));
+  // And as it was left: on top of other apps' windows, if its pin was in.
+  keepWindowsIn(store);
   // Only the app as people install it counts what it is used for: not a run from the source,
   // nor the demo. The user can turn it off under Tools.
   // Another address is for trying the counts out, against PostHog or a server on this computer:

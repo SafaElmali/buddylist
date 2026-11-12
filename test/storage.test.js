@@ -1109,6 +1109,62 @@ test('a pinned contact is remembered across restarts, and stored only while it i
   assert.equal(file(), before, 'a contact that was unpinned is stored exactly as it always was');
 });
 
+test('a window kept on top stays so across restarts, by window, and is stored only while it is', () => {
+  const dir = tmp();
+  const store = new Store(dir, defaults);
+  const contact = store.addContact({ ...contactFields, name: 'Claude' });
+  const file = () => fs.readFileSync(path.join(dir, 'messenger.json'), 'utf8');
+  const before = file();
+  assert.deepEqual(store.windowState('contacts'), {});
+  assert.deepEqual(store.windowState(contact.id), {});
+
+  // The contact list's pin and a conversation's are kept apart. Whatever is handed in, what is kept is `true` or nothing.
+  store.keepWindowState('contacts', { onTop: true });
+  store.keepWindowState(contact.id, { onTop: 'yes' });
+  const again = new Store(dir, defaults);
+  assert.deepEqual(again.windowState('contacts'), { onTop: true });
+  assert.deepEqual(again.windowState(contact.id), { onTop: true });
+  assert.deepEqual(again.windowState('another-contact'), {});
+
+  again.keepWindowState('contacts', { onTop: false });
+  assert.deepEqual(new Store(dir, defaults).windowState('contacts'), {});
+  assert.deepEqual(new Store(dir, defaults).windowState(contact.id), { onTop: true });
+  again.keepWindowState(contact.id, { onTop: null });
+  assert.deepEqual(new Store(dir, defaults).windowState(contact.id), {});
+  assert.equal(file(), before, 'with no window on top, the file is stored exactly as it always was');
+});
+
+test('a window state kept again as it was is not written again', () => {
+  const store = new Store(tmp(), defaults);
+  let saves = 0;
+  const save = store.save.bind(store);
+  store.save = () => {
+    saves += 1;
+    save();
+  };
+  store.keepWindowState('contacts', { onTop: true });
+  store.keepWindowState('contacts', { onTop: true });
+  assert.equal(saves, 1);
+  // Nor is letting go of a window that was never on top.
+  store.keepWindowState('another-window', { onTop: false });
+  assert.equal(saves, 1);
+});
+
+test('a deleted contact takes its window state with it', () => {
+  const dir = tmp();
+  const store = new Store(dir, defaults);
+  const gone = store.addContact({ ...contactFields, name: 'Claude' });
+  const stays = store.addContact({ ...contactFields, name: 'Codex' });
+  store.keepWindowState(gone.id, { onTop: true });
+  store.keepWindowState(stays.id, { onTop: true });
+  store.removeContact(gone.id);
+  const again = new Store(dir, defaults);
+  assert.deepEqual(again.windowState(gone.id), {});
+  assert.deepEqual(again.windowState(stays.id), { onTop: true });
+  again.removeContact(stays.id);
+  assert.equal('windows' in new Store(dir, defaults).data, false, 'with none left, nothing is stored');
+});
+
 test('favorite and archived are stored only while they are true', () => {
   const dir = tmp();
   const store = new Store(dir, defaults);

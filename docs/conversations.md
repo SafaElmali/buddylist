@@ -221,7 +221,7 @@ The tool calls a contact makes one after another fold into one line:
 - Codex, Gemini, OpenCode and Hermes have no output styles, so their **Conversation** menu has no such entry.
 - A contact keeps its style as a guest: invited into a [group conversation](group-conversations.md), it answers in the same one.
 
-**Keep a window on top.** The pin by the window's buttons keeps it in front of other apps' windows, as **View > Always on top** does. It stays pressed in while it does; click it again to let the window go. The contact list has one too, and **Tools > Always on top** there.
+**Keep a window on top.** The pin by the window's buttons keeps it in front of other apps' windows, as **View > Always on top** does. It stays pressed in while it does; click it again to let the window go. The contact list has one too, and **Tools > Always on top** there. The pin is kept: the contact list comes back on top when you open buddylist again, and a conversation's window opens on top again, after you close it or quit too. A window that shows another conversation from the list beside it stays as it is, and its pin is kept for the conversation it shows when you click it.
 
 ## Your contacts beside the conversation
 

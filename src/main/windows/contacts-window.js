@@ -15,6 +15,8 @@ export function showContactsWindow() {
     minWidth: 260,
     minHeight: 420,
     title: 'buddylist',
+    // Its pin is kept, as there is one contact list: it comes back on top after the app quits.
+    keptAs: () => 'contacts',
   });
   win.on('closed', () => {
     win = null;

@@ -6,6 +6,7 @@ import { EVENTS } from '../../shared/ipc-channels.js';
 import { DEFAULT_LOOK, DEFAULT_PALETTE } from '../../shared/theme.js';
 import { showWindow } from '../background.js';
 import { PRELOAD, RENDERER_DIR } from '../paths.js';
+import { keepOnTop } from './on-top.js';
 
 const webPreferences = {
   preload: PRELOAD,
@@ -24,6 +25,8 @@ const ownCorners =
 let look = DEFAULT_LOOK;
 /** And the palette of its theme: Settings > Theme. */
 let palette = DEFAULT_PALETTE;
+/** @type {Pick<import('../storage/store.js').Store, 'windowState' | 'keepWindowState'> | null} where windows keep their state: set before any window is made (see keepWindowsIn) */
+let kept = null;
 
 // What shows before a page has drawn itself, and at the edge of a window being made larger:
 // the colour of the page's own body, by day or at night, in the look it is drawn in. The
@@ -69,6 +72,14 @@ export function setLook(nextLook, nextPalette) {
   repaint();
 }
 
+/**
+ * Keeps what the windows opened from now on were left as in `store`, and opens them that way.
+ * @param {Pick<import('../storage/store.js').Store, 'windowState' | 'keepWindowState'>} store
+ */
+export function keepWindowsIn(store) {
+  kept = store;
+}
+
 function guardNavigation(win) {
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) shell.openExternal(url);
@@ -112,15 +123,21 @@ function keepOnScreen(win) {
   );
 }
 
-/** @typedef {Electron.BrowserWindowConstructorOptions & { maximized?: boolean }} WindowOptions */
+/**
+ * @typedef {Electron.BrowserWindowConstructorOptions & {
+ *   maximized?: boolean,
+ *   keptAs?: (win: Electron.BrowserWindow) => string | null,
+ * }} WindowOptions
+ */
 
 /**
  * A frameless window that loads one of the pages in src/renderer.
  * @param {string} page  e.g. "chat.html"
  * @param {Record<string, string>} [query]
- * @param {WindowOptions} [options]  `maximized`: fill the work area when first shown, keeping the normal bounds
+ * @param {WindowOptions} [options]  `maximized`: fill the work area when first shown, keeping the normal bounds.
+ *   `keptAs`: whose window it is, for its pin to be kept (see windows/on-top.js); a window without is left as any opens
  */
-export function createWindow(page, query, { maximized = false, ...options } = {}) {
+export function createWindow(page, query, { maximized = false, keptAs, ...options } = {}) {
   const win = new BrowserWindow({
     frame: false,
     show: false,
@@ -131,6 +148,7 @@ export function createWindow(page, query, { maximized = false, ...options } = {}
   });
   guardNavigation(win);
   reportState(win);
+  if (keptAs) keepOnTop(win, () => keptAs(win), kept);
   // A see-through window has no colour behind its page to change.
   if (!ownCorners.transparent && !options.transparent) {
     backed.add(win);
