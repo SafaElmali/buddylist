@@ -25,7 +25,7 @@ const ownCorners =
 let look = DEFAULT_LOOK;
 /** And the palette of its theme: Settings > Theme. */
 let palette = DEFAULT_PALETTE;
-/** @type {Pick<import('../storage/store.js').Store, 'windowState' | 'keepWindowState'> | null} where windows keep their state: set before any window is made (see keepWindowsIn) */
+/** @type {Pick<import('../storage/store.js').Store, 'windowState' | 'keepWindowState'> | null} where windows keep their state (see keepWindowsIn) */
 let kept = null;
 
 // What shows before a page has drawn itself, and at the edge of a window being made larger:
@@ -148,7 +148,8 @@ export function createWindow(page, query, { maximized = false, keptAs, ...option
   });
   guardNavigation(win);
   reportState(win);
-  if (keptAs) keepOnTop(win, () => keptAs(win), kept);
+  // Without a store, as in a test that opens windows on their own, it is left as any opens.
+  if (keptAs && kept) keepOnTop(win, () => keptAs(win), kept);
   // A see-through window has no colour behind its page to change.
   if (!ownCorners.transparent && !options.transparent) {
     backed.add(win);
