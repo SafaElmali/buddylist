@@ -288,6 +288,7 @@ contextBridge.exposeInMainWorld('messenger', {
     close: invoke('window:close'),
     setAlwaysOnTop: invoke('window:always-on-top'),
     shake: invoke('window:shake'),
+    saveStorage: invoke('window:save-storage'),
     sidePane: invoke('window:side-pane'),
     edit: invoke('window:edit'),
     menus: invoke('window:menus'),

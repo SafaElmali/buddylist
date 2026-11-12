@@ -210,6 +210,7 @@ export const REQUESTS = Object.freeze({
   windowClose: 'window:close',
   windowAlwaysOnTop: 'window:always-on-top',
   windowShake: 'window:shake',
+  windowSaveStorage: 'window:save-storage',
   windowSidePane: 'window:side-pane',
   windowEdit: 'window:edit',
   windowMenus: 'window:menus',

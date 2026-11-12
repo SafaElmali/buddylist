@@ -1563,6 +1563,8 @@ const handlers = {
   [REQUESTS.windowClose]: (win) => desktop.close(win),
   [REQUESTS.windowAlwaysOnTop]: (win, on) => desktop.setAlwaysOnTop(win, Boolean(on)),
   [REQUESTS.windowShake]: (win) => desktop.shake(win),
+  // A browser writes what a page stores by itself.
+  [REQUESTS.windowSaveStorage]: () => {},
   [REQUESTS.windowSidePane]: (win, width) => desktop.makeRoom(win, Number(width) || 0),
   [REQUESTS.windowEdit]: () => {},
   // A page has no Mac menu bar to put its menus in: they stay in its window.

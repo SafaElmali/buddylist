@@ -142,6 +142,45 @@ test('saving again keeps the latest pin order and browser address', () => {
   ]);
 });
 
+test('a change of the pins is written to disk at once, and the same pins are not written again', () => {
+  storage();
+  let saved = 0;
+  const pins = new PinnedPaneTabs('alice', { saved: () => (saved += 1) });
+  pins.keep(view([{ id: 'files', pinned: true }]));
+  assert.equal(saved, 1);
+  // Selecting another tab, opening an unpinned one or folding the pane leaves the pins as they were.
+  pins.keep(view([{ id: 'files', pinned: true }, { id: 'changes' }], { upper: 'changes', folded: true }));
+  assert.equal(saved, 1);
+  pins.keep(
+    view([
+      { id: 'files', pinned: true },
+      { id: 'changes', pinned: true },
+    ])
+  );
+  assert.equal(saved, 2);
+  pins.keep(view([]));
+  assert.equal(saved, 3);
+  pins.keep(view([]));
+  assert.equal(saved, 3);
+  // A conversation that never had pins writes nothing either.
+  new PinnedPaneTabs('bob', { saved: () => (saved += 1) }).keep(view([{ id: 'files' }]));
+  assert.equal(saved, 3);
+});
+
+test('pins that could not be stored are not said to be written', () => {
+  let saved = 0;
+  const pins = new PinnedPaneTabs('alice', { saved: () => (saved += 1) });
+  const denied = () => {
+    throw new Error('Storage unavailable');
+  };
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: { getItem: () => null, setItem: denied, removeItem: denied },
+  });
+  pins.keep(view([{ id: 'files', pinned: true }]));
+  assert.equal(saved, 0);
+});
+
 test('corrupt stored data is recoverable by the next pin action', () => {
   const values = storage();
   const pins = new PinnedPaneTabs('alice');

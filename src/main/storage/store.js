@@ -91,6 +91,13 @@ const VERSION = 7;
  * @property {true} [paused]           sits out this conversation: it answers only when you mention it
  */
 
+/**
+ * What a window was left as, for when it opens again, also after a restart (see windows/on-top.js). Sparse: a window
+ * left as any opens has nothing kept.
+ * @typedef {Object} WindowState
+ * @property {true} [onTop]  its pin keeps it in front of other apps' windows
+ */
+
 /** @typedef {import('../../shared/groups.js').Group} Group */
 
 /**
@@ -465,6 +472,33 @@ export class Store {
     this.save();
   }
 
+  /**
+   * @param {string} key  whose window: 'contacts' for the contact list, a contact's id for its conversation's
+   * @returns {WindowState}
+   */
+  windowState(key) {
+    return this.data.windows?.[key] ?? {};
+  }
+
+  /**
+   * @param {string} key  as for windowState
+   * @param {{ onTop: unknown }} state  `onTop` may be anything: truthy is kept as `true`, the rest as nothing
+   */
+  keepWindowState(key, { onTop }) {
+    // Pinned and let go a hundred times, it is written only when it changes.
+    if (Boolean(onTop) === Boolean(this.windowState(key).onTop)) return;
+    this.#setWindowState(key, onTop ? { onTop: true } : {});
+    this.save();
+  }
+
+  /** Without anything kept for a window, it is not stored, and with no window kept, the store is as it always was. */
+  #setWindowState(key, state) {
+    const windows = { ...this.data.windows, [key]: state };
+    if (!Object.keys(state).length) delete windows[key];
+    if (Object.keys(windows).length) this.data.windows = windows;
+    else delete this.data.windows;
+  }
+
   /** @returns {Profile} */
   get profile() {
     return this.data.profile;
@@ -614,6 +648,8 @@ export class Store {
     const next = keepTabsTogether(this.data.contacts, id);
     // Tabs are under the manager the first of them is under: the new first keeps that for them.
     if (next && gone?.managedBy) next.managedBy = gone.managedBy;
+    // Its conversation's window goes with it.
+    this.#setWindowState(id, {});
     this.save();
   }
 
