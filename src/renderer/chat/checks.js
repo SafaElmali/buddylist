@@ -1,7 +1,9 @@
 // The Checks tab beside a conversation: the checks of the pull request of the
-// contact's branch, each with how it stands and a way to its page on GitHub. A failed
-// one can be handed to the conversation, to be fixed.
+// contact's branch, or of another of its stack clicked in the PR stack tab, each with
+// how it stands and a way to its page on GitHub. A failed one can be handed to the
+// conversation, to be fixed. The tab names the pull request they are of.
 import { runsGoing } from '../../shared/checks.js';
+import { prReference } from '../../shared/pr-stack.js';
 import { el, errorText, html, raw } from '../lib/dom.js';
 import { smallIcon } from '../lib/icons.js';
 
@@ -45,16 +47,20 @@ export function checksSummary({ pullRequest, checks }) {
   return parts.length ? parts.map(([n, word]) => `${n} ${word}`).join(', ') : 'Nothing ran.';
 }
 
+/** Which pull request a message about checks is about: this branch's own, or another of its stack by number. */
+const whose = (stacked) => (stacked ? `pull request #${stacked} of this branch's stack` : "this branch's pull request");
+
 /**
  * The message that hands a failed check to the conversation: which one, why it failed as GitHub
  * puts it, and its page, so that whoever reads it can look at its log there.
  * @param {import('../../main/checks.js').Check} check
- * @param {{ to?: string | null }} [opts]  `to`: the name of the one to mention, where several agents
- *   would otherwise each take it up
+ * @param {{ to?: string | null, stacked?: number | null }} [opts]  `to`: the name of the one to mention, where
+ *   several agents would otherwise each take it up. `stacked`: the number of the pull request it failed on, where
+ *   that is another of the branch's stack than its own
  */
-export function checkMessage({ name, workflow, url, reason = [] }, { to = null } = {}) {
+export function checkMessage({ name, workflow, url, reason = [] }, { to = null, stacked = null } = {}) {
   const text = [
-    `A check failed on this branch's pull request: ${workflow ? `${workflow} / ${name}` : name}`,
+    `A check failed on ${whose(stacked)}: ${workflow ? `${workflow} / ${name}` : name}`,
     ...(reason.length ? ['', ...reason] : []),
     ...(url ? ['', url] : []),
     '',
@@ -67,12 +73,12 @@ export function checkMessage({ name, workflow, url, reason = [] }, { to = null }
  * The message that hands several failed checks to the conversation at once: each with why it failed
  * and its page, as `checkMessage` says one.
  * @param {import('../../main/checks.js').Check[]} checks
- * @param {{ to?: string | null }} [opts]  as `checkMessage`'s
+ * @param {{ to?: string | null, stacked?: number | null }} [opts]  as `checkMessage`'s
  */
-export function checksMessage(checks, { to = null } = {}) {
-  if (checks.length === 1) return checkMessage(checks[0], { to });
+export function checksMessage(checks, { to = null, stacked = null } = {}) {
+  if (checks.length === 1) return checkMessage(checks[0], { to, stacked });
   const text = [
-    `${checks.length} checks failed on this branch's pull request:`,
+    `${checks.length} checks failed on ${whose(stacked)}:`,
     ...checks.flatMap(({ name, workflow, url, reason = [] }) => [
       '',
       workflow ? `${workflow} / ${name}` : name,
@@ -118,7 +124,18 @@ export function rerunWaits(checks) {
   return `Re-run failed waits for ${workflows.length ? workflows.join(' and ') : 'their workflow'} to finish.`;
 }
 
+/**
+ * A pull request the tab can show the checks of, as the PR stack tab gives it.
+ * @typedef {{ url: string, number: number, title?: string }} Shown
+ */
+
 export class Checks {
+  /** Another pull request of the conversation's stack, clicked in the PR stack tab; null for its own. */
+  #pr = /** @type {Shown | null} */ (null);
+  /** Each answer asked for: only the newest is shown, as another pull request may be asked for meanwhile. */
+  #asked = 0;
+  /** The page of the pull request whose list is drawn; '' for the conversation's own. */
+  #drawn = /** @type {string | null} */ (null);
   /** The failed checks handed to the conversation, so their rows say so while they are listed. */
   #sent = new Set();
   #sending = false;
@@ -133,10 +150,10 @@ export class Checks {
 
   /**
    * @param {import('./side-pane.js').SidePane} pane
-   * @param {{ contactId: string }} ctx
+   * @param {{ contactId: string, contact?: { pullRequest?: { url: string, number: number, title?: string } | null } }} ctx
    * @param {{
-   *   list: (contactId: string) => Promise<any>,
-   *   rerun: (contactId: string) => Promise<void>,
+   *   list: (contactId: string, url?: string) => Promise<any>,
+   *   rerun: (contactId: string, url?: string) => Promise<void>,
    *   open: (url: string) => void,
    *   send: (text: string) => Promise<boolean>,
    * }} handlers  `send`: true once the conversation accepts the request
@@ -149,6 +166,7 @@ export class Checks {
     this.body.addEventListener('click', (e) => {
       const target = /** @type {HTMLElement} */ (e.target);
       if (target.closest('[data-do="refresh"]')) return this.refresh();
+      if (target.closest('[data-do="own"]')) return this.show();
       if (target.closest('[data-do="rerun"]')) return this.rerun();
       if (target.closest('[data-do="send-all"]')) return this.send(this.#shown.filter(failed));
       const send = /** @type {HTMLElement | null} */ (target.closest('[data-do="send"]'));
@@ -173,7 +191,12 @@ export class Checks {
     return { label: 'Checks', icon: smallIcon.check(), open: () => this.show() };
   }
 
-  show() {
+  /**
+   * Opens the tab on the checks of the conversation's pull request, or of another of its stack.
+   * @param {Shown | null} [pr]  another one of its stack; none for its own
+   */
+  show(pr = null) {
+    this.#pr = pr?.url ? pr : null;
     this.pane.open({
       id: TAB,
       title: 'Checks',
@@ -192,14 +215,26 @@ export class Checks {
 
   async refresh() {
     clearTimeout(this.#again);
-    // What was there stays until the answer is: a list that blinks away is read twice.
-    if (!this.body.children.length) this.body.replaceChildren(this.#head({ summary: 'Asking GitHub...' }));
+    const asked = ++this.#asked;
+    const stale = () => asked !== this.#asked;
+    const pr = this.#pr;
+    // What was there stays until the answer is: a list that blinks away is read twice. Another pull request's
+    // list is not this one's, though.
+    if (this.#drawn !== (pr?.url ?? ''))
+      this.body.replaceChildren(this.#head({ summary: 'Asking GitHub...', about: pr }));
+    this.#drawn = pr?.url ?? '';
     this.body.classList.add('asking');
     try {
-      const answer = await this.handlers.list(this.ctx.contactId);
+      const answer = await this.handlers.list(this.ctx.contactId, pr?.url);
+      if (stale()) return;
       this.#shown = answer.checks;
       this.body.replaceChildren(
-        this.#head({ summary: checksSummary(answer), checks: answer.checks, trouble: this.#trouble }),
+        this.#head({
+          summary: checksSummary(answer),
+          checks: answer.checks,
+          trouble: this.#trouble,
+          about: this.#about(answer.url),
+        }),
         ...Object.keys(STANDING)
           .map((standing) => this.#group(standing))
           .filter(Boolean)
@@ -211,25 +246,70 @@ export class Checks {
         this.#again = setTimeout(() => this.pane.shows(TAB) && this.refresh(), ASK_AGAIN_MS);
       }
     } catch (err) {
-      this.body.replaceChildren(this.#head({ summary: 'GitHub could not be asked.', trouble: errorText(err) }));
+      if (stale()) return;
+      this.body.replaceChildren(
+        this.#head({ summary: 'GitHub could not be asked.', trouble: errorText(err), about: pr })
+      );
     } finally {
-      this.#trouble = '';
-      this.body.classList.remove('asking');
+      if (!stale()) {
+        this.#trouble = '';
+        this.body.classList.remove('asking');
+      }
     }
   }
 
   /**
-   * Over the list: how the checks stand as a whole, in words and as a bar, what can be done about the
-   * failed ones, and what went wrong, on a line of its own.
-   * @param {{ summary: string, checks?: import('../../main/checks.js').Check[], trouble?: string }} what
+   * Which pull request an answer is about, to name over its checks: the one of the stack asked for, or the page gh
+   * was asked about for the conversation's own, with its title where the list has it. None where gh was asked about
+   * the branch, which names none.
+   * @param {string | undefined} url  the page gh was asked about
+   * @returns {Shown | null}
    */
-  #head({ summary, checks = [], trouble = '' }) {
+  #about(url) {
+    if (this.#pr) return this.#pr;
+    const own = this.ctx.contact?.pullRequest;
+    if (own?.url === url) return own;
+    const found = prReference(url);
+    return found && { url: /** @type {string} */ (url), number: found.number, title: '' };
+  }
+
+  /**
+   * Over the list: which pull request they are of, how the checks stand as a whole, in words and as a bar, what can
+   * be done about the failed ones, and what went wrong, on a line of its own. Another of the stack than the
+   * conversation's own has a way back to that one.
+   * @param {{ summary: string, checks?: import('../../main/checks.js').Check[], trouble?: string,
+   *   about?: Shown | null }} what
+   */
+  #head({ summary, checks = [], trouble = '', about = null }) {
     const fails = checks.filter(failed);
     const waitNote = rerunWaits(checks);
     const counted = standingCounts(checks);
     const note = trouble || waitNote;
+    const own = this.ctx.contact?.pullRequest;
+    const back = this.#pr && own && own.url !== this.#pr.url ? own : null;
     return el(
       html`<div class="checks-head">
+        ${
+          about
+            ? html`<div class="checks-pr">
+                <a class="checks-pr-number" href="${about.url}" title="Open #${about.number} on GitHub"
+                  >#${about.number}</a
+                >${about.title ? html`<span class="checks-pr-title" title="${about.title}">${about.title}</span>` : ''}
+                ${
+                  back
+                    ? html`<button
+                        class="link checks-own"
+                        type="button"
+                        data-do="own"
+                        title="Show the checks of #${back.number}, this conversation’s pull request"
+                      >
+                        Back to #${back.number}
+                      </button>`
+                    : ''
+                }
+              </div>`
+            : ''
+        }
         <div class="checks-summary">
           <span>${summary}</span>
           <button class="btn checks-refresh" type="button" data-do="refresh" title="Ask GitHub again">
@@ -356,7 +436,7 @@ export class Checks {
     const buttons = () => this.body.querySelectorAll('[data-do="send"], [data-do="send-all"]');
     for (const button of buttons()) button.disabled = true;
     try {
-      if (!(await this.handlers.send(checksMessage(checks)))) return;
+      if (!(await this.handlers.send(checksMessage(checks, { stacked: this.#pr?.number ?? null })))) return;
       for (const check of checks) {
         this.#sent.add(sentKey(check));
         const index = this.#shown.findIndex((current) => sentKey(current) === sentKey(check));
@@ -384,7 +464,7 @@ export class Checks {
     button.disabled = true;
     button.textContent = 'Re-running...';
     try {
-      await this.handlers.rerun(this.ctx.contactId);
+      await this.handlers.rerun(this.ctx.contactId, this.#pr?.url);
     } catch (err) {
       this.#trouble = errorText(err);
     }

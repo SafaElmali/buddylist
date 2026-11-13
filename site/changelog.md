@@ -15,6 +15,7 @@ version into package.json and package-lock.json in the release prep PR.
 
 - **Link a pull request to a conversation** — Choose **Link pull request...** in the ▼ of **Create PR** or **View PR**, or in a contact’s right-click menu, and its checks, reviews and merge show as for one its branch found, after a restart too. An agent links one when you ask, and work pushed under another branch name is now found by itself.
 - **A window you pin stays on top** — The pin in a window’s title bar is kept when you quit: the contact list comes back on top, and each conversation you pinned opens on top again, after you close its window too. Side-pane tab pins are saved at once, so a crash just after pinning keeps them.
+- **See which pull request is failing** — A conversation’s line now starts with its pull request’s number, as in “#103: 1 check failing”, so it stays in sight when the line is cut, and pointing at a contact’s **1 failing** tag names it too. In **PR stack**, each pull request still to be merged wears its checks’ tag, such as **1 failing**, **Running** or **Passed**, and the bar over the stack is red where one fails. Click a failing one to see its checks beside the conversation. The **Checks** tab names the pull request it shows, and now finds one pushed under another branch name.
 
 ## v0.7.3 — 2026-11-11
 

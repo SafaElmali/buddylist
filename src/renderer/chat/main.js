@@ -420,14 +420,16 @@ const files = new Files(
 // A button asks one eligible agent. The main process resolves it against the current participants.
 const sendRequest = (text, recipient = {}) => send({ text, images: [], recipient });
 const checks = new Checks(sidePane, ctx, {
-  list: (contactId) => api.changes.checks(contactId),
-  rerun: (contactId) => api.changes.rerunChecks(contactId),
+  list: (contactId, url) => api.changes.checks(contactId, url),
+  rerun: (contactId, url) => api.changes.rerunChecks(contactId, url),
   open: (url) => api.app.openExternal(url),
   send: sendRequest,
 });
 const prStack = new PrStack(sidePane, ctx, {
   list: (contactId) => api.contacts.prStack(contactId),
   open: (url) => api.app.openExternal(url),
+  // A row whose checks fail shows them beside the conversation, as its contact's tag does for its own.
+  checks: (pr) => checks.show(pr),
 });
 const showPrStack = () => prStackOffered() && prStack.show();
 const changes = new Changes(

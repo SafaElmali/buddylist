@@ -200,7 +200,7 @@ test('otherwise a row says its branch, and its pull request’s tags and size as
   const row = teamRow(
     contact('rate', {
       lastActive: NOW - 20 * 60 * MINUTE,
-      personalMessage: 'Merge conflict on pull request #131',
+      personalMessage: '#131: merge conflict',
       location: '~/w/shop/rate',
       branch: 'fix/rate-limit',
       pullRequest: PULL_REQUEST,

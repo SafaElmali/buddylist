@@ -264,8 +264,27 @@ a.pr-stack-row[aria-current='true'] {
   --pr-state: var(--violet, #6a3cb5);
 }
 
+/* Given up on: grey, as its tag is in the contact list. Red is for checks that fail. */
 :is(.pr-stack-node, .pr-stack-steps i)[data-state='closed'] {
+  --pr-state: var(--text-dim, #5a6a82);
+}
+
+/* A step still to be merged is in the colour of its checks, so a failing one is not read as one more green
+   step; one without checks is neither colour. */
+.pr-stack-steps i[data-checks='failing'] {
   --pr-state: var(--danger, #b3261e);
+}
+
+.pr-stack-steps i[data-checks='running'] {
+  --pr-state: var(--warn, #8a5a00);
+}
+
+.pr-stack-steps i[data-checks='passed'] {
+  --pr-state: var(--ok, #1e6b28);
+}
+
+.pr-stack-steps i[data-checks='none'] {
+  --pr-state: var(--text-faint, #7a7a7a);
 }
 
 /* Done with, one way or the other: a filled node. A draft's is dashed, as its glyph is. */
@@ -320,6 +339,19 @@ a.pr-stack-row[aria-current='true'] {
   flex: none;
   color: var(--pr-state);
   font-weight: bold;
+}
+
+/* How its checks stand, in the contact list's own tag: what a failing PR is found by. */
+.pr-stack-checks {
+  flex: none;
+}
+
+:root[data-look='professional'] .pr-stack-checks {
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  line-height: 14px;
 }
 
 /* Its step in a GitHub stack, 1 at the bottom: a column at the rows' end that reads at a glance. */
