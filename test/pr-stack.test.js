@@ -620,17 +620,17 @@ test('titles and branches are text, never markup', () => {
 // running and a draft with no checks at all on top.
 const checkedStack = () =>
   [
-    pr(34350, 'cart/1-totals', 'main', { state: 'closed', merged_at: '2026-11-10T10:00:00Z' }),
-    pr(34351, 'cart/2-tax-lines'),
-    pr(34352, 'cart/3-rounding'),
-    pr(34353, 'cart/4-receipt'),
-    pr(34354, 'cart/5-help', 'main', { draft: true }),
+    pr(48210, 'cart/1-totals', 'main', { state: 'closed', merged_at: '2026-11-10T10:00:00Z' }),
+    pr(48211, 'cart/2-tax-lines'),
+    pr(48212, 'cart/3-rounding'),
+    pr(48213, 'cart/4-receipt'),
+    pr(48214, 'cart/5-help', 'main', { draft: true }),
   ].map((item, index, all) => inStack(item, { number: 902, position: index + 1, size: all.length }));
 const CHECKS = {
-  34350: [checkRun('test', 'FAILURE')],
-  34351: [checkRun('lint', 'SUCCESS'), checkRun('test', 'SUCCESS')],
-  34352: [checkRun('lint', 'SUCCESS'), checkRun('test', 'FAILURE')],
-  34353: [checkRun('lint', 'SUCCESS'), checkRun('test', null, { status: 'IN_PROGRESS' })],
+  48210: [checkRun('test', 'FAILURE')],
+  48211: [checkRun('lint', 'SUCCESS'), checkRun('test', 'SUCCESS')],
+  48212: [checkRun('lint', 'SUCCESS'), checkRun('test', 'FAILURE')],
+  48213: [checkRun('lint', 'SUCCESS'), checkRun('test', null, { status: 'IN_PROGRESS' })],
 };
 const checksOf = (answer) => Object.fromEntries(answer.roots.map((row) => [row.number, row.checks ?? null]));
 
@@ -640,13 +640,13 @@ test('each open PR of a stack says how its checks stand, all from one GraphQL re
   const { load, calls, graphql } = withGithubStack(prs, prs[3], undefined, { checks: CHECKS, known });
   const answer = await load();
   assert.deepEqual(checksOf(answer), {
-    34350: null, // merged: its checks no longer matter, and are not asked about
-    34351: { failing: 0, pending: 0, passed: 2 },
-    34352: { failing: 1, pending: 0, passed: 1 },
-    34353: { failing: 0, pending: 0, passed: 4 }, // the conversation's own, as the contact list just heard it
-    34354: null, // a draft with no checks
+    48210: null, // merged: its checks no longer matter, and are not asked about
+    48211: { failing: 0, pending: 0, passed: 2 },
+    48212: { failing: 1, pending: 0, passed: 1 },
+    48213: { failing: 0, pending: 0, passed: 4 }, // the conversation's own, as the contact list just heard it
+    48214: null, // a draft with no checks
   });
-  assert.deepEqual(calls, ['repos/o/r/pulls/34353', 'repos/o/r/stacks/902'], 'the stack itself, as before');
+  assert.deepEqual(calls, ['repos/o/r/pulls/48213', 'repos/o/r/stacks/902'], 'the stack itself, as before');
   assert.equal(graphql.length, 1);
   const [args] = graphql;
   assert.deepEqual(args.slice(0, 4), ['api', 'graphql', '--hostname', 'github.com']);
@@ -654,7 +654,7 @@ test('each open PR of a stack says how its checks stand, all from one GraphQL re
   const query = args[5];
   assert.deepEqual(
     [...query.matchAll(/pr(\d+): pullRequest/g)].map(([, number]) => Number(number)),
-    [34351, 34352, 34354],
+    [48211, 48212, 48214],
     'the open ones but the conversation’s own'
   );
   assert.equal(answer.checksNote, undefined);
@@ -663,7 +663,7 @@ test('each open PR of a stack says how its checks stand, all from one GraphQL re
 test('checks are counted as the contact list counts them: each once, as its latest run left it', async () => {
   const prs = checkedStack();
   const checks = {
-    34352: [
+    48212: [
       checkRun('test', 'FAILURE', { at: '2026-11-13T09:00:00Z' }),
       checkRun('test', 'SUCCESS', { at: '2026-11-13T09:05:00Z' }), // run again, and passed
       checkRun('test', 'FAILURE', { workflow: 'Nightly' }), // the same name in another workflow is another check
@@ -673,7 +673,7 @@ test('checks are counted as the contact list counts them: each once, as its late
     ],
   };
   const answer = await withGithubStack(prs, prs[1], undefined, { checks }).load();
-  assert.deepEqual(checksOf(answer)[34352], { failing: 1, pending: 1, passed: 1 });
+  assert.deepEqual(checksOf(answer)[48212], { failing: 1, pending: 1, passed: 1 });
 });
 
 test('with no other PR still to be merged, GitHub is not asked about checks at all', async () => {
@@ -698,7 +698,7 @@ test('checks that cannot be had leave the stack as it is, and say so under it', 
     assert.equal(answer.checksNote, 'The checks of the other pull requests could not be loaded. Refresh to try again.');
     assert.equal(answer.count, 5);
     assert.ok(answer.roots.every((row) => !row.checks));
-    assert.match(shown(answer), /could not be loaded\. Refresh to try again\. .*#34354/);
+    assert.match(shown(answer), /could not be loaded\. Refresh to try again\. .*#48214/);
   }
 });
 
@@ -732,20 +732,20 @@ test('a stack row wears its checks as the contact list does, and a failing one i
   const html = markup(stackContent(answer));
   const node = (number) =>
     new RegExp(`<li class="pr-stack-node"[^>]*>\\s*<a[^>]*pull/${number}"[\\s\\S]*?</li>`).exec(html)[0];
-  assert.match(node(34352), /^<li class="pr-stack-node" data-state="open"\s+data-checks="failing">/);
+  assert.match(node(48212), /^<li class="pr-stack-node" data-state="open"\s+data-checks="failing">/);
   assert.match(
-    node(34352),
+    node(48212),
     /<span class="pr-tag pr-stack-checks" data-kind="failing"><svg[^>]*>.*<\/svg>1 failing<\/span>/
   );
   assert.match(
-    node(34352),
-    /title="#34352 Pull request 34352&#10;cart\/3-rounding into main&#10;1 check failing\. Click to see its checks\."/
+    node(48212),
+    /title="#48212 Pull request 48212&#10;cart\/3-rounding into main&#10;1 check failing\. Click to see its checks\."/
   );
-  assert.match(node(34353), /data-checks="passed">[\s\S]*data-kind="passed"[^>]*>.*Passed<\/span>/);
-  assert.match(node(34351), /data-kind="passed"/);
-  assert.doesNotMatch(node(34350), /data-checks|pr-tag/, 'merged: no checks');
-  assert.doesNotMatch(node(34354), /data-checks|pr-tag/, 'no checks: nothing said');
-  assert.match(shown(answer), /#34352 Pull request 34352 Open …\/3-rounding 1 failing 3 of 5/);
+  assert.match(node(48213), /data-checks="passed">[\s\S]*data-kind="passed"[^>]*>.*Passed<\/span>/);
+  assert.match(node(48211), /data-kind="passed"/);
+  assert.doesNotMatch(node(48210), /data-checks|pr-tag/, 'merged: no checks');
+  assert.doesNotMatch(node(48214), /data-checks|pr-tag/, 'no checks: nothing said');
+  assert.match(shown(answer), /#48212 Pull request 48212 Open …\/3-rounding 1 failing 3 of 5/);
 });
 
 test('the step bar colours a PR still to be merged by its checks, and says them on each step', async () => {
@@ -757,9 +757,9 @@ test('the step bar colours a PR still to be merged by its checks, and says them 
     checks ? `${state}:${checks}` : state
   );
   assert.deepEqual(checksAt, ['merged', 'open:passed', 'open:failing', 'open:running', 'draft:none']);
-  assert.match(html, /title="3 of 5: #34352, Open, 1 check failing"/);
-  assert.match(html, /title="4 of 5: #34353, Open, checks running"\s+data-current/);
-  assert.match(html, /title="5 of 5: #34354, Draft"/);
+  assert.match(html, /title="3 of 5: #48212, Open, 1 check failing"/);
+  assert.match(html, /title="4 of 5: #48213, Open, checks running"\s+data-current/);
+  assert.match(html, /title="5 of 5: #48214, Draft"/);
 });
 
 test('a click on a failing row shows its checks beside the conversation; any other row opens GitHub', async (t) => {
@@ -778,12 +778,12 @@ test('a click on a failing row shows its checks beside the conversation; any oth
     view.content
       .querySelectorAll('.pr-stack-row')
       .find((link) => link.getAttribute('href') === `https://github.com/o/r/pull/${number}`);
-  row(34352).querySelector('.pr-stack-title').click();
+  row(48212).querySelector('.pr-stack-title').click();
   assert.deepEqual(shownChecks, [
-    { url: 'https://github.com/o/r/pull/34352', number: 34352, title: 'Pull request 34352' },
+    { url: 'https://github.com/o/r/pull/48212', number: 48212, title: 'Pull request 48212' },
   ]);
-  row(34351).click();
-  row(34350).click();
-  assert.deepEqual(opened, ['https://github.com/o/r/pull/34351', 'https://github.com/o/r/pull/34350']);
+  row(48211).click();
+  row(48210).click();
+  assert.deepEqual(opened, ['https://github.com/o/r/pull/48211', 'https://github.com/o/r/pull/48210']);
   assert.equal(shownChecks.length, 1);
 });

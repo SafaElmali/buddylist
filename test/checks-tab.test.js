@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { Checks, checkMessage, checksMessage } from '../src/renderer/chat/checks.js';
 import { page } from './fixtures/dom.js';
 
-const OWN = { url: 'https://github.com/acme/shop/pull/34353', number: 34353, title: 'Show totals on the receipt' };
-const STACKED = { url: 'https://github.com/acme/shop/pull/34352', number: 34352, title: 'Round totals per currency' };
+const OWN = { url: 'https://github.com/acme/shop/pull/48213', number: 48213, title: 'Show totals on the receipt' };
+const STACKED = { url: 'https://github.com/acme/shop/pull/48212', number: 48212, title: 'Round totals per currency' };
 const FAILED = {
   name: 'test',
   workflow: 'CI',
@@ -54,7 +54,7 @@ test('the tab names the pull request its checks are of, with its title, as the c
   view.show();
   await view.refresh();
   assert.deepEqual(asked.at(-1), ['c', undefined], 'the conversation’s own, as main knows it');
-  assert.equal(text(view.body.querySelector('.checks-pr-number')), '#34353');
+  assert.equal(text(view.body.querySelector('.checks-pr-number')), '#48213');
   assert.equal(view.body.querySelector('.checks-pr-number').getAttribute('href'), OWN.url);
   assert.equal(text(view.body.querySelector('.checks-pr-title')), 'Show totals on the receipt');
   assert.equal(view.body.querySelector('.checks-own'), null, 'its own has no way back to itself');
@@ -73,13 +73,13 @@ test('a failing PR clicked in the stack shows its checks, named, with a way back
   view.show(STACKED);
   await view.refresh();
   assert.deepEqual(asked.at(-1), ['c', STACKED.url]);
-  assert.equal(text(view.body.querySelector('.checks-pr-number')), '#34352');
+  assert.equal(text(view.body.querySelector('.checks-pr-number')), '#48212');
   assert.equal(text(view.body.querySelector('.checks-pr-title')), 'Round totals per currency');
-  assert.equal(text(view.body.querySelector('.checks-own')), 'Back to #34353');
+  assert.equal(text(view.body.querySelector('.checks-own')), 'Back to #48213');
 
   // Handed to the conversation, the message says which pull request of the stack it failed on.
   await view.send([FAILED]);
-  assert.match(sent[0], /^A check failed on pull request #34352 of this branch's stack: CI \/ test\n/);
+  assert.match(sent[0], /^A check failed on pull request #48212 of this branch's stack: CI \/ test\n/);
 
   // Re-run failed starts over that one's runs.
   await view.rerun();
@@ -88,7 +88,7 @@ test('a failing PR clicked in the stack shows its checks, named, with a way back
   view.body.querySelector('.checks-own').click();
   await view.refresh();
   assert.deepEqual(asked.at(-1), ['c', undefined]);
-  assert.equal(text(view.body.querySelector('.checks-pr-number')), '#34353');
+  assert.equal(text(view.body.querySelector('.checks-pr-number')), '#48213');
   assert.equal(view.body.querySelector('.checks-own'), null);
 });
 
@@ -108,19 +108,19 @@ test('an answer about a pull request asked for before another is not shown over 
   await new Promise((resolve) => setTimeout(resolve, 0));
   waiting[0]();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(text(view.body.querySelector('.checks-pr-number')), '#34353');
+  assert.equal(text(view.body.querySelector('.checks-pr-number')), '#48213');
   assert.equal(text(view.body.querySelector('.checks-summary > span')), '1 passed');
   assert.equal(view.body.classList.contains('asking'), false);
 });
 
 test('a failed check of another pull request of the stack is handed over by its number', () => {
   assert.equal(
-    checkMessage({ ...FAILED, reason: [], url: '' }, { stacked: 34352 }),
-    "A check failed on pull request #34352 of this branch's stack: CI / test\n\nFind out why it failed, and fix it."
+    checkMessage({ ...FAILED, reason: [], url: '' }, { stacked: 48212 }),
+    "A check failed on pull request #48212 of this branch's stack: CI / test\n\nFind out why it failed, and fix it."
   );
   assert.match(
-    checksMessage([FAILED, { ...FAILED, name: 'e2e' }], { stacked: 34352, to: 'Claude' }),
-    /^@Claude 2 checks failed on pull request #34352 of this branch's stack:\n/
+    checksMessage([FAILED, { ...FAILED, name: 'e2e' }], { stacked: 48212, to: 'Claude' }),
+    /^@Claude 2 checks failed on pull request #48212 of this branch's stack:\n/
   );
   assert.match(checkMessage(FAILED), /^A check failed on this branch's pull request: /, 'its own, as before');
 });

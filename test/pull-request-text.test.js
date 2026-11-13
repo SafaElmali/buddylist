@@ -104,12 +104,12 @@ test('in a narrow place the number comes first, so a line cut short still says w
   assert.equal(pullRequestStatus(withChecks(0, 1, 0)), '#12: check running');
   assert.equal(pullRequestStatus(withChecks(0, 0, 9)), '#12: checks passed');
   assert.equal(pullRequestStatus(withChecks(0, 4, 0, { state: 'draft' })), '#12 (draft): checks running');
-  assert.equal(pullRequestStatus(withChecks(1, 0, 4, { number: 34353 })), '#34353: 1 check failing');
+  assert.equal(pullRequestStatus(withChecks(1, 0, 4, { number: 48213 })), '#48213: 1 check failing');
 });
 
 test('the narrow line comes in its two parts too, which pull request and what stands out', () => {
-  assert.deepEqual(pullRequestStatusParts(withChecks(1, 0, 4, { number: 34353 })), {
-    which: '#34353',
+  assert.deepEqual(pullRequestStatusParts(withChecks(1, 0, 4, { number: 48213 })), {
+    which: '#48213',
     standing: '1 check failing',
   });
   assert.deepEqual(pullRequestStatusParts(conflicted({ state: 'draft' })), {

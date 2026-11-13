@@ -414,11 +414,11 @@ test('a click on the tag for its checks shows them beside the conversation, and 
 test('the tooltip of the tag for its checks names a five-digit pull request first, and leaves out a missing title', () => {
   const [tag] = contactRow({
     ...claude,
-    pullRequest: pullRequest({ number: 34353, title: '', checks: checksOf(1, 0, 4) }),
+    pullRequest: pullRequest({ number: 48213, title: '', checks: checksOf(1, 0, 4) }),
   }).tags;
   assert.deepEqual(
     [tag.text, tag.title],
-    ['1 failing', '#34353: 1 check failing\nClick to see them beside the conversation.']
+    ['1 failing', '#48213: 1 check failing\nClick to see them beside the conversation.']
   );
 });
 

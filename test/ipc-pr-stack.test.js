@@ -89,7 +89,7 @@ test(
   'the Checks tab asks about another PR of the stack only in the repository of the folder’s own',
   { skip: !registerIpc },
   async () => {
-    const own = { url: 'https://github.com/o/r/pull/34353', number: 34353, state: 'open' };
+    const own = { url: 'https://github.com/o/r/pull/48213', number: 48213, state: 'open' };
     const systemVersion = process.getSystemVersion;
     process.getSystemVersion = () => 'test';
     try {
@@ -106,12 +106,12 @@ test(
     const list = handlers.get(REQUESTS.checksList);
     const rerun = handlers.get(REQUESTS.checksRerun);
     await list({}, 'contact');
-    await list({}, 'contact', 'https://github.com/o/r/pull/34352');
-    await rerun({}, 'contact', 'https://github.com/o/r/pull/34352');
+    await list({}, 'contact', 'https://github.com/o/r/pull/48212');
+    await rerun({}, 'contact', 'https://github.com/o/r/pull/48212');
     assert.deepEqual(checksAsked, [
       ['list', '/verified-checkout', null],
-      ['list', '/verified-checkout', 'https://github.com/o/r/pull/34352'],
-      ['rerun', '/verified-checkout', 'https://github.com/o/r/pull/34352'],
+      ['list', '/verified-checkout', 'https://github.com/o/r/pull/48212'],
+      ['rerun', '/verified-checkout', 'https://github.com/o/r/pull/48212'],
     ]);
     for (const url of ['https://github.com/someone/else/pull/1', 'https://evil.example/o/r/pull/1', 'file:///etc']) {
       await assert.rejects(list({}, 'contact', url), /not in this conversation’s repository/);

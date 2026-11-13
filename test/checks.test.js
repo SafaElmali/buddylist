@@ -137,7 +137,7 @@ test('a draft the list shows is asked about by its page too, and an answer about
 });
 
 test('another pull request of the stack is asked about by its page, and only one of the same repository', async () => {
-  const page = 'https://github.com/O/R/pull/34353';
+  const page = 'https://github.com/O/R/pull/48213';
   assert.equal(stackPage(page, open), page, 'GitHub names are not case-sensitive');
   assert.equal(stackPage(undefined, open), null, 'none asked for: the folder’s own');
   assert.equal(stackPage(null, null), null);
@@ -162,7 +162,7 @@ test('another pull request of the stack is asked about by its page, and only one
 test('Re-run failed for another pull request of the stack starts over the runs gh lists for that one', async () => {
   const asked = [];
   const run = async (_cwd, args) => (asked.push(args.join(' ')), args[0] === 'pr' ? LISTED : '');
-  const page = 'https://github.com/o/r/pull/34353';
+  const page = 'https://github.com/o/r/pull/48213';
   assert.equal(await rerunFailedChecks('/work/shop', { run, known: open, page }), 1);
   assert.deepEqual(asked, [
     `pr checks ${page} --json name,workflow,bucket,link`,
