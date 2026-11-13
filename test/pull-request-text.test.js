@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import {
   checksNews,
   checksStanding,
+  checksTag,
   checksText,
   pullRequestLine,
   pullRequestSize,
   pullRequestStatus,
+  pullRequestStatusParts,
   pullRequestTags,
 } from '../src/shared/pull-request-text.js';
 
@@ -95,16 +97,37 @@ test('no pull request, no line', () => {
 
 // ---- the same for a narrow place -------------------------------------------------------------
 
-test('in a narrow place the checks come first, so they are what is left when the line is cut', () => {
-  assert.equal(pullRequestStatus(withChecks(2, 0, 9)), '2 checks failing on pull request #12');
-  assert.equal(pullRequestStatus(withChecks(1, 3, 0)), '1 check failing on pull request #12');
-  assert.equal(pullRequestStatus(withChecks(0, 4, 9)), 'Checks running on pull request #12');
-  assert.equal(pullRequestStatus(withChecks(0, 1, 0)), 'Check running on pull request #12');
-  assert.equal(pullRequestStatus(withChecks(0, 0, 9)), 'Checks passed on pull request #12');
-  assert.equal(
-    pullRequestStatus(withChecks(0, 4, 0, { state: 'draft' })),
-    'Checks running on pull request #12 (draft)'
-  );
+test('in a narrow place the number comes first, so a line cut short still says which pull request', () => {
+  assert.equal(pullRequestStatus(withChecks(2, 0, 9)), '#12: 2 checks failing');
+  assert.equal(pullRequestStatus(withChecks(1, 3, 0)), '#12: 1 check failing');
+  assert.equal(pullRequestStatus(withChecks(0, 4, 9)), '#12: checks running');
+  assert.equal(pullRequestStatus(withChecks(0, 1, 0)), '#12: check running');
+  assert.equal(pullRequestStatus(withChecks(0, 0, 9)), '#12: checks passed');
+  assert.equal(pullRequestStatus(withChecks(0, 4, 0, { state: 'draft' })), '#12 (draft): checks running');
+  assert.equal(pullRequestStatus(withChecks(1, 0, 4, { number: 48213 })), '#48213: 1 check failing');
+});
+
+test('the narrow line comes in its two parts too, which pull request and what stands out', () => {
+  assert.deepEqual(pullRequestStatusParts(withChecks(1, 0, 4, { number: 48213 })), {
+    which: '#48213',
+    standing: '1 check failing',
+  });
+  assert.deepEqual(pullRequestStatusParts(conflicted({ state: 'draft' })), {
+    which: '#12 (draft)',
+    standing: 'merge conflict',
+  });
+  for (const nothing of [pr(), withChecks(3, 0, 9, { state: 'merged' }), null, undefined]) {
+    assert.equal(pullRequestStatusParts(nothing), null);
+  }
+});
+
+test('the tag for how the checks stand, as a contact row and a PR stack row wear it', () => {
+  assert.deepEqual(checksTag(withChecks(2, 1, 9)), { kind: 'failing', text: '2 failing' });
+  assert.deepEqual(checksTag(withChecks(0, 1, 9)), { kind: 'running', text: 'Running' });
+  assert.deepEqual(checksTag(withChecks(0, 0, 9, { state: 'draft' })), { kind: 'passed', text: 'Passed' });
+  for (const none of [pr(), withChecks(2, 0, 0, { state: 'merged' }), withChecks(2, 0, 0, { state: 'closed' }), null]) {
+    assert.equal(checksTag(none), null);
+  }
 });
 
 test('with nothing to say about checks, the narrow place gets the plain line', () => {
@@ -172,11 +195,11 @@ test('a merge conflict is named on the line, ahead of the checks', () => {
   assert.equal(pullRequestLine(conflicted({ state: 'draft' })), 'Pull request #12 (draft) · merge conflict');
 });
 
-test('where the line is cut short, the conflict is what stays in sight', () => {
-  assert.equal(pullRequestStatus(conflicted()), 'Merge conflict on pull request #12');
+test('where the line is cut short, the number and then the conflict are what stay in sight', () => {
+  assert.equal(pullRequestStatus(conflicted()), '#12: merge conflict');
   assert.equal(
     pullRequestStatus(conflicted({ checks: checks(0, 3, 0), state: 'draft' })),
-    'Merge conflict, checks running on pull request #12 (draft)'
+    '#12 (draft): merge conflict, checks running'
   );
 });
 

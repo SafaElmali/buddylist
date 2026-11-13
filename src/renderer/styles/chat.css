@@ -920,10 +920,35 @@
   font-style: italic;
 }
 
-.to-line .to-pm:not(:empty)::before {
+.to-line .to-pm:not(:empty)::before,
+.to-line .to-pr::before {
   content: '— ';
   color: var(--text-faint, #9aa6b6);
   font-style: normal;
+}
+
+/* Which pull request the line is about, before how it stands: never the part that gives way, so a line cut
+   short still says which one. */
+.to-line .to-pr {
+  flex: none;
+  color: var(--warn, #8a5b00);
+  font-style: italic;
+}
+
+/* With its number on the line, what is said of it gives way first, then the folder, which keeps its start. */
+.to-line .to-pr + .to-pm {
+  flex-shrink: 1000;
+}
+
+.to-line .to-pr + .to-pm::before {
+  content: none;
+}
+
+.to-line.with-pr .to-addr {
+  flex: 0 1 auto;
+  min-width: 3ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Fix conflicts, after what the line says while the pull request has them: in the colours of the
@@ -4064,6 +4089,35 @@
   background: var(--pane);
 }
 
+/* Which pull request they are of: its number, a link to it, and its title. Another of the stack than the
+   conversation's own has a way back to that one at the end. */
+.checks-pr {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.checks-pr-number {
+  flex: none;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+}
+
+.checks-pr-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-dim, #5a6a82);
+  text-overflow: ellipsis;
+}
+
+.checks-own {
+  flex: none;
+  margin-left: auto;
+}
+
 .checks-summary {
   display: flex;
   align-items: center;
@@ -4268,7 +4322,8 @@ a.check-name:hover {
   color: var(--muted);
 }
 
-.check .link {
+.check .link,
+.checks-pr .link {
   flex: none;
   padding: 0;
   border: none;

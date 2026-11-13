@@ -363,7 +363,8 @@ test('a contact’s row wears tags for its pull request, worded the way its card
       kind: 'failing',
       text: '2 failing',
       action: 'checks',
-      title: '2 checks failing\nClick to see them beside the conversation.',
+      title:
+        '#12: 2 checks failing\nBack off when the API says to slow down\nClick to see them beside the conversation.',
     },
   ]);
   assert.deepEqual(tagsOf(contactRow({ ...claude, pullRequest: pullRequest({ state: 'merged' }) })), ['merged']);
@@ -400,10 +401,25 @@ test('a click on the tag for its checks shows them beside the conversation, and 
       action,
       title,
     ]);
-  const click = 'Click to see them beside the conversation.';
-  assert.deepEqual(acts(checksOf(1, 2, 3)), [['failing', 'checks', `1 check failing\n${click}`]], 'while others run');
-  assert.deepEqual(acts(checksOf(0, 2, 3)), [['running', 'checks', `Checks running\n${click}`]]);
-  assert.deepEqual(acts(checksOf(0, 0, 3), { state: 'draft' }), [['passed', 'checks', `Checks passed\n${click}`]]);
+  const click = 'Back off when the API says to slow down\nClick to see them beside the conversation.';
+  assert.deepEqual(
+    acts(checksOf(1, 2, 3)),
+    [['failing', 'checks', `#12: 1 check failing\n${click}`]],
+    'while others run'
+  );
+  assert.deepEqual(acts(checksOf(0, 2, 3)), [['running', 'checks', `#12: checks running\n${click}`]]);
+  assert.deepEqual(acts(checksOf(0, 0, 3), { state: 'draft' }), [['passed', 'checks', `#12: checks passed\n${click}`]]);
+});
+
+test('the tooltip of the tag for its checks names a five-digit pull request first, and leaves out a missing title', () => {
+  const [tag] = contactRow({
+    ...claude,
+    pullRequest: pullRequest({ number: 48213, title: '', checks: checksOf(1, 0, 4) }),
+  }).tags;
+  assert.deepEqual(
+    [tag.text, tag.title],
+    ['1 failing', '#48213: 1 check failing\nClick to see them beside the conversation.']
+  );
 });
 
 test('a click on Conflict asks the contact to resolve the conflicts, and its tooltip says whom', () => {
@@ -430,7 +446,7 @@ test('any other tag acts on GitHub alone: no action and no tooltip of its own', 
 
 test('a row with tags is its name and its tags: no note, whether the contact is idle, busy or waiting', () => {
   const pr = pullRequest({ checks: checksOf(1, 0, 3) });
-  const idle = contactRow({ ...claude, personalMessage: '1 check failing on pull request #12', pullRequest: pr });
+  const idle = contactRow({ ...claude, personalMessage: '#12: 1 check failing', pullRequest: pr });
   assert.deepEqual([tagsOf(idle), idle.note], [['failing'], '']);
   const busy = contactRow({ ...claude, status: 'busy', personalMessage: 'Running npm test', pullRequest: pr });
   assert.deepEqual([tagsOf(busy), busy.note, busy.look], [['failing'], '', 'busy']);

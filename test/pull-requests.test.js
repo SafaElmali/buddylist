@@ -1266,12 +1266,12 @@ function listWith(pullRequests) {
 const telling = (answer) => ({ of: () => answer, lookSoon() {} });
 
 test('an idle contact with a pull request shows it, and how its checks stand, instead of its folder', () => {
-  // The row is narrow, so what the checks say comes before which pull request it is.
-  assert.equal(listWith(telling(failing())).line(), '2 checks failing on pull request #12');
-  assert.equal(listWith(telling(failing(1))).line(), '1 check failing on pull request #12');
-  assert.equal(listWith(telling(running())).line(), 'Checks running on pull request #12');
-  assert.equal(listWith(telling(passed())).line(), 'Checks passed on pull request #12');
-  assert.equal(listWith(telling(running({ state: 'draft' }))).line(), 'Checks running on pull request #12 (draft)');
+  // The line is cut short where it is narrow: which pull request it is comes first, then how its checks stand.
+  assert.equal(listWith(telling(failing())).line(), '#12: 2 checks failing');
+  assert.equal(listWith(telling(failing(1))).line(), '#12: 1 check failing');
+  assert.equal(listWith(telling(running())).line(), '#12: checks running');
+  assert.equal(listWith(telling(passed())).line(), '#12: checks passed');
+  assert.equal(listWith(telling(running({ state: 'draft' }))).line(), '#12 (draft): checks running');
   assert.equal(listWith(telling(pr())).line(), 'Pull request #12', 'no checks, nothing extra');
 });
 
@@ -1309,7 +1309,7 @@ test('a working contact says what it is doing, and a waiting one that it waits f
   emit({ type: 'permission-resolved', requestId: 'r1', decision: 'allow' });
   emit({ type: 'result', isError: false, stopped: false, errorText: '', durationMs: 1, costUsd: 0 });
   emit({ type: 'state', state: 'idle' });
-  assert.equal(app.line(), '2 checks failing on pull request #12', 'idle again');
+  assert.equal(app.line(), '#12: 2 checks failing', 'idle again');
 });
 
 test('a contact whose folder is gone shows the folder, not a pull request remembered from before', () => {
@@ -1359,12 +1359,12 @@ test('the watcher and the list together: a round changes the line, a turn looks 
   app.sessions[0].emit({ type: 'result', isError: false, stopped: false, errorText: '', durationMs: 1, costUsd: 0 });
   await settled();
   assert.deepEqual(asked, [app.dir, app.dir], 'as the turn ends, not on a round a quarter of an hour later');
-  assert.equal(app.line(), 'Checks running on pull request #12');
+  assert.equal(app.line(), '#12: checks running');
   assert.equal(changes, 1);
 
   clock.time += MINUTE;
   await prs.check();
-  assert.equal(app.line(), '2 checks failing on pull request #12');
+  assert.equal(app.line(), '#12: 2 checks failing');
   assert.deepEqual(notes, [[app.host.id, '2 checks failing on pull request #12']]);
 });
 
@@ -1372,13 +1372,10 @@ test('the watcher and the list together: a round changes the line, a turn looks 
 
 test('the menu-bar menu shows the pull request line for an idle contact', () => {
   const app = listWith(telling(failing()));
-  assert.equal(contactLabel(app.view()), '🟢 Claude - 2 checks failing on pull request #12');
+  assert.equal(contactLabel(app.view()), '🟢 Claude - #12: 2 checks failing');
 });
 
 test('the longest line a pull request is likely to make still fits in the menu', () => {
   const long = pr({ number: 12345, state: 'draft', checks: { failing: 12, pending: 0, passed: 30 } });
-  assert.equal(
-    contactLabel(listWith(telling(long)).view()),
-    '🟢 Claude - 12 checks failing on pull request #12345 (draft)'
-  );
+  assert.equal(contactLabel(listWith(telling(long)).view()), '🟢 Claude - #12345 (draft): 12 checks failing');
 });

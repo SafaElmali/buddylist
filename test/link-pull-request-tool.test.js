@@ -83,7 +83,7 @@ test('an agent that changes files links unasked and is told how the pull request
   assert.deepEqual(done, [['link', 'worker', '#45']]);
   assert.deepEqual(questions, [], 'nothing on GitHub changes, and Unlink takes it back');
   assert.match(said, /^Linked pull request #45 \(Round the cart total before tax\) to this conversation: /);
-  assert.match(said, /1 check failing on pull request #45/);
+  assert.match(said, /#45: 1 check failing/);
   assert.equal(tool('worker').ask({ pull_request: '#45' }), false);
 });
 

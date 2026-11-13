@@ -1,13 +1,17 @@
-// Read-only, on-demand stack discovery. All requests are bounded GitHub GETs through gh.
+// Read-only, on-demand stack discovery. All requests are bounded GitHub reads through gh: REST GETs for the
+// stack, and one GraphQL query for how the checks of its open PRs stand.
+import { countChecks } from '../shared/checks.js';
 import {
   githubStack,
   prReference,
   stackForest,
+  stackMembers,
   stackMembership,
   stackParent,
   stackPullRequest,
 } from '../shared/pr-stack.js';
-import { ghTrouble, lastWord, runGh } from './github-lookup.js';
+import { isOpen } from '../shared/pull-request-text.js';
+import { ghGraphql, ghTrouble, lastWord, runGh } from './github-lookup.js';
 
 const LIMIT = 100;
 const MAX_NODES = 24;
@@ -16,6 +20,30 @@ const EMPTY = { current: null, stack: null, roots: [], count: 0, incomplete: fal
 // What GitHub records when a PR's base changes, by hand or when the PR below it merges. REST events
 // do not say which branch it left; only GraphQL does.
 const RETARGETED = new Set(['base_ref_changed', 'automatic_base_change_succeeded']);
+// Said under the stack when how the other PRs' checks stand could not be had. Their rows say nothing of checks then.
+export const CHECKS_UNKNOWN = 'The checks of the other pull requests could not be loaded. Refresh to try again.';
+
+/**
+ * How the checks of several PRs stand, in one query: each PR's newest commit and every check on it, as
+ * `gh pr view --json statusCheckRollup` lists them, so they are counted the same way as the contact list's.
+ * @param {number[]} numbers
+ */
+const checksQuery = (numbers) => `query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+${numbers.map((number) => `    pr${number}: pullRequest(number: ${number}) { ...checks }`).join('\n')}
+  }
+}
+fragment checks on PullRequest {
+  commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) { nodes {
+    __typename
+    ... on CheckRun { name status conclusion startedAt checkSuite { workflowRun { workflow { name } } } }
+    ... on StatusContext { context state }
+  } } } } } }
+}`;
+
+/** A check run as gh lists it, with its workflow's name beside it. A commit status is as it is. */
+const asListed = (check) =>
+  check?.__typename === 'CheckRun' ? { ...check, workflowName: check.checkSuite?.workflowRun?.workflow?.name } : check;
 
 /** `known` must come from the existing verified checkout association, never from the renderer. */
 export async function pullRequestStack(cwd, { known = null, run = runGh } = {}) {
@@ -34,6 +62,34 @@ export async function pullRequestStack(cwd, { known = null, run = runGh } = {}) 
     }
   };
   const path = `repos/${scope.repo}`;
+  /**
+   * The stack, each PR still to be merged with how its checks stand: the conversation's own as the contact list
+   * just heard it, so the two agree, and the rest from one query. Without an answer they say nothing of checks.
+   */
+  const withChecks = async (answer) => {
+    const others = [];
+    for (const pr of stackMembers(answer.roots).filter(isOpen)) {
+      if (pr.url !== known.url) others.push(pr);
+      else if (known.checks) pr.checks = known.checks;
+    }
+    if (!others.length) return answer;
+    if (requests++ >= MAX_REQUESTS) return { ...answer, checksNote: CHECKS_UNKNOWN };
+    const [owner, name] = scope.repo.split('/');
+    try {
+      const query = checksQuery(others.map((pr) => pr.number));
+      const output = await run(cwd, [...ghGraphql(known.url, query), '-f', `owner=${owner}`, '-f', `name=${name}`]);
+      const repository = JSON.parse(output)?.data?.repository;
+      if (!repository) throw new Error('GitHub returned no checks.');
+      for (const pr of others) {
+        const contexts = repository[`pr${pr.number}`]?.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes;
+        const checks = countChecks(Array.isArray(contexts) ? contexts.map(asListed) : []);
+        if (checks) pr.checks = checks;
+      }
+      return answer;
+    } catch {
+      return { ...answer, checksNote: CHECKS_UNKNOWN };
+    }
+  };
   const list = (key, value) => {
     const query = `${key}=${encodeURIComponent(value)}`;
     if (!queryCache.has(query)) {
@@ -81,7 +137,7 @@ export async function pullRequestStack(cwd, { known = null, run = runGh } = {}) 
       const answer = githubStack(current, membership, await ask(`${path}/stacks/${membership.number}`), scope, {
         limit: MAX_NODES,
       });
-      if (answer) return answer;
+      if (answer) return withChecks(answer);
       notices.add(
         `GitHub returned unreadable details for stack #${membership.number}, so only branch relationships are shown.`
       );
@@ -159,5 +215,5 @@ export async function pullRequestStack(cwd, { known = null, run = runGh } = {}) 
         notices.add(`The relationship between #${pr.number} and #${child.number} could not be confirmed.`);
     }
   }
-  return stackForest(current, [...nodes.values()], relationships, [...notices]);
+  return withChecks(stackForest(current, [...nodes.values()], relationships, [...notices]));
 }

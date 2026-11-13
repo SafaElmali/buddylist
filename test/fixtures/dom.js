@@ -191,6 +191,10 @@ export class Element {
   get textContent() {
     return this.childNodes.map((node) => node.textContent).join('');
   }
+  /** A link's address, as its markup gives it: the tests' links are whole addresses already. */
+  get href() {
+    return this.getAttribute('href') ?? '';
+  }
   set textContent(text) {
     this.replaceChildren(new Text(String(text)));
   }

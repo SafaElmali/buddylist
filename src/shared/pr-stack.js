@@ -108,6 +108,9 @@ export function githubStack(current, membership, value, scope, { limit = Infinit
   };
 }
 
+/** Every row of a stack, those on other rows' rails too. */
+export const stackMembers = (prs) => prs.flatMap((pr) => [pr, ...stackMembers(pr.children ?? [])]);
+
 /** Resolve one parent only when a complete lookup has exactly one matching commit. */
 export function stackParent(pr, candidates, { complete = true, defaultBranch = '' } = {}) {
   if (!pr.base.repo || !pr.base.ref || !pr.base.sha) return { kind: 'unknown', candidates: [] };
