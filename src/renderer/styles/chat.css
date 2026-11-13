@@ -2521,7 +2521,8 @@
   content: '▶';
 }
 
-.fold.open .fold-arrow::before {
+.fold.open .fold-arrow::before,
+.todo-fold[aria-expanded='true'] .fold-arrow::before {
   content: '▼';
 }
 
@@ -2650,6 +2651,27 @@
   list-style: none;
 }
 
+/* Every item done: the card is one line while its agent goes on, and the line opens on the items. */
+.todo-list.folded .todo-card {
+  padding-block: 4px;
+}
+
+.todo-fold {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+  color: var(--heading);
+}
+
+.todo-fold .todo-mark {
+  margin-top: 0;
+}
+
+.todo-fold + ul {
+  margin-top: 3px;
+}
+
 .todo-actions {
   display: flex;
   margin-top: 8px;
@@ -2710,16 +2732,16 @@
   color: var(--text-faint, #7a7a7a);
 }
 
-.todo.completed .todo-mark {
+:is(.todo.completed, .todo-fold) .todo-mark {
   color: var(--ok, #2f9a2a);
 }
 
-.todo.completed .todo-mark circle {
+:is(.todo.completed, .todo-fold) .todo-mark circle {
   fill: currentColor;
   stroke: none;
 }
 
-.todo.completed .todo-mark path {
+:is(.todo.completed, .todo-fold) .todo-mark path {
   fill: none;
   stroke: #fff;
   stroke-width: 1.8;

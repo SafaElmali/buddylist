@@ -168,6 +168,12 @@ While a contact works, the last line of the conversation says what it is doing r
 - The status bar says the same, like _"Claude is thinking..."_, and so does the contact's line in the contact list.
 - It goes under the contact's to-do list, where it has one. In a group conversation each agent at work has a line of its own.
 
+Once an agent has ticked off every item on its to-do list, the list folds into one line, like _✓ 6 to-dos done_, while the agent goes on with work it didn't list:
+
+- Click the line, or press **Enter** or **Space** on it, to see the items again. It stays open until the agent changes its list.
+- A list with an item still to do, or in progress, is shown whole, as before. One the agent adds an item to unfolds by itself.
+- The list goes once the agent's turn is over. A later turn doesn't bring it back: not your next message, not a turn the agent starts on its own once a command it left in the background ends, and not opening the window again.
+
 When an agent stops with unfinished to-dos, **Continue with...** on its checklist lets you choose another agent in the conversation. [Invite](group-conversations.md) one first if the agent is alone. The button sends only the chosen agent the remaining items, including which were in progress, and asks it to inspect existing changes, verify what is already complete, and keep its own checklist. The original checklist stays with its agent.
 
 If an agent's tool loses track of its checklist, so that the agent can't tick off a step any more, the checklist says it may be out of date, and shows no step as in progress. Handing it over sends the unfinished steps as to-dos.

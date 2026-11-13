@@ -2264,6 +2264,19 @@
     font-weight: 600;
   }
 
+  & .todo-list.folded .todo-card {
+    padding-block: 7px;
+  }
+
+  & .todo-fold {
+    gap: 9px;
+    color: var(--text);
+  }
+
+  & .todo-fold .todo-mark {
+    margin-top: 0;
+  }
+
   & .todo {
     gap: 9px;
     padding: 3px 0;
