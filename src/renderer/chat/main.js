@@ -2065,6 +2065,8 @@ function onSessionEvent(event) {
       break;
     case 'result':
       conversation.addResult(event);
+      // A to-do list its agent got all done goes with its turn.
+      todos.turnEnded(event);
       renderStatus(ctx, conversation.lastReceived);
       // A turn is over, and the agent may have changed files in it.
       changes.turnEnded();
@@ -2099,6 +2101,8 @@ function onSessionEvent(event) {
       const { loginHint } = speakerOf(ctx.participants, event).provider;
       const hint = /log ?in|auth|api key|credential|401|403/i.test(event.message) ? loginHint : '';
       conversation.addError(event.message, { hint, from: event });
+      // A session that failed in the middle of a turn ends it without a result.
+      todos.turnEnded(event);
       break;
     }
     default:

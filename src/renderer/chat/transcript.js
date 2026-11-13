@@ -50,12 +50,15 @@ export function renderEntries(entries, { conversation, activities, invitations, 
           break;
         case 'result':
           conversation.addResult(entry);
+          // A to-do list done by then went with that turn: a later one doesn't bring it back.
+          todos?.turnEnded(entry);
           break;
         case 'notice':
           conversation.addNotice(entry.text, entry);
           break;
         case 'error':
           conversation.addError(entry.text, { from: entry });
+          todos?.turnEnded(entry);
           break;
         case 'nudge':
           conversation.addNudge(entry.from, entry);
