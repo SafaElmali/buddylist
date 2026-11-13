@@ -1,6 +1,6 @@
 // A pull request, its checks and its conflicts, in words: the hover card's link, the
-// tags on a contact's row and its size beside them, the line of an idle contact in the
-// menu-bar menu, and the toast when checks fail or pass.
+// tags on a contact's row and its size beside them, the line of an idle contact in its
+// conversation's header and the menu-bar menu, and the toast when checks fail or pass.
 
 /** @typedef {import('../main/contact-card.js').PullRequest} PullRequest */
 
@@ -60,16 +60,39 @@ export function pullRequestLine(pr) {
 }
 
 /**
- * The same for a narrow place, such as the menu-bar menu: what stands out comes first,
- * so that is what is left when the line is cut short. "2 checks failing on pull request #12".
+ * The same for a narrow place, such as a conversation's header or the menu-bar menu, in two parts: which pull
+ * request, then what stands out about it. The number leads, so a line cut short still says which one, as a
+ * conversation can have worked on several of a stack: "#12" and "2 checks failing".
+ * @param {PullRequest | null | undefined} pr
+ * @returns {{ which: string, standing: string } | null}  null without a pull request, or nothing that stands out
+ */
+export function pullRequestStatusParts(pr) {
+  const standing = standingText(pr);
+  if (!standing) return null;
+  return { which: `#${pr.number}${pr.state === 'draft' ? ' (draft)' : ''}`, standing };
+}
+
+/**
+ * The same as one line: "#12: 2 checks failing", "#12 (draft): checks running", or "Pull request #12 (merged)".
  * @param {PullRequest | null | undefined} pr
  * @returns {string}  '' without a pull request
  */
 export function pullRequestStatus(pr) {
-  const standing = standingText(pr);
-  if (!standing) return pullRequestLine(pr);
-  const draft = pr.state === 'draft' ? ' (draft)' : '';
-  return `${standing[0].toUpperCase()}${standing.slice(1)} on pull request #${pr.number}${draft}`;
+  const parts = pullRequestStatusParts(pr);
+  return parts ? `${parts.which}: ${parts.standing}` : pullRequestLine(pr);
+}
+
+/**
+ * The tag for how a pull request's checks stand, as a contact's row and a PR stack's row wear it.
+ * @param {PullRequest | null | undefined} pr
+ * @returns {{ kind: 'failing' | 'running' | 'passed', text: string } | null}  null with no checks to tell of
+ */
+export function checksTag(pr) {
+  const checks = checksStanding(pr);
+  if (checks === 'failing') return { kind: 'failing', text: `${pr.checks.failing} failing` };
+  if (checks === 'running') return { kind: 'running', text: 'Running' };
+  if (checks === 'passed') return { kind: 'passed', text: 'Passed' };
+  return null;
 }
 
 /**
@@ -87,10 +110,8 @@ export function pullRequestTags(pr) {
   if (pr.state === 'closed') return [{ kind: 'closed', text: 'Closed' }];
   const tags = [];
   if (hasConflict(pr)) tags.push({ kind: 'conflict', text: 'Conflict' });
-  const checks = checksStanding(pr);
-  if (checks === 'failing') tags.push({ kind: 'failing', text: `${pr.checks.failing} failing` });
-  else if (checks === 'running') tags.push({ kind: 'running', text: 'Running' });
-  else if (checks === 'passed') tags.push({ kind: 'passed', text: 'Passed' });
+  const checks = checksTag(pr);
+  if (checks) tags.push(checks);
   if (!tags.length) tags.push(pr.state === 'draft' ? { kind: 'draft', text: 'Draft' } : { kind: 'open', text: 'Open' });
   return tags;
 }

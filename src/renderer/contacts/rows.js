@@ -40,7 +40,8 @@ const CHECKS_TAGS = new Set(['failing', 'running', 'passed']);
 /**
  * What a click on a row's tag does in the contact's conversation, and what pointing at the tag says of it:
  * the tag for its checks shows them beside the conversation, and Conflict asks the contact to resolve the
- * conflicts, as Fix conflicts does there. Any other opens the pull request on GitHub, and has neither.
+ * conflicts, as Fix conflicts does there. Any other opens the pull request on GitHub, and has neither. The tag
+ * for its checks names the pull request first, then its title: a conversation can have worked on several of a stack.
  * @param {string} kind
  * @param {any} pr
  * @param {string} name  the contact's
@@ -54,10 +55,11 @@ function tagAction(kind, pr, name) {
     };
   }
   if (!CHECKS_TAGS.has(kind)) return {};
-  const checks = checksText(pr);
   return {
     action: 'checks',
-    title: `${checks.charAt(0).toUpperCase()}${checks.slice(1)}\nClick to see them beside the conversation.`,
+    title: [`#${pr.number}: ${checksText(pr)}`, pr.title, 'Click to see them beside the conversation.']
+      .filter(Boolean)
+      .join('\n'),
   };
 }
 

@@ -53,7 +53,7 @@ import {
 } from './computer.js';
 import { commitFiles, diffOf, fileOf, listChanges, placeOf } from './changes.js';
 import { NothingToWaitFor, setAutoMerge } from './auto-merge.js';
-import { pullRequestChecks, rerunFailedChecks } from './checks.js';
+import { pullRequestChecks, rerunFailedChecks, stackPage } from './checks.js';
 import { listFolder, placeToOpen, readText, toSend } from './files.js';
 import { mediaToDownload } from './media.js';
 import { FileSuggestions } from './file-suggestions.js';
@@ -2000,18 +2000,21 @@ export function registerIpc({
 
   // The Checks tab: the checks of the pull request of the folder's branch, each with how it stands, and
   // each failed one with why.
-  handleWithPath(REQUESTS.checksList, (_e, contactId) => {
+  // Or of another pull request of its stack, clicked in the PR stack tab: only one of the same repository.
+  handleWithPath(REQUESTS.checksList, (_e, contactId, url) => {
     const cwd = folderOf(contactId);
     // A folder on no branch has the pull request the list knows it by.
-    return pullRequestChecks(cwd, { known: pullRequests.of({ cwd }) });
+    const known = pullRequests.of({ cwd });
+    return pullRequestChecks(cwd, { known, page: stackPage(url, known) });
   });
 
   // "Re-run failed" in the Checks tab: the failed jobs of the folder's pull request start over on GitHub,
   // as you, when you click for it. The list hears at once that they run again, and a toast says how they end.
-  handleWithPath(REQUESTS.checksRerun, async (_e, contactId) => {
+  handleWithPath(REQUESTS.checksRerun, async (_e, contactId, url) => {
     if (demo) throw new Error('This is the demo: nothing is changed on GitHub.');
     const cwd = folderOf(contactId);
-    await rerunFailedChecks(cwd, { known: pullRequests.of({ cwd }) });
+    const known = pullRequests.of({ cwd });
+    await rerunFailedChecks(cwd, { known, page: stackPage(url, known) });
     pullRequests.lookSoon(cwd);
   });
 

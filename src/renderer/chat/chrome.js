@@ -18,6 +18,7 @@ import {
 import { runButton } from './run.js';
 import { inAnswerOrder } from '../../shared/answer-order.js';
 import { fixConflictsTip, pullRequestButton } from '../../shared/pull-request-button.js';
+import { pullRequestStatus, pullRequestStatusParts } from '../../shared/pull-request-text.js';
 import { THIS_COMPUTER } from '../../shared/projects.js';
 
 /** @typedef {import('../../providers/contract.js').Participant} Participant */
@@ -150,10 +151,15 @@ function renderToLine(ctx) {
   // While idle the "personal message" is just the folder, already shown in <…>, unless
   // the contact has a pull request: that line is worth showing here too.
   const doing = contact.personalMessage !== contact.location ? contact.personalMessage : '';
+  // How its pull request stands leads with which one, in a part of its own that never gives way: cut short, the line
+  // still says which pull request, as a conversation can have worked on several of a stack.
+  const { pullRequest } = contact;
+  const parts = doing && doing === pullRequestStatus(pullRequest) ? pullRequestStatusParts(pullRequest) : null;
   const line = $('#to-line');
   // Another name is being typed there for one of them (see rename in main.js): it is drawn again once it is in.
   if ($('.name-edit', line)) return;
   line.classList.toggle('several', isGroup(participants));
+  line.classList.toggle('with-pr', Boolean(parts));
   line.style.setProperty('--people', String(participants.length));
   line.replaceChildren(
     ...el(
@@ -163,8 +169,11 @@ function renderToLine(ctx) {
             html`${raw(buddyOf(ctx, p))}<span class="to-name" data-id="${p.id}"
                 >${p.name}${i < participants.length - 1 ? ',' : ''}</span
               >`
-        )} <span class="to-addr">&lt;${addressOf(contact)}&gt;</span
-        ><span class="to-pm">${doing}</span>${fixConflictsHtml(contact, participants[0])}
+        )}
+        <span class="to-addr">&lt;${addressOf(contact)}&gt;</span
+        >${parts ? html`<span class="to-pr">${parts.which}:</span>` : ''}<span class="to-pm"
+          >${parts ? parts.standing : doing}</span
+        >${fixConflictsHtml(contact, participants[0])}
       </div>`
     ).childNodes
   );

@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { pullRequestStack } from '../src/main/pr-stack.js';
 import { prReference, stackForest, stackParent, stackPullRequest } from '../src/shared/pr-stack.js';
-import { stackContent, stackHeading } from '../src/renderer/chat/pr-stack.js';
+import { PrStack, stackContent, stackHeading } from '../src/renderer/chat/pr-stack.js';
+import { page } from './fixtures/dom.js';
 import { inStack, issueEvent, stackResponse } from './fixtures/pr-stack-github.js';
 
 const scope = { host: 'github.com', repo: 'o/r' };
@@ -20,10 +21,41 @@ function pr(number, head, base = 'main', extra = {}) {
 }
 const normalized = (raw) => stackPullRequest(raw, scope);
 const notFound = () => Object.assign(new Error('gh failed'), { stderr: 'gh: Not Found (HTTP 404)' });
-function fixture(prs, current = prs[0], alter = () => undefined, { stacks = {}, events = {} } = {}) {
+/** One check as GraphQL lists it on a PR's newest commit. */
+const checkRun = (name, conclusion, { status = 'COMPLETED', workflow = 'CI', at = '2026-11-13T09:00:00Z' } = {}) => ({
+  __typename: 'CheckRun',
+  name,
+  status,
+  conclusion: status === 'COMPLETED' ? conclusion : null,
+  startedAt: at,
+  checkSuite: { workflowRun: { workflow: { name: workflow } } },
+});
+/** GraphQL's answer for the PRs a query names (`pr<number>: pullRequest(number: <number>)`), with their checks. */
+function checksAnswer(query, checks) {
+  const repository = {};
+  for (const [, alias, number] of query.matchAll(/(pr\d+): pullRequest\(number: (\d+)\)/g)) {
+    const nodes = checks[number];
+    repository[alias] = {
+      commits: { nodes: [{ commit: { statusCheckRollup: nodes ? { contexts: { nodes } } : null } }] },
+    };
+  }
+  return { data: { repository } };
+}
+function fixture(
+  prs,
+  current = prs[0],
+  alter = () => undefined,
+  { stacks = {}, events = {}, checks = {}, known } = {}
+) {
   const calls = [];
+  const graphql = [];
   const run = async (cwd, args) => {
     assert.equal(cwd, '/checkout');
+    if (args[1] === 'graphql') {
+      graphql.push(args);
+      const query = args[args.indexOf('-f') + 1].replace(/^query=/, '');
+      return JSON.stringify(typeof checks === 'function' ? checks(query) : checksAnswer(query, checks));
+    }
     assert.deepEqual(args.slice(0, 5), ['api', '--method', 'GET', '--hostname', 'github.com']);
     assert.equal(args.length, 6);
     calls.push(args.at(-1));
@@ -48,7 +80,11 @@ function fixture(prs, current = prs[0], alter = () => undefined, { stacks = {}, 
     const base = url.searchParams.get('base');
     return JSON.stringify(prs.filter((item) => (head ? `o:${item.head.ref}` === head : item.base.ref === base)));
   };
-  return { calls, load: () => pullRequestStack('/checkout', { known: { url: current.html_url }, run }) };
+  return {
+    calls,
+    graphql,
+    load: () => pullRequestStack('/checkout', { known: { url: current.html_url, ...known }, run }),
+  };
 }
 const chain = () => {
   const a = pr(8, 'foundation');
@@ -446,7 +482,7 @@ test('a GitHub stack reads top first, down its rail to the base branch, with the
   const html = markup(stackContent(answer));
   assert.equal(html.match(/aria-current="true"/g).length, 1);
   assert.match(html, /aria-current="true"[^>]*>\s*<span class="pr-stack-mark">/);
-  assert.match(html, /<li class="pr-stack-node" data-state="merged">/);
+  assert.match(html, /<li class="pr-stack-node" data-state="merged"\s*>/);
   // Each row opens its PR, and its tooltip has the whole title and both branches.
   assert.match(
     html,
@@ -576,4 +612,178 @@ test('titles and branches are text, never markup', () => {
   const html = markup(stackContent(stackForest(evil, [evil], new Map([[evil.url, { kind: 'base', candidates: [] }]]))));
   assert.doesNotMatch(html, /<script|<img/);
   assert.match(html, /&lt;script&gt;/);
+});
+
+// ---- how the checks of each PR stand ------------------------------------------------------------
+
+// A stack of five-digit PRs, as a busy repository has: the bottom one merged, then one passing, one failing, one
+// running and a draft with no checks at all on top.
+const checkedStack = () =>
+  [
+    pr(48210, 'cart/1-totals', 'main', { state: 'closed', merged_at: '2026-11-10T10:00:00Z' }),
+    pr(48211, 'cart/2-tax-lines'),
+    pr(48212, 'cart/3-rounding'),
+    pr(48213, 'cart/4-receipt'),
+    pr(48214, 'cart/5-help', 'main', { draft: true }),
+  ].map((item, index, all) => inStack(item, { number: 902, position: index + 1, size: all.length }));
+const CHECKS = {
+  48210: [checkRun('test', 'FAILURE')],
+  48211: [checkRun('lint', 'SUCCESS'), checkRun('test', 'SUCCESS')],
+  48212: [checkRun('lint', 'SUCCESS'), checkRun('test', 'FAILURE')],
+  48213: [checkRun('lint', 'SUCCESS'), checkRun('test', null, { status: 'IN_PROGRESS' })],
+};
+const checksOf = (answer) => Object.fromEntries(answer.roots.map((row) => [row.number, row.checks ?? null]));
+
+test('each open PR of a stack says how its checks stand, all from one GraphQL request', async () => {
+  const prs = checkedStack();
+  const known = { checks: { failing: 0, pending: 0, passed: 4 } };
+  const { load, calls, graphql } = withGithubStack(prs, prs[3], undefined, { checks: CHECKS, known });
+  const answer = await load();
+  assert.deepEqual(checksOf(answer), {
+    48210: null, // merged: its checks no longer matter, and are not asked about
+    48211: { failing: 0, pending: 0, passed: 2 },
+    48212: { failing: 1, pending: 0, passed: 1 },
+    48213: { failing: 0, pending: 0, passed: 4 }, // the conversation's own, as the contact list just heard it
+    48214: null, // a draft with no checks
+  });
+  assert.deepEqual(calls, ['repos/o/r/pulls/48213', 'repos/o/r/stacks/902'], 'the stack itself, as before');
+  assert.equal(graphql.length, 1);
+  const [args] = graphql;
+  assert.deepEqual(args.slice(0, 4), ['api', 'graphql', '--hostname', 'github.com']);
+  assert.deepEqual(args.slice(-4), ['-f', 'owner=o', '-f', 'name=r']);
+  const query = args[5];
+  assert.deepEqual(
+    [...query.matchAll(/pr(\d+): pullRequest/g)].map(([, number]) => Number(number)),
+    [48211, 48212, 48214],
+    'the open ones but the conversation’s own'
+  );
+  assert.equal(answer.checksNote, undefined);
+});
+
+test('checks are counted as the contact list counts them: each once, as its latest run left it', async () => {
+  const prs = checkedStack();
+  const checks = {
+    48212: [
+      checkRun('test', 'FAILURE', { at: '2026-11-13T09:00:00Z' }),
+      checkRun('test', 'SUCCESS', { at: '2026-11-13T09:05:00Z' }), // run again, and passed
+      checkRun('test', 'FAILURE', { workflow: 'Nightly' }), // the same name in another workflow is another check
+      checkRun('docs', 'SKIPPED'),
+      { __typename: 'StatusContext', context: 'ci/legacy', state: 'PENDING' },
+      null,
+    ],
+  };
+  const answer = await withGithubStack(prs, prs[1], undefined, { checks }).load();
+  assert.deepEqual(checksOf(answer)[48212], { failing: 1, pending: 1, passed: 1 });
+});
+
+test('with no other PR still to be merged, GitHub is not asked about checks at all', async () => {
+  const prs = githubStack();
+  const { load, graphql } = withGithubStack(prs, prs[3], undefined, {
+    known: { checks: { failing: 1, pending: 0, passed: 0 } },
+  });
+  const answer = await load();
+  assert.equal(graphql.length, 0);
+  assert.deepEqual(checksOf(answer)[870], { failing: 1, pending: 0, passed: 0 });
+});
+
+test('checks that cannot be had leave the stack as it is, and say so under it', async () => {
+  const prs = checkedStack();
+  for (const checks of [
+    () => ({ errors: [{ message: 'Something went wrong' }] }),
+    () => {
+      throw Object.assign(new Error('gh failed'), { stderr: 'HTTP 502' });
+    },
+  ]) {
+    const answer = await withGithubStack(prs, prs[3], undefined, { checks }).load();
+    assert.equal(answer.checksNote, 'The checks of the other pull requests could not be loaded. Refresh to try again.');
+    assert.equal(answer.count, 5);
+    assert.ok(answer.roots.every((row) => !row.checks));
+    assert.match(shown(answer), /could not be loaded\. Refresh to try again\. .*#48214/);
+  }
+});
+
+test('a large stack still asks no more than 60 requests in all, its checks included', async () => {
+  const prs = [pr(1, 'branch-1')];
+  for (let number = 2; number <= 35; number++)
+    prs.push(pr(number, `branch-${number}`, '', { base: { ...prs.at(-1).head } }));
+  const { load, calls, graphql } = fixture(prs, prs[0], undefined, { checks: { 2: [checkRun('test', 'FAILURE')] } });
+  const answer = await load();
+  assert.ok(calls.length + graphql.length <= 60, `${calls.length} + ${graphql.length}`);
+  assert.ok(graphql.length <= 1);
+  // A GitHub stack of 24 shown takes three: the PR, its stack, and the checks of all the others.
+  const many = Array.from({ length: 30 }, (_, index) =>
+    inStack(pr(40000 + index, `part-${index}`), { number: 902, position: index + 1, size: 30 })
+  );
+  const big = withGithubStack(many, many[27]);
+  await big.load();
+  assert.deepEqual([big.calls.length, big.graphql.length], [2, 1]);
+  assert.equal(
+    [...big.graphql[0][5].matchAll(/pullRequest\(/g)].length,
+    23,
+    'the 24 shown, but the conversation’s own'
+  );
+  assert.ok(answer.count <= 24);
+});
+
+test('a stack row wears its checks as the contact list does, and a failing one is found at a glance', async () => {
+  const prs = checkedStack();
+  const known = { checks: { failing: 0, pending: 0, passed: 4 } };
+  const answer = await withGithubStack(prs, prs[3], undefined, { checks: CHECKS, known }).load();
+  const html = markup(stackContent(answer));
+  const node = (number) =>
+    new RegExp(`<li class="pr-stack-node"[^>]*>\\s*<a[^>]*pull/${number}"[\\s\\S]*?</li>`).exec(html)[0];
+  assert.match(node(48212), /^<li class="pr-stack-node" data-state="open"\s+data-checks="failing">/);
+  assert.match(
+    node(48212),
+    /<span class="pr-tag pr-stack-checks" data-kind="failing"><svg[^>]*>.*<\/svg>1 failing<\/span>/
+  );
+  assert.match(
+    node(48212),
+    /title="#48212 Pull request 48212&#10;cart\/3-rounding into main&#10;1 check failing\. Click to see its checks\."/
+  );
+  assert.match(node(48213), /data-checks="passed">[\s\S]*data-kind="passed"[^>]*>.*Passed<\/span>/);
+  assert.match(node(48211), /data-kind="passed"/);
+  assert.doesNotMatch(node(48210), /data-checks|pr-tag/, 'merged: no checks');
+  assert.doesNotMatch(node(48214), /data-checks|pr-tag/, 'no checks: nothing said');
+  assert.match(shown(answer), /#48212 Pull request 48212 Open …\/3-rounding 1 failing 3 of 5/);
+});
+
+test('the step bar colours a PR still to be merged by its checks, and says them on each step', async () => {
+  const prs = checkedStack();
+  const known = { checks: { failing: 0, pending: 1, passed: 1 } };
+  const answer = await withGithubStack(prs, prs[3], undefined, { checks: CHECKS, known }).load();
+  const html = markup(stackHeading(answer));
+  const checksAt = [...html.matchAll(/<i\s+data-state="(\w+)"\s*(?:data-checks="(\w+)")?/g)].map(([, state, checks]) =>
+    checks ? `${state}:${checks}` : state
+  );
+  assert.deepEqual(checksAt, ['merged', 'open:passed', 'open:failing', 'open:running', 'draft:none']);
+  assert.match(html, /title="3 of 5: #48212, Open, 1 check failing"/);
+  assert.match(html, /title="4 of 5: #48213, Open, checks running"\s+data-current/);
+  assert.match(html, /title="5 of 5: #48214, Draft"/);
+});
+
+test('a click on a failing row shows its checks beside the conversation; any other row opens GitHub', async (t) => {
+  page(t);
+  const prs = checkedStack();
+  const answer = await withGithubStack(prs, prs[3], undefined, { checks: CHECKS }).load();
+  const opened = [];
+  const shownChecks = [];
+  const view = new PrStack(
+    { shows: () => true },
+    { contactId: 'c' },
+    { list: async () => answer, open: (url) => opened.push(url), checks: (pr) => shownChecks.push(pr) }
+  );
+  await view.refresh();
+  const row = (number) =>
+    view.content
+      .querySelectorAll('.pr-stack-row')
+      .find((link) => link.getAttribute('href') === `https://github.com/o/r/pull/${number}`);
+  row(48212).querySelector('.pr-stack-title').click();
+  assert.deepEqual(shownChecks, [
+    { url: 'https://github.com/o/r/pull/48212', number: 48212, title: 'Pull request 48212' },
+  ]);
+  row(48211).click();
+  row(48210).click();
+  assert.deepEqual(opened, ['https://github.com/o/r/pull/48211', 'https://github.com/o/r/pull/48210']);
+  assert.equal(shownChecks.length, 1);
 });

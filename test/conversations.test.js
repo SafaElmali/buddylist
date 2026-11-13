@@ -407,7 +407,7 @@ test("a contact's view carries its pull request for the row's tags, whether it i
     pullRequests: { of: () => pr, lookSoon: () => {} },
   });
   let view = conversations.view(store.getContact(contact.id));
-  assert.deepEqual([view.pullRequest, view.personalMessage], [pr, 'Merge conflict on pull request #12']);
+  assert.deepEqual([view.pullRequest, view.personalMessage], [pr, '#12: merge conflict']);
 
   conversations.send(contact.id, { text: 'fix it', images: [] });
   sessions[0].emit({ type: 'state', state: 'working' });
@@ -3348,7 +3348,7 @@ test('a contact waiting for you, or answering again, says that before anything a
   assert.deepEqual(row(), ['busy', 'Running npm test']);
   emit(TURN_OVER);
   emit({ type: 'state', state: 'idle' });
-  assert.deepEqual(row(), ['online', 'Merge conflict on pull request #12']);
+  assert.deepEqual(row(), ['online', '#12: merge conflict']);
 });
 
 test('a session that ends, or a new conversation, leaves no helpers at work behind', () => {

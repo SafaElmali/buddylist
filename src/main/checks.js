@@ -1,10 +1,12 @@
 // The checks of a contact's pull request, each with how it stands, for the Checks tab
-// beside its conversation. Asked of the `gh` CLI for the branch the folder is on, or, for a
-// folder on no branch, for the pull request the contact list knows it by. A failed
-// check run by GitHub Actions comes with why it failed. Re-running the failed ones is the
-// one thing written to GitHub: when you click for it, as you, and only for runs gh lists
-// for the folder's own pull request.
+// beside its conversation. Asked of the `gh` CLI for the pull request the contact list shows,
+// or for the branch the folder is on where it shows none still to be merged; or for another
+// pull request of its stack, clicked in the PR stack tab. A failed check run by GitHub Actions
+// comes with why it failed. Re-running the failed ones is the one thing written to GitHub: when
+// you click for it, as you, and only for runs gh lists for the pull request the tab shows.
 import { runsGoing } from '../shared/checks.js';
+import { prReference } from '../shared/pr-stack.js';
+import { isOpen } from '../shared/pull-request-text.js';
 import { branchCheckedOut, pullRequestPageOf } from './contact-card.js';
 import { ghTrouble, lastWord, runGh } from './github-lookup.js';
 
@@ -126,23 +128,46 @@ async function reasonFor(cwd, check, run) {
  * @property {typeof runGh} [run]  gh; replaceable in tests
  * @property {import('./contact-card.js').PullRequest | null} [known]  the pull request the contact list knows
  *   the folder by
+ * @property {string | null} [page]  another pull request's page, of the folder's stack, checked with stackPage
  * @property {(cwd: string) => Promise<boolean | null>} [onBranch]  git, asked whether the folder has a branch
  *   checked out; replaceable in tests
  */
 
 /**
- * The page of the pull request gh is asked about for a folder. One on no branch, as an agent leaves it with
- * `git checkout origin/main` once its pull request is merged, has no branch for gh to find one of: the one the
- * contact list knows it by is still its own (see contact-card.js). So is one linked to it by hand.
+ * Another pull request of a folder's stack, as the PR stack tab asks for its checks: one in the same repository, on
+ * the same GitHub, as the one the contact list knows the folder by. Nothing else is asked about, or re-run.
+ * @param {unknown} url  what the window asked for; none for the folder's own
+ * @param {{ url?: string } | null} known  the pull request the contact list knows the folder by
+ * @returns {string | null}  its page; null for the folder's own
+ * @throws {Error} for any other
+ */
+export function stackPage(url, known) {
+  if (url == null) return null;
+  const asked = prReference(url);
+  const own = prReference(known?.url);
+  if (!asked || !own || asked.host !== own.host || asked.repo.toLowerCase() !== own.repo.toLowerCase()) {
+    throw new Error('That pull request is not in this conversation’s repository.');
+  }
+  return /** @type {string} */ (url);
+}
+
+/**
+ * The page of the pull request gh is asked about for a folder: the one the contact list shows while it is still
+ * to be merged, so the tab tells of the one the contact's row does, whatever name its branch was pushed under,
+ * which gh can't always find by the branch (see pull-request-association.js). One linked by hand too, wherever the
+ * folder is. One on no branch, as an agent leaves it with `git checkout origin/main` once its pull request is
+ * merged, has no branch for gh to find one of: the one the contact list knows it by is still its own (see
+ * contact-card.js). Otherwise the branch's, which may have a new one by now.
  * @param {string} cwd
  * @param {Asking} asking
  * @returns {Promise<string | null>}  null to ask about the branch it is on
  */
-async function pageFor(cwd, { known = null, onBranch = branchCheckedOut }) {
-  const page = pullRequestPageOf(known?.url);
-  // One linked by hand is not the branch's: gh is asked about it by its page wherever the folder is.
-  if (page && known.linked) return page;
-  return page && (await onBranch(cwd)) === false ? page : null;
+async function pageFor(cwd, { known = null, onBranch = branchCheckedOut, page = null }) {
+  if (page) return page;
+  const own = pullRequestPageOf(known?.url);
+  if (!own) return null;
+  if (known.linked || isOpen(known)) return own;
+  return (await onBranch(cwd)) === false ? own : null;
 }
 
 /**
@@ -182,21 +207,23 @@ async function listChecks(cwd, run, page) {
 }
 
 /**
- * The checks of the pull request of the branch a folder is on, each failed one with why.
+ * The checks of a folder's pull request, or of another of its stack, each failed one with why.
  * @param {string} cwd
  * @param {Asking} [asking]
- * @returns {Promise<{ pullRequest: boolean, checks: Check[] }>}  `pullRequest`: the branch has one. Throws
- *   a message for the user when GitHub can't be asked: no gh, or not signed in
+ * @returns {Promise<{ pullRequest: boolean, checks: Check[], url?: string }>}  `pullRequest`: the branch has one.
+ *   `url`: the page of the one gh was asked about, which the tab names; none where it was asked about the branch.
+ *   Throws a message for the user when GitHub can't be asked: no gh, or not signed in
  */
 export async function pullRequestChecks(cwd, asking = {}) {
   const { run = runGh } = asking;
-  const answer = await listChecks(cwd, run, await pageFor(cwd, asking));
+  const page = await pageFor(cwd, asking);
+  const answer = await listChecks(cwd, run, page);
   const checks = await Promise.all(
     answer.checks.map(async (check) =>
       check.standing === 'fail' ? { ...check, reason: await reasonFor(cwd, check, run) } : check
     )
   );
-  return { ...answer, checks };
+  return { ...answer, checks, ...(page && { url: page }) };
 }
 
 /**

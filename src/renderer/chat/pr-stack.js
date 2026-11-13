@@ -1,7 +1,8 @@
 // Read-only PR relationships, registered by chat/main.js using the shared pane's restoration and pin hooks.
 // The stack reads top first, as GitHub's own stack popover does: what builds on a PR sits above it, and a
 // rail runs down through the PRs to the branch they all go into.
-import { prReference } from '../../shared/pr-stack.js';
+import { prReference, stackMembers as members } from '../../shared/pr-stack.js';
+import { checksTag, checksText, isOpen } from '../../shared/pull-request-text.js';
 import { el, errorText, html, raw } from '../lib/dom.js';
 import { listIcon, smallIcon, tagIcon } from '../lib/icons.js';
 
@@ -16,7 +17,6 @@ const UNCERTAIN = {
 };
 
 const pullRequests = (count) => `${count} pull request${count === 1 ? '' : 's'}`;
-const members = (prs) => prs.flatMap((pr) => [pr, ...members(pr.children)]);
 
 /** A stack's head branches share a prefix (`owner/topic/`): each row shows what is its own, and its tooltip the rest. */
 function branchLabel(refs) {
@@ -27,14 +27,28 @@ function branchLabel(refs) {
   return (ref) => (!ref ? 'Unknown branch' : prefix && ref !== prefix ? `…/${ref.slice(prefix.length)}` : ref);
 }
 
+/** A failing PR's row shows its checks when clicked, not its page. */
+const failing = (pr) => checksTag(pr)?.kind === 'failing';
+
+/** How a PR's checks stand, for its row's tooltip: "1 check failing" and what a click on it does then. */
+function checksLine(pr) {
+  const said = checksText(pr);
+  if (!said) return '';
+  const sentence = `${said[0].toUpperCase()}${said.slice(1)}`;
+  return failing(pr) ? `${sentence}. Click to see its checks.` : sentence;
+}
+
 function row(pr, answer, label) {
   const isCurrent = pr.url === answer.current;
   const branches = `${pr.head.ref || 'Unknown branch'} into ${pr.base.ref || 'unknown base'}`;
-  return html`<li class="pr-stack-node" data-state="${pr.state}">
+  // How its checks stand, worn as the contact list's rows wear it: a failing one is found at a glance.
+  const tag = checksTag(pr);
+  const checks = checksLine(pr);
+  return html`<li class="pr-stack-node" data-state="${pr.state}" ${tag ? html`data-checks="${tag.kind}"` : ''}>
     <a
       class="pr-stack-row"
       href="${pr.url}"
-      title="#${pr.number} ${pr.title}&#10;${branches}"
+      title="#${pr.number} ${pr.title}&#10;${branches}${checks ? html`&#10;${checks}` : ''}"
       ${isCurrent ? raw('aria-current="true"') : ''}
     >
       <span class="pr-stack-mark">${raw((tagIcon[pr.state] ?? tagIcon.open)())}</span>
@@ -45,6 +59,7 @@ function row(pr, answer, label) {
       <span class="pr-stack-line pr-stack-detail">
         <span class="pr-stack-state" data-state="${pr.state}">${STATES[pr.state] || 'Unknown'}</span>
         <code class="pr-stack-branch">${label(pr.head.ref)}</code>
+        ${tag ? html`<span class="pr-tag pr-stack-checks" data-kind="${tag.kind}">${raw(tagIcon[tag.kind]())}${tag.text}</span>` : ''}
         ${pr.position ? html`<span class="pr-stack-position">${pr.position} of ${answer.stack.size}</span>` : ''}
       </span>
     </a>
@@ -123,7 +138,8 @@ function note(answer) {
 
 /**
  * A GitHub stack's steps, bottom to top from left to right: a segment per PR in its state, the current
- * one ringed, and those beyond the ones shown left blank. Only where GitHub confirmed the order.
+ * one ringed, and those beyond the ones shown left blank. Only where GitHub confirmed the order. One still
+ * to be merged is in the colour of its checks instead, so a failing one is not read as one more green step.
  */
 function steps({ stack, roots, current }) {
   if (!stack?.ordered || stack.size < 2) return '';
@@ -131,10 +147,12 @@ function steps({ stack, roots, current }) {
   const step = (position) => {
     const pr = at.get(position);
     const where = `${position} of ${stack.size}`;
+    const checks = pr && checksText(pr);
     return pr
       ? html`<i
           data-state="${pr.state}"
-          title="${where}: #${pr.number}, ${STATES[pr.state]}"
+          ${isOpen(pr) ? html`data-checks="${checksTag(pr)?.kind ?? 'none'}"` : ''}
+          title="${where}: #${pr.number}, ${STATES[pr.state]}${checks ? `, ${checks}` : ''}"
           ${pr.url === current ? raw('data-current') : ''}
         ></i>`
       : html`<i data-state="hidden" title="${where}: not shown"></i>`;
@@ -178,6 +196,7 @@ export function stackContent(answer) {
           </div>`
         : ''
     }
+    ${answer.checksNote ? html`<p class="pr-stack-note" role="status">${answer.checksNote}</p>` : ''}
     ${
       answer.stack
         ? githubChain(answer, label)
@@ -193,11 +212,16 @@ export function stackContent(answer) {
 
 export class PrStack {
   #request = 0;
+  /** The PRs shown, by page: what a click on a row is about. */
+  #shown = new Map();
   #pending = false;
   #contactId = null;
   #changedWhileLoading = false;
 
-  /** handlers.list loads the verified contact's stack; handlers.open opens a GitHub PR page. */
+  /**
+   * handlers.list loads the verified contact's stack; handlers.open opens a GitHub PR page; handlers.checks shows a
+   * PR's checks beside the conversation, for a row whose checks fail.
+   */
   constructor(pane, ctx, handlers) {
     this.pane = pane;
     this.ctx = ctx;
@@ -222,7 +246,11 @@ export class PrStack {
       const link = event.target.closest('a[href]');
       if (!link) return;
       event.preventDefault();
-      if (prReference(link.href)) this.handlers.open(link.href);
+      if (!prReference(link.href)) return;
+      // A PR whose checks fail opens them, where why each failed is said: the reason to look at it.
+      const pr = link.classList.contains('pr-stack-row') && this.#shown.get(link.href);
+      if (pr && failing(pr)) this.handlers.checks({ url: pr.url, number: pr.number, title: pr.title });
+      else this.handlers.open(link.href);
     });
   }
 
@@ -291,6 +319,7 @@ export class PrStack {
       const answer = await this.handlers.list(contactId);
       if (isCurrent()) {
         this.#heading(answer);
+        this.#shown = new Map(members(answer.roots ?? []).map((pr) => [pr.url, pr]));
         this.content.replaceChildren(el(stackContent(answer)));
         if (fresh) this.#reveal();
       }
