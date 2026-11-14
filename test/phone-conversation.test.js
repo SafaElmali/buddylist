@@ -101,6 +101,7 @@ const setup = (
     more = false,
     announcer = false,
     approvals = [{ mode: 'default', label: 'Yes, start', primary: true }],
+    picture = async () => null,
   } = {}
 ) => {
   const document = page(t);
@@ -145,6 +146,7 @@ const setup = (
       answered.push([contactId, requestId, answer]);
       return messenger.chat.responded?.(contactId, requestId, answer) ?? null;
     },
+    picture,
   };
   messenger.contacts = { setUnread: async () => {} };
   let screen = null;
@@ -2011,4 +2013,310 @@ test('a message typed in the box is sent as typed, so it can tag the conversatio
   root.querySelector('#composer').fire('submit');
   await settle();
   assert.deepEqual(sent.at(-1)[1].typed, true);
+});
+
+// ---- Pictures: yours, a call's and a reply's, asked of the Mac as they come into view -------------------------
+
+const { AT_ONCE, NOT_LOADED } = await import('../src/renderer/phone/pictures.js');
+const { clampView, countText, MOST_ZOOM, sharedName, swipeTo, zoomAt } =
+  await import('../src/renderer/phone/viewer.js');
+
+/** What chat:picture answers, as the Mac does: the phone's copy of a 3 by 2 picture. */
+const copyOf = (more = {}) => ({
+  type: 'image/png',
+  width: 300,
+  height: 200,
+  data: 'iVBORw0KGgo=',
+  part: 0,
+  parts: 1,
+  ...more,
+});
+/** A chat:picture that answers each as `answer` says, and keeps what it was asked. */
+const pictureAsked = (answer = async () => copyOf()) => {
+  const asked = [];
+  const picture = (...args) => (asked.push(args), answer(...args));
+  return { asked, picture };
+};
+
+test('your pictures are in your message, each in its shape until it is loaded, asked for one by one', async (t) => {
+  const waiting = [];
+  const { asked, picture } = pictureAsked(() => new Promise((resolve) => waiting.push(() => resolve(copyOf()))));
+  const history = [
+    { id: 'u1', kind: 'user', text: 'look', images: 2, pictureSizes: [{ width: 300, height: 200 }, null] },
+    { id: 'u2', kind: 'user', text: 'one', images: 1, pictureSizes: [{ width: 30, height: 40 }] },
+  ];
+  const { open, root } = setup(t, { history, picture });
+  await open('a');
+  const [first, second] = root.querySelectorAll('.ph-me');
+  assert.equal(first.querySelector('.ph-pics').getAttribute('data-count'), '2');
+  const tiles = first.querySelectorAll('.ph-pic');
+  assert.deepEqual(
+    tiles.map((tile) => tile.getAttribute('aria-label')),
+    ['Your picture 1 of 2', 'Your picture 2 of 2']
+  );
+  assert.equal(tiles[0].style.getPropertyValue('aspect-ratio'), '300 / 200');
+  assert.ok(tiles[1].classList.contains('ph-pic-unsized'), 'a size not known holds a place of its own');
+  assert.equal(second.querySelector('.ph-pic').getAttribute('aria-label'), 'Your picture');
+  assert.doesNotMatch(root.textContent, /Sent/);
+  for (const done of waiting.splice(0)) done();
+  await settle();
+  await settle();
+  for (const done of waiting.splice(0)) done();
+  await settle();
+  assert.deepEqual(asked, [
+    ['a', { entry: 'u1', index: 0 }],
+    ['a', { entry: 'u1', index: 1 }],
+    ['a', { entry: 'u2', index: 0 }],
+  ]);
+  for (const tile of root.querySelectorAll('.ph-pic')) {
+    assert.equal(tile.dataset.state, 'shown');
+    assert.match(tile.querySelector('img').getAttribute('src'), /^blob:/);
+  }
+  assert.equal(tiles[1].style.getPropertyValue('aspect-ratio'), '300 / 200', 'its shape, once it is known');
+});
+
+test('a message whose pictures the Mac kept nothing of says how many it had', async (t) => {
+  const { open, root } = setup(t, { history: [{ id: 'u1', kind: 'user', text: 'old', images: 2 }] });
+  await open('a');
+  assert.equal(root.querySelector('.ph-sent').textContent, 'Sent 2 pictures');
+  assert.equal(root.querySelectorAll('.ph-pic').length, 0);
+});
+
+test('more than four pictures: four, the fourth saying how many more, and the rest in order for the viewer', async (t) => {
+  const sizes = Array.from({ length: 6 }, () => ({ width: 10, height: 10 }));
+  const { open, root } = setup(t, { history: [{ id: 'u1', kind: 'user', text: '', images: 6, pictureSizes: sizes }] });
+  await open('a');
+  const tiles = root.querySelectorAll('.ph-pic');
+  assert.equal(root.querySelector('.ph-pics').getAttribute('data-count'), '4');
+  assert.deepEqual(
+    tiles.map((tile) => [tile.hidden, tile.dataset.more ?? '']),
+    [
+      [false, ''],
+      [false, ''],
+      [false, ''],
+      [false, '+2'],
+      [true, ''],
+      [true, ''],
+    ]
+  );
+});
+
+test('no more than a few pictures are asked for at once', async (t) => {
+  const waiting = [];
+  const { asked, picture } = pictureAsked(() => new Promise((resolve) => waiting.push(() => resolve(copyOf()))));
+  const sizes = Array.from({ length: 5 }, () => ({ width: 10, height: 10 }));
+  const { open, root } = setup(t, {
+    history: [{ id: 'u1', kind: 'user', text: '', images: 5, pictureSizes: sizes }],
+    picture,
+  });
+  await open('a');
+  await settle();
+  assert.equal(asked.length, AT_ONCE);
+  for (const done of waiting.splice(0)) done();
+  await settle();
+  await settle();
+  assert.equal(asked.length, 5);
+  for (const done of waiting.splice(0)) done();
+  await settle();
+  assert.ok(root.querySelectorAll('.ph-pic').every((tile) => tile.dataset.state === 'shown'));
+});
+
+test('a picture that couldn’t be loaded says so, by its name, and a tap or the connection back tries again', async (t) => {
+  let fails = 2;
+  const { asked, picture } = pictureAsked(async () => {
+    if (fails-- > 0) throw new Error('Reconnecting to buddylist. Try again once connected.');
+    return copyOf();
+  });
+  const history = [{ id: 'u1', kind: 'user', text: 'look', images: 1, pictureSizes: [{ width: 3, height: 2 }] }];
+  const { open, root } = setup(t, { history, picture });
+  await open('a');
+  await settle();
+  const tile = root.querySelector('.ph-pic');
+  assert.equal(tile.dataset.state, 'failed');
+  assert.equal(tile.querySelector('.ph-pic-note').hidden, false);
+  assert.match(tile.querySelector('.ph-pic-note').textContent, new RegExp(NOT_LOADED));
+  assert.equal(tile.getAttribute('aria-label'), `Your picture. ${NOT_LOADED}. Tap to try again.`);
+  tile.click();
+  await settle();
+  assert.equal(tile.dataset.state, 'failed', 'still offline');
+  tellWindow(CONNECTION, 'connected');
+  await settle();
+  assert.equal(tile.dataset.state, 'shown');
+  assert.equal(tile.getAttribute('aria-label'), 'Your picture');
+  assert.equal(tile.querySelector('.ph-pic-note').hidden, true);
+  assert.deepEqual(asked.slice(0, 3), Array(3).fill(['a', { entry: 'u1', index: 0 }]));
+});
+
+test('a call’s screenshot is under its line, from the saved conversation or as the call comes back', async (t) => {
+  const { asked, picture } = pictureAsked();
+  const history = [
+    {
+      id: 't1',
+      kind: 'tool',
+      toolId: 'tool-1',
+      activity: { kind: 'command', command: 'npm run screenshot' },
+      output: '',
+      pictureSizes: [{ width: 1280, height: 820 }],
+    },
+    { id: 't2', kind: 'tool', toolId: 'tool-2', activity: { kind: 'read', path: '/shop/shots/card.png' }, output: '' },
+  ];
+  const { open, root, screen } = setup(t, { history, picture, running: ['tool-2'] });
+  await open('a');
+  const line = root.querySelector('[data-tool="tool-1"]');
+  assert.ok(line.nextElementSibling.classList.contains('ph-tool-pics'));
+  assert.equal(line.nextElementSibling.querySelector('.ph-pic').getAttribute('aria-label'), 'Screenshot from a');
+  screen().heard({ type: 'tool-result', toolId: 'tool-2', output: '', pictureSizes: [{ width: 20, height: 10 }] });
+  const read = root.querySelector('[data-tool="tool-2"]').nextElementSibling;
+  assert.equal(read.querySelector('.ph-pic').getAttribute('aria-label'), 'card.png from a');
+  await settle();
+  assert.deepEqual(asked, [
+    ['a', { tool: 'tool-1', index: 0 }],
+    ['a', { tool: 'tool-2', index: 0 }],
+  ]);
+});
+
+test('a reply’s picture in the contact’s folder is asked of the Mac; one elsewhere is said by its name', (t) => {
+  page(t);
+  const tiles = [];
+  const pictures = { tile: (about, how) => (tiles.push([about, how]), el(html`<button class="ph-pic"></button>`)) };
+  const reply = el(
+    html`<div class="md">
+      <p><img src="file:///shop/shots/cart.png" alt="The cart page" /></p>
+      <p><img src="/shop/shots/a%20b.png" alt="" /></p>
+      <p><img src="file:///shop/../secret.png" alt="" /></p>
+      <p><img src="file:///tmp/page.png" alt="" /></p>
+      <p><img src="https://example.com/a.png" alt="web" /></p>
+    </div>`
+  );
+  fitForPhone(reply, { pictures, folder: '/shop', who: 'Claude' });
+  assert.deepEqual(tiles, [
+    [
+      { which: { file: 'file:///shop/shots/cart.png' }, title: 'The cart page', who: 'Claude', name: 'cart.png' },
+      { label: 'Picture: The cart page' },
+    ],
+    [
+      { which: { file: '/shop/shots/a%20b.png' }, title: 'a b.png', who: 'Claude', name: 'a b.png' },
+      { label: 'Picture: a b.png' },
+    ],
+  ]);
+  assert.deepEqual(
+    reply.querySelectorAll('.ph-reply-pic-said').map((said) => said.textContent),
+    ['The cart page']
+  );
+  assert.deepEqual(
+    reply.querySelectorAll('.ph-mac-picture').map((chip) => chip.textContent.trim()),
+    ['Picture on your Mac: secret.png', 'Picture on your Mac: page.png']
+  );
+  assert.equal(reply.querySelector('img').getAttribute('alt'), 'web', 'a picture on the web stays');
+});
+
+test('a picture tapped opens over the whole screen: through the conversation’s pictures, and closed', async (t) => {
+  const { asked, picture } = pictureAsked(async (_id, _which, options) =>
+    options?.full ? copyOf({ data: 'AAAA', parts: 2, part: options.part }) : copyOf({ whole: false })
+  );
+  const history = [
+    { id: 'u1', kind: 'user', text: 'look', images: 1, pictureSizes: [{ width: 300, height: 200 }] },
+    {
+      id: 't1',
+      kind: 'tool',
+      toolId: 'tool-1',
+      activity: { kind: 'command', command: 'shot' },
+      output: '',
+      pictureSizes: [null],
+    },
+  ];
+  const { open, root } = setup(t, { history, picture });
+  await open('a');
+  await settle();
+  const [mine] = root.querySelectorAll('.ph-pic');
+  mine.click();
+  await settle();
+  await settle();
+  const viewer = root.querySelector('.ph-viewer');
+  assert.equal(viewer.getAttribute('role'), 'dialog');
+  assert.equal(viewer.querySelector('.ph-viewer-count').textContent, '1 of 2');
+  assert.equal(viewer.querySelector('.ph-viewer-caption b').textContent, 'Your picture');
+  assert.equal(viewer.querySelector('.ph-viewer-caption span').textContent, 'You · 300 × 200');
+  assert.deepEqual(
+    viewer.querySelectorAll('button').map((button) => button.getAttribute('aria-label')),
+    ['Close', 'Share']
+  );
+  // The original, in its two parts, once it is shown.
+  assert.deepEqual(asked.slice(-2), [
+    ['a', { entry: 'u1', index: 0 }, { full: true, part: 0 }],
+    ['a', { entry: 'u1', index: 0 }, { full: true, part: 1 }],
+  ]);
+  const press = (key) => {
+    for (const listener of onWindow.get('keydown') ?? [])
+      listener({ key, preventDefault() {}, stopPropagation() {}, defaultPrevented: false });
+  };
+  press('ArrowRight');
+  await settle();
+  assert.equal(viewer.querySelector('.ph-viewer-count').textContent, '2 of 2');
+  assert.equal(viewer.querySelector('.ph-viewer-caption b').textContent, 'Screenshot');
+  press('ArrowRight');
+  assert.equal(viewer.querySelector('.ph-viewer-count').textContent, '2 of 2', 'the last stays the last');
+  viewer.querySelector('[data-viewer="close"]').click();
+  assert.equal(root.querySelector('.ph-viewer'), null);
+});
+
+test('the viewer zooms where you pinch or tap, no further than its edges, and a swipe goes on or closes', () => {
+  assert.deepEqual(zoomAt({ scale: 1, x: 0, y: 0 }, { x: 100, y: 50 }, 2), { scale: 2, x: -100, y: -50 });
+  assert.equal(zoomAt({ scale: 1, x: 0, y: 0 }, { x: 0, y: 0 }, 99).scale, MOST_ZOOM);
+  assert.equal(zoomAt({ scale: 2, x: 0, y: 0 }, { x: 0, y: 0 }, 0.2).scale, 1);
+  const shown = { width: 390, height: 250 };
+  const stage = { width: 390, height: 700 };
+  assert.deepEqual(clampView({ scale: 2, x: -500, y: 400 }, shown, stage), { scale: 2, x: -195, y: 0 });
+  assert.deepEqual(clampView({ scale: 4, x: 10, y: -999 }, shown, stage), { scale: 4, x: 10, y: -150 });
+  const place = { index: 1, count: 3 };
+  assert.equal(swipeTo({ dx: -80, dy: 0 }, place), 1);
+  assert.equal(swipeTo({ dx: 80, dy: 0 }, place), -1);
+  assert.equal(swipeTo({ dx: 30, dy: 0 }, place), 0);
+  assert.equal(swipeTo({ dx: -80, dy: 0 }, { index: 2, count: 3 }), 0, 'nothing after the last');
+  assert.equal(swipeTo({ dx: 10, dy: 160 }, place), 'close');
+  assert.equal(countText(0, 1), '');
+  assert.equal(countText(2, 3), '3 of 3');
+  assert.equal(sharedName('cart.png', 'image/png'), 'cart.png');
+  assert.equal(sharedName('', 'image/jpeg'), 'picture.jpg');
+});
+
+test('a picture that failed isn’t asked for again by a reply drawn again, only once it is tried again', async (t) => {
+  let fail = true;
+  const { asked, picture } = pictureAsked(async () => {
+    if (fail) throw new Error('gone');
+    return copyOf();
+  });
+  const { open, screen } = setup(t, { picture });
+  await open('a');
+  const { pictures } = screen();
+  const about = { which: { file: 'file:///shop/shots/cart.png' }, title: 'The cart', who: 'a', name: 'cart.png' };
+  const first = pictures.tile(about, { label: 'Picture: The cart' });
+  await settle();
+  // A reply still arriving is drawn again as it grows, its picture's tile with it.
+  const again = pictures.tile(about, { label: 'Picture: The cart' });
+  await settle();
+  assert.deepEqual([first.dataset.state, again.dataset.state], ['failed', 'failed']);
+  assert.equal(asked.length, 1);
+  fail = false;
+  again.click();
+  await settle();
+  assert.equal(again.dataset.state, 'shown');
+  assert.equal(asked.length, 2);
+});
+
+test('an original stops coming once the viewer has gone on, between its parts', async (t) => {
+  let wanted = true;
+  const { asked, picture } = pictureAsked(async (_id, _which, options) => {
+    if (options?.part === 1) wanted = false;
+    return options?.full ? copyOf({ parts: 4, part: options.part }) : copyOf();
+  });
+  const history = [{ id: 'u1', kind: 'user', text: '', images: 1, pictureSizes: [{ width: 3, height: 2 }] }];
+  const { open, root, screen } = setup(t, { history, picture });
+  await open('a');
+  await settle();
+  await assert.rejects(screen().pictures.original(root.querySelector('.ph-pic'), () => wanted));
+  assert.deepEqual(
+    asked.filter(([, , options]) => options?.full).map(([, , { part }]) => part),
+    [0, 1]
+  );
 });

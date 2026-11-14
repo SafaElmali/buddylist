@@ -197,6 +197,7 @@ window.messenger = {
     switch: invoke('chat:switch'),
     init: invoke('chat:init'),
     history: invoke('chat:history'),
+    picture: invoke('chat:picture'),
     keepView: invoke('chat:keep-view'),
     send: invoke('chat:send'),
     edit: invoke('chat:edit'),

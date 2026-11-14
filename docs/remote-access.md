@@ -99,6 +99,8 @@ Tap a contact to open its conversation. One that waits for you opens at its card
 ### A conversation
 
 - What was said, with replies in Markdown as they stream in, a line for each tool call with ✓ or ✗, and how each turn ended. A long conversation opens at its newest part, and **Show earlier** above it has the rest.
+- **Pictures**: the ones you sent, from your Mac or a manager's message, are in your message, two by two. A screenshot a tool call handed back is small under its line, and a picture a reply shows from the contact's folder is as wide as the reply, with what the reply calls it under it. Each loads as you scroll to it, in a phone-sized copy, holding its place meanwhile so the conversation doesn't jump. One that can't be loaded, as while the phone is offline, says **Couldn't load** under its name: tap it to try again, and once the connection is back they are tried again by themselves. A picture a reply shows from outside the contact's folder, such as one in /tmp, is said by its name, with where it is on your Mac.
+- **Tap a picture** to see it over the whole screen, then the conversation's others either side with a swipe, with a count such as _3 of 5_. Pinch or double-tap to zoom, and drag a zoomed one about. The original is loaded once it shows. **Share** hands it to the phone's share sheet, where **Save Image** keeps it. **✕**, or a swipe down, closes it.
 - **Permissions**: the command, change or address to look at, then **Decline**, **Always allow** where it is offered, or **Allow**.
 - **Questions**: pick an option, or tick as many as you like where a question takes more, or write your own answer, then **Send answers**. **Let it decide** lets the agent go on with its own picks.
 - **Plans**: read the plan, then approve it in one of the ways the agent offers, such as **Yes, auto-accept edits**, or **No, keep planning**, with what should change.
@@ -119,7 +121,7 @@ A card answered on the Mac, or on another phone, goes away on yours too.
 
 A lost connection says so at the top, and a conversation says **Not reachable** instead of what its contact was doing. If it isn't back within 30 seconds, the top says what to check, with **Retry**. Once it is back, the phone app picks up where you were without reloading: Home stays where you scrolled, and a conversation opens where you were reading, with what happened meanwhile. A message sent as the connection dropped stays, marked as not confirmed yet, and is checked with your Mac once it is back, so it arrives once; an answer to a card works the same way.
 
-The phone app keeps a copy of itself (its page, code and styles, never what was said), so it opens with your Mac out of reach, asleep or with Tailscale off: it says **Can't reach** your Mac, with what to check and **Retry**, instead of a browser error. The copy is renewed while the phone reaches your Mac, so it follows buddylist's updates.
+The phone app keeps a copy of itself (its page, code and styles, never what was said or its pictures), so it opens with your Mac out of reach, asleep or with Tailscale off: it says **Can't reach** your Mac, with what to check and **Retry**, instead of a browser error. The copy is renewed while the phone reaches your Mac, so it follows buddylist's updates.
 
 ## Notifications
 
@@ -160,7 +162,9 @@ Notifications are the one thing that leaves your tailnet: a phone gets them thro
 
 ### What stays on the Mac
 
-Adding or changing contacts (deleting a drafted one aside), Settings, message history and search, pictures and voice clips, files, changes, terminals, the Run button, browser panes, inviting guests and editing a plan stay in the Mac's windows. The phone app shows none of them, rather than buttons that don't work.
+Adding or changing contacts (deleting a drafted one aside), Settings, message history and search, sending pictures, voice clips, files, changes, terminals, the Run button, browser panes, inviting guests and editing a plan stay in the Mac's windows. The phone app shows none of them, rather than buttons that don't work.
+
+A conversation's pictures come only over the phone's signed-in connection, never at an address of their own, and only those of the conversation it shows: yours, a tool call's, and the picture files its replies show from the contact's folder. A file anywhere else, reached through `..` or a link that leads out of the folder, or in another contact's folder, isn't sent, and nor is a file that isn't a PNG, JPEG, GIF or WebP, whatever its name. Every access level can see them. A phone gets a copy at most 1280 pixels on its longer side until it opens one, and keeps them only while the conversation is open.
 
 ## What a phone may do
 

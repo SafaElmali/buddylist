@@ -38,11 +38,16 @@ export class Pictures {
 
   /** Only an attachment reference can be read, never a caller-supplied filesystem path. */
   async read(reference) {
+    const bytes = await this.bytes(reference);
+    return `data:image/${TYPES[PICTURE_REFERENCE.exec(reference)[2]]};base64,${bytes.toString('base64')}`;
+  }
+
+  /** An attachment's bytes, by its reference alone. */
+  async bytes(reference) {
     const match = PICTURE_REFERENCE.exec(reference);
     if (!match) throw new Error('That is not a saved picture.');
     try {
-      const bytes = await fs.promises.readFile(path.join(this.dir, match[1]));
-      return `data:image/${TYPES[match[2]]};base64,${bytes.toString('base64')}`;
+      return await fs.promises.readFile(path.join(this.dir, match[1]));
     } catch {
       throw new Error('The original picture is no longer available.');
     }

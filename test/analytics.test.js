@@ -360,6 +360,8 @@ const NOT_COUNTED = {
     REQUESTS.chatInit,
     // Older messages of a conversation, as a phone goes back through it.
     REQUESTS.chatHistory,
+    // A conversation's pictures, each as a phone scrolls to it or opens it.
+    REQUESTS.chatPicture,
     REQUESTS.quickSendInit,
     REQUESTS.chatBackgroundOutput,
     REQUESTS.chatMcpServers,

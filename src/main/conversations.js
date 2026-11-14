@@ -623,7 +623,7 @@ export class Conversations {
   historyPage(contactId, { before, limit } = {}) {
     const contact = this.store.getContact(contactId);
     if (!contact) return null;
-    const history = this.providers.upgradeHistory(contact.provider, this.history.read(contactId));
+    const history = this.entries(contactId);
     const end = typeof before === 'string' ? history.findIndex((entry) => entry.id === before) : history.length;
     if (end < 0) return { entries: [], more: false };
     const count = Number.isInteger(limit) ? Math.min(Math.max(/** @type {number} */ (limit), 1), PAGE_MOST) : PAGE;
@@ -631,12 +631,27 @@ export class Conversations {
     return { entries: history.slice(start, end), more: start > 0 };
   }
 
+  /**
+   * A conversation's entries, as its windows are told of them: in today's shape, whatever service wrote them. None
+   * for a contact that isn't there.
+   * @param {string} contactId
+   */
+  entries(contactId) {
+    const contact = this.store.getContact(contactId);
+    return contact ? this.providers.upgradeHistory(contact.provider, this.history.read(contactId)) : [];
+  }
+
+  /** The replies still arriving in a conversation, as said so far. @param {string} contactId */
+  liveTexts(contactId) {
+    return [...(this.#live.get(contactId)?.values() ?? [])].map(({ text }) => text);
+  }
+
   /** Everything a conversation window needs when it opens. */
   snapshot(contactId) {
     const contact = this.store.getContact(contactId);
     if (!contact) return null;
     const styles = this.#outputStyles.get(contactId);
-    const history = this.providers.upgradeHistory(contact.provider, this.history.read(contactId));
+    const history = this.entries(contactId);
     const unfinished = new Set(this.#toolEntries.values());
     const offered = this.#offered(contactId);
     const waitingIds = this.#waitingIds(contactId);

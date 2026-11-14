@@ -402,6 +402,34 @@ test('wrong passwords, one after another, make signing in wait', async (t) => {
   assert.deepEqual(statuses, [401, 401, 401, 401, 401, 429]);
 });
 
+test('a page hears what happens in a conversation without its pictures; the windows with them', async (t) => {
+  const cookie = await signedIn();
+  const page = await socket(cookie);
+  t.after(() => page.ws.close());
+  await page.ask(REQUESTS.chatInit, 'c1');
+  const picture =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAA2iEnWAAAAEklEQVR4nGNgYGD4z8DAwMDAAAAOAAFeh1xjAAAAAElFTkSuQmCC';
+  const sent = [];
+  const viewers = host.alongside({ send: (id, event) => sent.push([id, event]), isFocused: () => false });
+  const result = { type: 'tool-result', toolId: 'x', pictures: [picture] };
+  viewers.send('c1', result);
+  const entry = { id: 'u1', kind: 'user', text: 'look', pictures: [picture], originals: ['picture:a'] };
+  host.userMessage('c1', entry, null);
+  await page.settle();
+  assert.deepEqual(sent, [['c1', { type: 'tool-result', toolId: 'x', pictures: [picture] }]]);
+  assert.deepEqual(entry.pictures, [picture]);
+  assert.deepEqual(
+    page.events().map((e) => e.payload),
+    [
+      { type: 'tool-result', toolId: 'x', pictureSizes: [{ width: 3, height: 2 }] },
+      {
+        type: 'user-message',
+        entry: { id: 'u1', kind: 'user', text: 'look', pictureSizes: [{ width: 3, height: 2 }] },
+      },
+    ]
+  );
+});
+
 test('the conversation windows, with the pages beside them, hear what Conversations tells', () => {
   const sent = [];
   const chats = { send: (id, event) => sent.push([id, event]), isFocused: (id) => id === 'c1' };

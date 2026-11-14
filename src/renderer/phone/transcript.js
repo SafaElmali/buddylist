@@ -2,6 +2,8 @@
 // messages wait to be read, and whether there is anyone to stop.
 import { el, html } from '../lib/dom.js';
 import { sentence, took } from '../lib/format.js';
+import { basename } from '../../shared/activity-text.js';
+import { pathInside } from '../../shared/paths.js';
 import { yourComputer } from './host.js';
 
 /** What a conversation's header says while someone in it is at work, or waits for you. */
@@ -79,24 +81,37 @@ export function todoProgress(todos, { stopped = false } = {}) {
 }
 
 /**
- * What the phone makes of a reply's Markdown once it is drawn. The pictures it names on the Mac, which a phone can't
- * load (they are file: addresses there: see pictureAddress in shared/links.js), are each said by their name instead,
- * with where they are on the Mac; pictures the page has itself (data:, blob:, its own) stay. Code and tables, which
- * scroll on their own, can be reached from a keyboard, and are named.
+ * What the phone makes of a reply's Markdown once it is drawn. The pictures it names on the Mac (file: addresses, or
+ * paths from the top: see pictureAddress in shared/links.js) are asked of the Mac where they are in the contact's
+ * folder, each in a tile (see pictures.js) with what the reply calls it under it. One elsewhere, such as in /tmp, is
+ * said by its name, with where it is on the Mac. Pictures from the web or of the page itself (data:, blob:) stay.
+ * Code and tables, which scroll on their own, can be reached from a keyboard, and are named.
  * @param {ParentNode} root  a reply's Markdown, as it was drawn
+ * @param {{ pictures?: import('./pictures.js').ConversationPictures | null, folder?: string, who?: string }} [shown]
+ *   what draws its pictures, the contact's folder, and whose reply it is
  */
-export function fitForPhone(root) {
+export function fitForPhone(root, { pictures = null, folder = '', who = '' } = {}) {
   for (const picture of root.querySelectorAll('img')) {
     const address = picture.getAttribute('src') || '';
-    if (!address.startsWith('file:')) continue;
+    if (!/^(file:|\/(?!\/))/.test(address)) continue;
     let path = address;
     try {
-      path = decodeURIComponent(new URL(address).pathname);
+      path = decodeURIComponent(new URL(address, 'file:///').pathname);
     } catch {
       // Said as it was written.
     }
-    const name = path.split('/').pop() || path;
+    const name = basename(path);
     const alt = (picture.getAttribute('alt') || '').trim();
+    // In the contact's folder, where the Mac shows it from (and decides again): one elsewhere is said by its name.
+    if (pictures && folder && pathInside(path, folder)) {
+      const shown = el(html`<span class="ph-reply-pic"></span>`);
+      shown.append(
+        pictures.tile({ which: { file: address }, title: alt || name, who, name }, { label: `Picture: ${alt || name}` })
+      );
+      if (alt) shown.append(el(html`<span class="ph-reply-pic-said" aria-hidden="true">${alt}</span>`));
+      picture.replaceWith(shown);
+      continue;
+    }
     picture.replaceWith(
       el(
         html`<span class="ph-mac-picture" title="${path}"

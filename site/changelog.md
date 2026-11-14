@@ -11,6 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
+## v0.7.5
+
+- **See a conversation’s pictures on your phone** — The phone app now shows the pictures you sent, the screenshots an agent’s tools took and the pictures its replies show from the contact’s folder, each loading as you scroll to it. Tap one to see it full screen: swipe to the others, pinch or double-tap to zoom, swipe down to close, and **Share** to save it to your phone. Your Mac sends only that conversation’s pictures, over the phone’s signed-in connection, and a phone-sized copy until you open one.
+
 ## v0.7.4 — 2026-11-13
 
 - **Link a pull request to a conversation** — Choose **Link pull request...** in the ▼ of **Create PR** or **View PR**, or in a contact’s right-click menu, and its checks, reviews and merge show there as they do for the branch’s own, after a restart too. An agent links one when you ask, and a pull request pushed under another branch name is now found by itself.
