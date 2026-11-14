@@ -13,6 +13,8 @@ import {
   notRemote,
   READS,
   REMOTE_HISTORY,
+  remoteEntry,
+  remoteEvent,
   route,
   SENDS,
   SENT_KEPT_MS,
@@ -175,7 +177,7 @@ test('the channels a page may ask on are exactly these: nothing that runs an age
       REQUESTS.contactSetUnread,
       REQUESTS.providerModels,
       REQUESTS.chatUsage,
-      REQUESTS.pictureRead,
+      REQUESTS.chatPicture,
       REQUESTS.copied,
       REQUESTS.tabOpened,
       REQUESTS.attached,
@@ -390,6 +392,76 @@ test('every channel a page may ask on is a read, an answer or a send, and only o
   for (const channel of FORWARDED)
     assert.equal([READS, ANSWERS, SENDS].filter((set) => set.has(channel)).length, 1, channel);
   for (const channel of [...READS, ...ANSWERS, ...SENDS]) assert.ok(FORWARDED.has(channel), channel);
+});
+
+// A tiny PNG's header, enough for its size: 3 by 2.
+const PNG_3x2 =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAA2iEnWAAAAEklEQVR4nGNgYGD4z8DAwMDAAAAOAAFeh1xjAAAAAElFTkSuQmCC';
+
+test('a conversation’s pictures are a read: every level may see them, and only through chat:picture', async () => {
+  assert.ok(READS.has(REQUESTS.chatPicture));
+  const asked = [];
+  const requests = new Map([
+    [REQUESTS.chatPicture, (_e, ...args) => (asked.push(args), { type: 'image/png', data: 'AA==' })],
+    [REQUESTS.pictureRead, () => 'data:image/png;base64,AA=='],
+  ]);
+  for (const access of ['read', 'answer', 'full']) {
+    const which = { entry: 'u1', index: 0 };
+    const answer = await route({
+      requests,
+      client: client('d1', access),
+      channel: REQUESTS.chatPicture,
+      args: ['c1', which],
+    });
+    assert.deepEqual(answer, { type: 'image/png', data: 'AA==' }, access);
+    // An original by its reference alone, from any conversation, is the Mac's windows' to read.
+    await assert.rejects(
+      route({ requests, client: client('d1', access), channel: REQUESTS.pictureRead, args: ['picture:x'] }),
+      { message: notRemote(REQUESTS.pictureRead) }
+    );
+  }
+  assert.equal(asked.length, 3);
+});
+
+test('a page is told a conversation’s entries without their pictures, and the window’s are left as they were', async () => {
+  const said = {
+    id: 'u1',
+    kind: 'user',
+    text: 'look',
+    images: 2,
+    pictures: [PNG_3x2, 'data:image/png;base64,AA=='],
+    originals: ['picture:a', null],
+  };
+  const shot = { id: 't1', kind: 'tool', toolId: 'x', pictures: [PNG_3x2] };
+  const reply = { id: 'a1', kind: 'assistant', text: 'hi' };
+  const history = [said, shot, reply];
+  const requests = new Map([
+    [REQUESTS.chatInit, () => ({ history, settings: {} })],
+    [REQUESTS.chatHistory, () => ({ entries: history, more: false })],
+  ]);
+  const told = [
+    { id: 'u1', kind: 'user', text: 'look', images: 2, pictureSizes: [{ width: 3, height: 2 }, null] },
+    { id: 't1', kind: 'tool', toolId: 'x', pictureSizes: [{ width: 3, height: 2 }] },
+    reply,
+  ];
+  const opened = await route({ requests, client: client(), channel: REQUESTS.chatInit, args: ['c1'] });
+  assert.deepEqual(opened.history, told);
+  const older = await route({ requests, client: client(), channel: REQUESTS.chatHistory, args: ['c1', {}] });
+  assert.deepEqual(older.entries, told);
+  assert.ok(!JSON.stringify([opened, older]).includes('base64'), 'no picture data goes to a page');
+  // What the handler answered, which a window is given, still has every picture.
+  assert.equal(said.pictures.length, 2);
+  assert.deepEqual(said.originals, ['picture:a', null]);
+  assert.equal(shot.pictures[0], PNG_3x2);
+  assert.equal(remoteEntry(reply), reply);
+  // An event carries them the same way: in its entry, or on itself.
+  assert.deepEqual(remoteEvent({ type: 'user-message', entry: said }), { type: 'user-message', entry: told[0] });
+  assert.deepEqual(remoteEvent({ type: 'tool-result', toolId: 'x', pictures: [PNG_3x2] }), {
+    type: 'tool-result',
+    toolId: 'x',
+    pictureSizes: [{ width: 3, height: 2 }],
+  });
+  assert.deepEqual(remoteEvent({ type: 'state', state: 'idle' }), { type: 'state', state: 'idle' });
 });
 
 test('a channel no list names reaches only a device with full access', () => {

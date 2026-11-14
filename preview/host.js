@@ -1271,6 +1271,8 @@ const handlers = {
     );
   },
   [REQUESTS.chatHistory]: (_win, contactId, asked) => conversations.historyPage(String(contactId), asked ?? {}),
+  // A phone's picture: no phone reaches the preview, and a page that asks anyway is told there is none.
+  [REQUESTS.chatPicture]: () => null,
   [REQUESTS.chatKeepView]: (_win, contactId, view) => {
     if (store.getContact(contactId)) views.keep(contactId, view);
   },

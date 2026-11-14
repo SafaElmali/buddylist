@@ -9,7 +9,7 @@ import { el, errorText, html } from '../lib/dom.js';
 import { renderMarkdown, StreamingMarkdown } from '../lib/markdown.js';
 import { pictureArt } from '../lib/pictures.js';
 import { StopKey } from '../chat/stop-key.js';
-import { isDoing } from '../../shared/activity-text.js';
+import { basename, isDoing } from '../../shared/activity-text.js';
 import { hasReply } from '../../shared/reply-text.js';
 import { ANSWERED_FROM } from '../../shared/manager-answer.js';
 import { knownTodos } from '../../shared/todo-handoff.js';
@@ -22,6 +22,8 @@ import { CONNECTION, UNCONFIRMED } from '../remote/network-ipc.js';
 import { promptCard } from './prompt-cards.js';
 import { planLimitCard } from './plan-limit.js';
 import { confirmSheet, deleteDraft, draftText } from './draft-bar.js';
+import { ConversationPictures } from './pictures.js';
+import { openViewer } from './viewer.js';
 import { WAITING_TO_START, waitingToStart } from '../../shared/drafted.js';
 import { homeSections, roleOf, rowNote } from '../../shared/phone-sections.js';
 import {
@@ -134,6 +136,8 @@ export class ConversationScreen {
   #closed = false;
   /** Start was pressed on a drafted conversation: what was in the box went, and the draft goes with the answer. */
   #draftStarted = false;
+  /** @type {{ close: () => void } | null} the pictures over the whole screen, while they are */
+  #viewer = null;
 
   /**
    * @param {HTMLElement} root
@@ -197,6 +201,11 @@ export class ConversationScreen {
     this.stopButton = /** @type {HTMLButtonElement} */ (root.querySelector('#stop'));
     this.accessNote = /** @type {HTMLElement} */ (root.querySelector('#access-note'));
     this.queuedJump = /** @type {HTMLButtonElement} */ (root.querySelector('#queued-jump'));
+    this.pictures = new ConversationPictures(contactId, {
+      scroller: this.transcript,
+      keepAtEnd: (change) => this.#keepAtEnd(change),
+      open: (tile) => (this.#viewer = openViewer(this.pictures, tile)),
+    });
     // What was written here and not sent, back in the box: after a Back, a reload or a dropped connection. A
     // conversation an agent drafted has its first message there to start with, as it has on the computer.
     if (!this.view?.archived) this.input.value = draftOf(contactId) || (this.#drafted() ? this.view.draft : '') || '';
@@ -440,6 +449,8 @@ export class ConversationScreen {
       if (detail === 'reconnecting') this.#dropped = true;
       this.#reachable = detail !== 'reconnecting';
       this.#header();
+      // Pictures that couldn't be loaded meanwhile are tried again.
+      if (detail === 'connected') this.pictures.retry();
     };
     window.addEventListener(CONNECTION, this.onConnection);
     window.addEventListener('keydown', this.onKeyHeard, true);
@@ -455,6 +466,8 @@ export class ConversationScreen {
     else if (this.#editingNote) void this.#putBack(this.#editingNote);
     window.removeEventListener(CONNECTION, this.onConnection);
     this.#closed = true;
+    this.#viewer?.close();
+    this.pictures.close();
     this.stopKey.reset();
     window.removeEventListener('keydown', this.onKeyHeard, true);
     window.removeEventListener('keydown', this.onKey);
@@ -615,6 +628,7 @@ export class ConversationScreen {
         if (!hasReply(entry.text)) return [];
         const node = this.#reply(entry);
         renderMarkdown(node.querySelector('.md'), entry.text, (paint) => this.#keepAtEnd(paint), this.view?.cwd);
+        const who = speakerOf(this.participants, entry).name;
         // The manager's answer to what you tagged it with here: from its own conversation, which the link opens.
         if (entry.managerAnswer) {
           node.append(
@@ -625,7 +639,7 @@ export class ConversationScreen {
             )
           );
         }
-        fitForPhone(node);
+        fitForPhone(node, this.#replyPictures(who));
         return [node];
       }
       case 'tool': {
@@ -650,7 +664,7 @@ export class ConversationScreen {
           node.classList.add('ph-pending');
           this.#tools.set(entry.toolId, { node, entry });
         } else this.#outcome(node, entry);
-        return [node];
+        return entry.pictureSizes?.length ? [node, this.#toolPictures(entry)] : [node];
       }
       case 'permission': {
         const said = answeredLine({ ...entry, kind: entry.promptKind }, speakerOf(this.participants, entry).name);
@@ -704,10 +718,13 @@ export class ConversationScreen {
     }
   }
 
-  /** One of your messages. One a Stop dropped before it was read says so, as the app kept it (see #notSent). */
-  #mine({ id = '', text = '', images = [], pictures = [], editable = false, dropped = false }) {
-    const sent = images.length || pictures.length;
-    return el(
+  /**
+   * One of your messages, with its pictures (see #pictures). One a Stop dropped before it was read says so, as the app
+   * kept it (see #notSent). One whose pictures the Mac kept nothing of says how many it had.
+   */
+  #mine({ id = '', text = '', images = 0, pictureSizes = [], editable = false, dropped = false }) {
+    const sent = pictureSizes.length ? 0 : images;
+    const node = el(
       html`<div class="ph-msg ph-me ${dropped ? 'ph-dropped' : ''}" data-id="${id}" data-editable="${String(editable)}">
         <span class="ph-said ph-hidden-text">You said:</span>
         ${text ? html`<p class="ph-text">${text}</p>` : ''}
@@ -716,6 +733,56 @@ export class ConversationScreen {
         ${dropped ? html`<p class="ph-not-sent">${NOT_SENT}</p>` : ''}
       </div>`
     );
+    if (pictureSizes.length && id) {
+      node.classList.add('ph-with-pics');
+      const count = pictureSizes.length;
+      const pictures = this.#pictures(
+        pictureSizes.map((size, index) => ({
+          about: { which: { entry: id, index }, title: 'Your picture', who: 'You', name: '' },
+          size,
+          label: count > 1 ? `Your picture ${index + 1} of ${count}` : 'Your picture',
+        }))
+      );
+      (node.querySelector('.ph-text') ?? node.querySelector('.ph-said'))?.after(pictures);
+    }
+    return node;
+  }
+
+  /**
+   * Pictures in a row, or two by two: the first four, and "+2" on the fourth where there are more, which the viewer
+   * shows.
+   * @param {{ about: import('./pictures.js').About, size?: { width: number, height: number } | null, label: string }[]} shown
+   */
+  #pictures(shown) {
+    const row = el(html`<div class="ph-pics" data-count="${String(Math.min(shown.length, 4))}"></div>`);
+    shown.forEach(({ about, size, label }, at) => {
+      const tile = this.pictures.tile(about, { size, label });
+      if (at > 3) tile.hidden = true;
+      if (at === 3 && shown.length > 4) tile.dataset.more = `+${shown.length - 4}`;
+      row.append(tile);
+    });
+    return row;
+  }
+
+  /** The pictures a call handed back, such as a screenshot, under its line. */
+  #toolPictures(entry) {
+    const who = speakerOf(this.participants, entry).name;
+    const name = entry.activity?.path ? basename(entry.activity.path) : '';
+    const title = name || 'Screenshot';
+    const row = this.#pictures(
+      entry.pictureSizes.map((size, index) => ({
+        about: { which: { tool: entry.toolId, index }, title, who, name },
+        size,
+        label: `${title} from ${who}`,
+      }))
+    );
+    row.classList.add('ph-tool-pics');
+    return row;
+  }
+
+  /** What a reply's pictures in the contact's folder are drawn with (see fitForPhone): tiles, said to be `who`'s. */
+  #replyPictures(who) {
+    return { pictures: this.pictures, folder: this.view?.cwd, who };
   }
 
   /** A reply, to draw its Markdown into. */
@@ -738,7 +805,7 @@ export class ConversationScreen {
       (paint) =>
         this.#keepAtEnd(() => {
           paint();
-          fitForPhone(node);
+          fitForPhone(node, this.#replyPictures(speakerOf(this.participants, { speaker }).name));
         }),
       this.view?.cwd
     );
@@ -816,7 +883,9 @@ export class ConversationScreen {
   #toolResult(event) {
     const going = this.#tools.get(event.toolId);
     this.#tools.delete(event.toolId);
-    if (going) this.#outcome(going.node, event, going.entry);
+    if (!going) return;
+    this.#outcome(going.node, event, going.entry);
+    if (event.pictureSizes?.length) going.node.after(this.#toolPictures({ ...going.entry, ...event }));
   }
 
   // ---- what it waits on -------------------------------------------------------------------------

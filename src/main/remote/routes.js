@@ -6,6 +6,7 @@
 // access, what reads and answers an agent with answer only, and what reads with read only.
 import { EVENTS, REQUESTS } from '../../shared/ipc-channels.js';
 import { ACCESS, accessOf, ASKS_FIRST_MODE } from '../../shared/remote-access.js';
+import { dataSize } from './pictures.js';
 
 /** Asked of the app's own handlers, as a window would. */
 export const FORWARDED = new Set([
@@ -35,7 +36,8 @@ export const FORWARDED = new Set([
   // Only read. A provider's models are asked without a folder (see route): one would run its program there.
   REQUESTS.providerModels,
   REQUESTS.chatUsage,
-  REQUESTS.pictureRead,
+  // One of a conversation's pictures, which its entries come without (see remoteEntry and pictures.js).
+  REQUESTS.chatPicture,
   // What a page says only to have it counted (see analytics.js).
   REQUESTS.copied,
   REQUESTS.tabOpened,
@@ -93,7 +95,7 @@ export const READS = new Set([
   REQUESTS.contactSetUnread,
   REQUESTS.providerModels,
   REQUESTS.chatUsage,
-  REQUESTS.pictureRead,
+  REQUESTS.chatPicture,
   REQUESTS.copied,
   REQUESTS.tabOpened,
   REQUESTS.attached,
@@ -171,6 +173,24 @@ export const remoteContacts = (views) =>
   Array.isArray(views)
     ? views.map((view) => Object.fromEntries(Object.entries(view).filter(([key]) => !UNDRAWN.includes(key))))
     : views;
+
+/**
+ * An entry of a conversation, or a session's event, as a page is told of it: its pictures' sizes in place of the
+ * pictures, which it asks for one by one, phone-sized, as they come into view (chat:picture). A window's are as ever.
+ * @template T
+ * @param {T} entry
+ * @returns {T}
+ */
+export function remoteEntry(entry) {
+  const said = /** @type {any} */ (entry);
+  if (!Array.isArray(said?.pictures)) return entry;
+  const { pictures, originals: _originals, ...rest } = said;
+  return /** @type {T} */ ({ ...rest, pictureSizes: pictures.map(dataSize) });
+}
+
+/** What happened in a conversation, as a page hears it: an entry it carries as remoteEntry has it. */
+export const remoteEvent = (event) =>
+  event?.entry ? { ...event, entry: remoteEntry(event.entry) } : remoteEntry(event);
 
 /** What a page hears of news for every window: the settings and the contacts as it is told of them. */
 export function heard(channel, payload) {
@@ -270,9 +290,11 @@ export async function route({ requests, client, channel, args, host, sent }) {
       ...result,
       settings: remoteSettings(result.settings),
       ...(Array.isArray(result.history) && {
-        history: result.history.slice(-REMOTE_HISTORY),
+        history: result.history.slice(-REMOTE_HISTORY).map(remoteEntry),
         more: result.history.length > REMOTE_HISTORY,
       }),
     };
+  if (channel === REQUESTS.chatHistory && Array.isArray(result?.entries))
+    return { ...result, entries: result.entries.map(remoteEntry) };
   return result;
 }

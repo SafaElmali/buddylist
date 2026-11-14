@@ -95,6 +95,7 @@ export const REQUESTS = Object.freeze({
   chatSwitch: 'chat:switch',
   chatInit: 'chat:init',
   chatHistory: 'chat:history',
+  chatPicture: 'chat:picture',
   chatKeepView: 'chat:keep-view',
   chatSend: 'chat:send',
   quickSendInit: 'quick-send:init',

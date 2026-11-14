@@ -23,7 +23,7 @@ import {
   verifyPassword,
 } from './auth.js';
 import { deviceName } from './devices.js';
-import { allows, BROADCAST, heard, NOT_ALLOWED, route, SentOnce } from './routes.js';
+import { allows, BROADCAST, heard, NOT_ALLOWED, remoteEvent, route, SentOnce } from './routes.js';
 import {
   contentSecurityPolicy,
   contentType,
@@ -422,16 +422,20 @@ export class RemoteHost {
     for (const client of this.#clients) client.news(channel, news);
   }
 
-  /** What happened in a conversation, for the pages that show it. */
+  /** What happened in a conversation, for the pages that show it: without its pictures (see remoteEvent). */
   sessionEvent(contactId, event) {
-    for (const client of this.#clients) if (client.watches(contactId)) client.send(EVENTS.sessionEvent, event);
+    const watching = [...this.#clients].filter((client) => client.watches(contactId));
+    if (!watching.length) return;
+    const heard = remoteEvent(event);
+    for (const client of watching) client.send(EVENTS.sessionEvent, heard);
   }
 
   /** The sender already drew its own message; every other viewer needs it too. */
   userMessage(contactId, entry, sender) {
-    for (const client of this.#clients)
-      if (client.event.sender !== sender && client.watches(contactId))
-        client.send(EVENTS.sessionEvent, { type: 'user-message', entry });
+    const watching = [...this.#clients].filter((client) => client.event.sender !== sender && client.watches(contactId));
+    if (!watching.length) return;
+    const heard = remoteEvent({ type: 'user-message', entry });
+    for (const client of watching) client.send(EVENTS.sessionEvent, heard);
   }
 
   /**

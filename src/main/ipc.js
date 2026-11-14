@@ -69,6 +69,7 @@ import { Spending } from './spending.js';
 import { KeptViews } from './kept-views.js';
 import { listOpen, lookUp } from './github-lookup.js';
 import { imageDataUrl } from './pack.js';
+import { nativeShrink, PhonePictures } from './remote/pictures.js';
 import { cloneRepository, createProject, recentRepositories } from './projects.js';
 import { createSignIns, GITHUB, setupCheck } from './setup-check.js';
 import { waitingFor } from './shell-env.js';
@@ -1500,6 +1501,22 @@ export function registerIpc({
   // A conversation's history a page at a time, older than an entry the asker has: a phone opens with the newest only
   // (see remote/routes.js), and asks for more as the user goes back.
   handle(REQUESTS.chatHistory, (_e, contactId, asked) => conversations.historyPage(String(contactId), asked ?? {}));
+
+  // One of a conversation's pictures, for the phone app, which is sent none with its messages (see remote/routes.js).
+  const phonePictures = new PhonePictures({
+    history: (contactId) => conversations.entries(contactId),
+    original: (reference) => history.pictures.bytes(reference),
+    // Null for a contact that isn't there; '' for one on This computer, which has no folder to show files from.
+    folderOf: (contactId) => {
+      const contact = store.getContact(contactId);
+      return contact ? contact.cwd || '' : null;
+    },
+    live: (contactId) => conversations.liveTexts(contactId),
+    shrink: nativeShrink(nativeImage),
+  });
+  handle(REQUESTS.chatPicture, (_e, contactId, which, options) =>
+    phonePictures.picture(String(contactId), which, options ?? {})
+  );
 
   // Said as a window goes on from a contact, is loaded again or closes. A contact deleted by then keeps nothing.
   handle(REQUESTS.chatKeepView, (_e, contactId, view) => {
