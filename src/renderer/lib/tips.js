@@ -27,27 +27,21 @@ export function placeTip(anchor, tip, view) {
 }
 
 /**
- * Shows the tip of whatever in the window has a `data-tip`, while it is pointed at. One
- * call serves the whole window, also for what is drawn later.
+ * A tip shown over a place, after a short wait, and gone as soon as the window is used: what a button's
+ * `data-tip` shows (see mountTips), and a link in a terminal, which has no element of its own to point at.
  * @param {Document} [doc]
+ * @returns {{ show: (what: () => { anchor: { left: number, top: number, width: number, height: number }, text: string } | null) => void, hide: () => void }}
+ *   `what`: where and what it is, read once the wait is over. Null shows none
  */
-export function mountTips(doc = document) {
+export function tipOver(doc = document) {
   /** @type {HTMLElement | null} */
   let node = null;
-  /** @type {HTMLElement | null} what the pointer is on, whether its tip is showing yet or not */
-  let about = null;
   let timer = null;
-
   const hide = () => {
     clearTimeout(timer);
-    about = null;
     if (node) node.hidden = true;
   };
-
-  const show = (target) => {
-    const text = target.dataset.tip;
-    // Redrawn or emptied while the pointer rested on it.
-    if (!text || !target.isConnected) return hide();
+  const put = ({ anchor, text }) => {
     if (!node) {
       node = doc.createElement('div');
       node.className = 'tip';
@@ -57,11 +51,38 @@ export function mountTips(doc = document) {
     node.textContent = text;
     node.hidden = false;
     const view = { width: doc.documentElement.clientWidth, height: doc.documentElement.clientHeight };
-    const { left, top } = placeTip(target.getBoundingClientRect(), node.getBoundingClientRect(), view);
+    const { left, top } = placeTip(anchor, node.getBoundingClientRect(), view);
     node.style.left = `${left}px`;
     node.style.top = `${top}px`;
   };
+  // The window is being used: the tip has said what it had to say.
+  for (const used of ['mousedown', 'keydown', 'wheel']) doc.addEventListener(used, hide, true);
+  doc.defaultView?.addEventListener('blur', hide);
+  return {
+    show(what) {
+      hide();
+      timer = setTimeout(() => {
+        const shown = what();
+        if (shown) put(shown);
+      }, SHOW_AFTER_MS);
+    },
+    hide,
+  };
+}
 
+/**
+ * Shows the tip of whatever in the window has a `data-tip`, while it is pointed at. One
+ * call serves the whole window, also for what is drawn later.
+ * @param {Document} [doc]
+ */
+export function mountTips(doc = document) {
+  const tip = tipOver(doc);
+  /** @type {HTMLElement | null} what the pointer is on, whether its tip is showing yet or not */
+  let about = null;
+  const hide = () => {
+    about = null;
+    tip.hide();
+  };
   doc.addEventListener('mouseover', (e) => {
     const target = /** @type {HTMLElement | null} */ (
       /** @type {Element} */ (e.target).closest?.('[data-tip]') ?? null
@@ -70,9 +91,14 @@ export function mountTips(doc = document) {
     hide();
     if (!target) return;
     about = target;
-    timer = setTimeout(() => show(target), SHOW_AFTER_MS);
+    // Redrawn or emptied while the pointer rested on it: no tip.
+    tip.show(() =>
+      target.dataset.tip && target.isConnected
+        ? { anchor: target.getBoundingClientRect(), text: target.dataset.tip }
+        : null
+    );
   });
-  // The pointer left the window, or the button is being used: it has said what it had to say.
+  // The pointer left the window, or the button is being used.
   doc.documentElement.addEventListener('mouseleave', hide);
   for (const used of ['mousedown', 'keydown', 'wheel']) doc.addEventListener(used, hide, true);
   doc.defaultView?.addEventListener('blur', hide);

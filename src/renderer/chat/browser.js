@@ -47,12 +47,22 @@ import { Screenshot } from './screenshot.js';
  *   where there is no browser to open it in
  * @param {(url: string) => void} actions.external
  * @param {(url: string) => void} actions.copy
+ * @param {{ clicks?: 'beside' | 'external' }} [opts]  `clicks`: what a click on the link does, said in bold
  * @returns {import('../lib/menu.js').MenuItem[]}
  */
-export function linkMenu(url, { beside, external, copy }) {
+export function linkMenu(url, { beside, external, copy }, { clicks } = {}) {
   return [
-    ...(beside ? [{ label: 'Open beside the conversation', icon: smallIcon.globe(), action: () => beside(url) }] : []),
-    { label: 'Open in your browser', action: () => external(url) },
+    ...(beside
+      ? [
+          {
+            label: 'Open beside the conversation',
+            icon: smallIcon.globe(),
+            ...(clicks === 'beside' && { bold: true }),
+            action: () => beside(url),
+          },
+        ]
+      : []),
+    { label: 'Open in your browser', ...(clicks === 'external' && { bold: true }), action: () => external(url) },
     { separator: true },
     { label: 'Copy link address', action: () => copy(url) },
   ];

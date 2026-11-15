@@ -5,7 +5,7 @@ A **Browser** tab in a conversation window shows a web page beside the conversat
 **Opening it.** There are three ways in:
 
 - **View > Browser** or `⇧⌘B` (`Ctrl+Shift+B` on Linux and Windows, or the keys you gave it under [Settings > Shortcuts](settings.md#app)). So does the **+** after the side pane's tabs, then **Browser**.
-- **A link in the conversation.** Right-click it and choose **Open beside the conversation**. This works for the link of [the Run button](run-button.md) too.
+- **A link in the conversation.** Right-click it and choose **Open beside the conversation**. This works for the link of [the Run button](run-button.md) too, and for an address a [terminal](terminal.md) or a script prints.
 - A click on a link opens it in your own browser. Turn on **Open links beside the conversation**, in the page's **⋯** menu or in Settings > Conversations, and a click opens it here instead. A right-click offers both either way. A link to a file of the contact's folder is not a page: a text file, such as `[app.js:12](src/app.js:12)`, opens in a tab beside the conversation, as a click on it in **All files** does. Any other file, such as a recording `[video](/path/to/proof.mp4)`, opens in the app your computer opens it with, as **Open file** in **All files** does. A link that names a file from the top of the disk opens it even outside the contact's folder, such as the screenshots an agent keeps in `/tmp`. Outside the folder, a link to something that runs code, such as an app, a script, an installer or a file allowed to run, is not opened: a dialog says why.
 
 **The address bar** takes what you would type in a browser, and a little less:

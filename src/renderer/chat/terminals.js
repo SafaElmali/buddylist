@@ -23,6 +23,7 @@ import { el, errorText } from '../lib/dom.js';
 import { smallIcon } from '../lib/icons.js';
 import { currentLook, onLook } from '../lib/look.js';
 import { openMenu } from '../lib/menu.js';
+import { linkTerminal } from './output-links.js';
 import { TerminalFind } from './terminal-find.js';
 
 /** @typedef {import('../../main/terminals.js').TerminalEvent} TerminalEvent */
@@ -36,6 +37,7 @@ import { TerminalFind } from './terminal-find.js';
  * @property {Terminal} term
  * @property {FitAddon} fit
  * @property {TerminalFind} find        ⌘F there: finding in what it printed
+ * @property {() => string | null} pointed  the link the pointer is on: a right-click offers to open it
  * @property {HTMLElement} body         its tab's contents
  * @property {ResizeObserver} watcher   draws it again at the size its tab gets
  * @property {boolean} inPage           whether it had a size when last looked at: not while put away, or behind another tab
@@ -181,14 +183,16 @@ export class Terminals {
    * @param {import('./side-pane.js').SidePane} pane
    * @param {{ contactId: string, settings: object }} ctx  `settings`: the app's, for the keys that are the window's
    * @param {object} opts
+   * @param {import('./output-links.js').OutputLinks} opts.links  opens the web addresses a terminal prints
    * @param {(text: string) => void} opts.error  says in the conversation what went wrong
    * @param {() => void} opts.leave  puts the keyboard back where it was before: the message box
    * @param {(card: import('../../shared/terminal-mentions.js').OutputCard, how: 'menu' | 'selection') => void} [opts.mention]
    *   puts a terminal's output in the message box, or what is selected in it
    */
-  constructor(pane, ctx, { error, leave, mention = () => {} }) {
+  constructor(pane, ctx, { links, error, leave, mention = () => {} }) {
     this.pane = pane;
     this.ctx = ctx;
+    this.links = links;
     this.error = error;
     this.leave = leave;
     this.mention = mention;
@@ -474,6 +478,8 @@ export class Terminals {
         !isFindKey(e, SYSTEM === 'mac', true)
       );
     });
+    // What it prints is read for web addresses, which open as links in the conversation do.
+    const { pointed } = linkTerminal(term, this.links);
     term.onData((data) => api.terminal.write(id, data));
     term.onResize(({ cols, rows }) => api.terminal.resize(id, cols, rows));
 
@@ -486,6 +492,7 @@ export class Terminals {
       term,
       fit,
       find: new TerminalFind(term, body),
+      pointed,
       body,
       watcher: new ResizeObserver(() => this.#sized(shell)),
       inPage: false,
@@ -495,12 +502,18 @@ export class Terminals {
     shell.body.addEventListener('focusin', () => {
       this.#last = id;
     });
-    // A right-click in it offers to add what it shows to the message, or what is selected in it.
+    // A right-click in it offers to add what it shows to the message, or what is selected in it. On a link, to
+    // open it first.
     shell.body.addEventListener('contextmenu', (e) => {
       // Not in its Find box.
       if (!shell.term.element?.contains(/** @type {Node} */ (e.target))) return;
       e.preventDefault();
-      openMenu({ x: e.clientX, y: e.clientY }, this.#mentionItems(shell));
+      const url = shell.pointed();
+      const mention = this.#mentionItems(shell);
+      openMenu(
+        { x: e.clientX, y: e.clientY },
+        url ? [...this.links.menu(url), { separator: true }, ...mention] : mention
+      );
     });
     this.#shells.set(id, shell);
     // In the page first: a terminal measures its letters where it is drawn.

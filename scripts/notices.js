@@ -26,8 +26,9 @@ export const VENDORED = Object.freeze([
 const MEDIA = `The notification sounds (type.wav, nudge.wav and online.wav) and the classic Winks with their
 soundtracks are Microsoft's original MSN Messenger media; src/pack/README.md says where the Winks
 come from. The Claude spark and the Claude Code mascot are Anthropic's marks, drawn with the SVG
-paths Simple Icons publishes. They belong to Microsoft and Anthropic, and buddylist's license does
-not cover them.`;
+paths Simple Icons publishes. The Grok mark is xAI's, drawn with the SVG path LobeHub Icons
+publishes (MIT, Copyright (c) 2023 LobeHub). They belong to Microsoft, Anthropic and xAI, and
+buddylist's license does not cover them.`;
 
 /** A license file, as packages name theirs: LICENSE, LICENCE.md, COPYING, NOTICE and the like. */
 const LICENSE_FILE = /^(licen[cs]e|copying|notice)/i;
