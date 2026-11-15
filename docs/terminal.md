@@ -26,6 +26,15 @@
 - Each terminal has a box of its own: another tab shows nothing of it, and `⌘F` there again brings it back with what you typed.
 - In an open file tab, `⌘F` (`Ctrl+F`) opens [Find in file](conversations.md). In **All files** or **Changes**, it goes to the tab’s search box. In the conversation it finds in the conversation. **Edit > Find in Conversation...**, also in the command palette, always searches the conversation.
 
+**Links in it.** A web address the terminal prints, such as the `http://localhost:4100/` of a dev server, is a link. Point at it and it is underlined, with a tip that says where it goes and where a click opens it.
+
+- A click opens it as a link in the conversation does: in your own browser, or [beside the conversation](browser-tab.md) with **Open links beside the conversation** on. `⌘`-click (`Ctrl`-click on Linux and Windows) always opens it in your own browser.
+- Right-click it for **Open beside the conversation** and **Open in your browser**, with what a click does in bold, and **Copy link address**, over what a right-click in the terminal offers anyway.
+- An address cut over two rows of a narrow terminal is one link. A sentence's full stop or comma after it is not part of it.
+- Some programs print links whose words aren't the address, such as **Open the guide**. Their tip shows the address they really go to.
+- Only web pages open, `http` and `https`. A link a program prints to a file, a script or an app, such as `file:` or `javascript:`, is no link here. Dragging over a link to select its words opens nothing.
+- The **Setup** and **Run** tabs, the output under a run's line in the conversation and the **Background** tab link the web addresses in what they show the same way.
+
 **Asking for them.** A Claude contact can open terminals for you: say "open three terminals", or "a terminal for the dev server and one for the tests", and each gets a tab, with the name you gave it. With a [voice clip](voice-clips.md) that is sent as soon as you stop talking, you only have to say it. Codex, Gemini and OpenCode can't do this yet.
 
 - **With something running in them.** "Open two terminals running claude", or "a terminal with the dev server", and the command is typed into each one once its shell is up, as you would type it.
