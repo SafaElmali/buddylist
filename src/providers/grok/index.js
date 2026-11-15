@@ -2,6 +2,7 @@
 import { AcpSession } from '../acp/session.js';
 import { descriptor } from './descriptor.js';
 import { listGrokModels } from './models.js';
+import { READ_ONLY_ENV, readOnlyProfile } from './read-only.js';
 import { cliSetup } from '../setup.js';
 
 export { descriptor };
@@ -11,46 +12,10 @@ const NOT_INSTALLED = `Couldn’t find Grok Build. ${INSTALL}, run "grok login",
 const NEVER_ASKS = 'yolo';
 
 /**
- * What a read-only Grok seat works as: Grok's own agent without the tools that run commands, change files or start
- * agents and jobs of their own. Plan mode keeps Grok from editing, but not from its shell, and the user's Claude Code
- * hooks and allow rules, which Grok follows in every folder, can approve a command without the app hearing of it.
- * Grok's read-only sandbox would hold it, but it doesn't start everywhere. Without the tools, nothing can approve one.
- * A name Grok doesn't have is passed over, so the list names each tool by every name Grok has given it.
- */
-export const READ_ONLY_PROFILE = Object.freeze({
-  name: 'buddylist-read-only',
-  description: 'Reads and searches the code, and changes nothing.',
-  disallowedTools: Object.freeze([
-    // Its shell, and the commands it leaves running.
-    'run_terminal_command',
-    'bash',
-    'kill_task',
-    'monitor',
-    // File changes.
-    'search_replace',
-    'write',
-    'edit',
-    'apply_patch',
-    // Agents and jobs of its own, which have tools of their own.
-    'Agent',
-    'spawn_subagent',
-    'task',
-    'workflow',
-    'scheduler_create',
-    // Files it makes.
-    'image_gen',
-    'image_edit',
-    'video_gen',
-    'image_to_video',
-    'reference_to_video',
-  ]),
-});
-
-/**
  * How Grok Build is run, and where it has ways of its own.
  * @param {string} [command]  the grok to run
  * @param {{ readOnly?: boolean }} [opts]  `readOnly`: for a contact kept from changing files (see `readOnly` on
- *   SessionContact), which works as READ_ONLY_PROFILE
+ *   SessionContact), which works as the read-only profile (see read-only.js)
  * @returns {import('../acp/session.js').AcpAgent}
  */
 export const grokAgent = (command = 'grok', { readOnly = false } = {}) => ({
@@ -63,7 +28,7 @@ export const grokAgent = (command = 'grok', { readOnly = false } = {}) => ({
   sessionMeta: (mode) => ({
     yoloMode: mode === NEVER_ASKS,
     autoMode: false,
-    ...(readOnly && { agentProfile: READ_ONLY_PROFILE }),
+    ...(readOnly && { agentProfile: readOnlyProfile() }),
   }),
   // Its sessions don't list their modes, and Never ask isn't one of them: it is Grok's always-approve, which goes on
   // and off with a notification of Grok's own, over Ask before acting. Auto mode, where a judge of Grok's runs what it
@@ -99,7 +64,7 @@ export function createGrokProvider({ cliPath = () => '', tools = () => [] } = {}
         contact,
         emit,
         agent: grokAgent(cli(), { readOnly: Boolean(contact.readOnly) }),
-        env,
+        env: contact.readOnly ? { ...env, ...READ_ONLY_ENV } : env,
         instructions,
         appTools: conversation ? tools(conversation, contact.id, { readOnly: Boolean(contact.readOnly) }) : [],
       }),
