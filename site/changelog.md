@@ -11,9 +11,9 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
-## v0.7.6
+## v0.7.6 — 2026-11-15
 
-- **Claude's advisor shows in the conversation** — When Claude asks the advisor you set in Claude Code (`/advisor`), a line says so, such as “Claude asked the advisor · Fable”, until the advice is back, and the turn’s last line says what the advisor added to its cost, such as “advisor $0.31”. The advice itself is for Claude alone, so there is nothing to open.
+- **See when Claude asks its advisor** — When Claude asks the advisor you set with `/advisor` in Claude Code, a line in the conversation says so, such as “Claude asked the advisor · Fable”, until the advice is back. The turn’s last line adds the advisor’s share of its cost, such as “advisor $0.31”. The advice is for Claude alone, so the line has nothing to open.
 
 ## v0.7.5 — 2026-11-15
 
