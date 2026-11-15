@@ -4,6 +4,7 @@ import { createCodexProvider } from './codex/index.js';
 import { createGeminiProvider } from './gemini/index.js';
 import { createOpencodeProvider } from './opencode/index.js';
 import { createHermesProvider } from './hermes/index.js';
+import { createGrokProvider } from './grok/index.js';
 import { sessionLogins } from './claude/accounts.js';
 import { DemoSession, PLANS } from './demo/session.js';
 import { demoAccounts, demoWho } from './demo/accounts.js';
@@ -46,6 +47,7 @@ export function createProviders({
     createGeminiProvider({ tools, cliPath: () => cliPath('gemini') }),
     createOpencodeProvider({ tools, cliPath: () => cliPath('opencode') }),
     createHermesProvider({ tools, cliPath: () => cliPath('hermes') }),
+    createGrokProvider({ tools, cliPath: () => cliPath('grok') }),
   ];
   for (const provider of all) {
     const { descriptor } = provider;

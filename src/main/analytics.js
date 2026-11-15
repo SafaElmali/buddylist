@@ -5,6 +5,7 @@
 // Nothing here knows about Electron: index.js hands in the storage and says what the app is.
 import { ATTACHED, COPIES, PANE_TABS, POSTHOG_HOST } from '../shared/analytics.js';
 import { contactsPane } from '../shared/contacts-pane.js';
+import { FALLBACK_SERVICES } from '../shared/fallback-policy.js';
 import { FEEDBACK_KINDS } from '../shared/feedback.js';
 import { REQUESTS } from '../shared/ipc-channels.js';
 import { cleanLimitFallbacks, LIMIT_REPORTERS } from '../shared/limit-fallbacks.js';
@@ -72,7 +73,7 @@ const providerOf = (name) => (oneWord(name) ? { provider: name } : {});
 const RUN_HOWS = Object.freeze(['cadence', 'catch-up', 'now']);
 
 /**
- * Which service was signed in to: claude, codex, gemini, opencode, hermes or github. A sign-in
+ * Which service was signed in to: claude, codex, gemini, opencode, hermes, grok or github. A sign-in
  * that was called off or failed is answered too.
  */
 function signedIn({ answer }, name) {
@@ -655,9 +656,6 @@ const NOT_SETTINGS = Object.freeze(['theme', 'contactsPane', 'openIn', 'projects
 
 /** How the contact list is laid out, from its View menu. Its pinned projects are counted as projects pinned. */
 const LIST_VIEW = Object.freeze(['groupBy', 'sortBy', 'project', 'hidden']);
-
-/** The only service names a usage-limit fallback setting may send with its count. */
-const FALLBACK_SERVICES = Object.freeze(['claude', 'codex', 'gemini', 'opencode', 'hermes']);
 
 const differs = (a, b) => JSON.stringify(a) !== JSON.stringify(b);
 

@@ -60,6 +60,12 @@ try {
               note: 'The check timed out after 8 seconds. Try Check again.',
               path: '/Users/demo/.local/bin/hermes',
             },
+            grok: {
+              state: 'signed-out',
+              note: 'Open Terminal and run "grok login" (or set XAI_API_KEY).',
+              path: '/Users/demo/.grok/bin/grok',
+              version: '1.0.45',
+            },
           })[id]
       );
     });

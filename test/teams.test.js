@@ -15,6 +15,7 @@ import { descriptor as claude } from '../src/providers/claude/descriptor.js';
 import { descriptor as codex } from '../src/providers/codex/descriptor.js';
 import { descriptor as gemini } from '../src/providers/gemini/descriptor.js';
 import { descriptor as hermes } from '../src/providers/hermes/descriptor.js';
+import { descriptor as grok } from '../src/providers/grok/descriptor.js';
 import { descriptor as opencode } from '../src/providers/opencode/descriptor.js';
 
 const PROVIDERS = [claude, codex, gemini, opencode];
@@ -95,7 +96,7 @@ test('a role’s agent starts in its service’s own mode, or its read-only one,
   const plain = { readOnly: false, permissionMode: '' };
   const looking = { readOnly: true, permissionMode: '' };
   assert.deepEqual(
-    [claude, codex, gemini, opencode, hermes].map((provider) => [
+    [claude, codex, gemini, opencode, hermes, grok].map((provider) => [
       roleMode({ ...plain, provider: provider.id }, provider),
       roleMode({ ...looking, provider: provider.id }, provider),
     ]),
@@ -105,6 +106,7 @@ test('a role’s agent starts in its service’s own mode, or its read-only one,
       ['default', 'plan'],
       ['build', 'plan'],
       ['default', 'default'],
+      ['default', 'plan'],
     ]
   );
 });
@@ -125,6 +127,7 @@ test('read only wins: a picked mode holds only where the service keeps the agent
   // and is told no, only in its own: in the others it changes files without asking.
   assert.equal(roleMode(role({ provider: 'gemini', permissionMode: 'yolo' }), gemini), 'plan');
   assert.equal(roleMode(role({ provider: 'opencode', permissionMode: 'build' }), opencode), 'plan');
+  assert.equal(roleMode(role({ provider: 'grok', permissionMode: 'yolo' }), grok), 'plan');
   assert.equal(roleMode(role({ provider: 'hermes', permissionMode: 'dont_ask' }), hermes), 'default');
   assert.equal(roleMode(role({ provider: 'hermes', permissionMode: 'accept_edits' }), hermes), 'default');
   // Read only off, the mode picked is the one.

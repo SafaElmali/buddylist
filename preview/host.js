@@ -13,6 +13,7 @@ import { descriptor as codex } from '../src/providers/codex/descriptor.js';
 import { descriptor as gemini } from '../src/providers/gemini/descriptor.js';
 import { descriptor as opencode } from '../src/providers/opencode/descriptor.js';
 import { descriptor as hermes } from '../src/providers/hermes/descriptor.js';
+import { descriptor as grok } from '../src/providers/grok/descriptor.js';
 import { DemoSession } from '../src/providers/demo/session.js';
 import { DEMO_AGENTS } from '../src/providers/demo/agents.js';
 import {
@@ -98,7 +99,7 @@ function leaveChat(win) {
 }
 
 // The same answers as src/providers/index.js, from the descriptors alone.
-const descriptors = new Map([claude, codex, gemini, opencode, hermes].map((d) => [d.id, d]));
+const descriptors = new Map([claude, codex, gemini, opencode, hermes, grok].map((d) => [d.id, d]));
 const providers = {
   descriptor: (id) => descriptors.get(id) || claude,
   list: () => [...descriptors.values()],

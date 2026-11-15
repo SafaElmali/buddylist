@@ -90,6 +90,8 @@ export function runCli(command, args, { env = process.env, timeout = PATIENCE_MS
  * @param {string} cli.install    what to do when it is not installed
  * @param {string} cli.signIn     what to do when it is not signed in
  * @param {string} [cli.ready]    what there is to say about one that is ready
+ * @param {RegExp} [cli.signedOut]  what it prints when it is not signed in, for a CLI that says so and still leaves
+ *   with 0
  * @param {NodeJS.ProcessEnv} [cli.env]
  * @param {boolean} [cli.version]  also ask --version when the check is for sign-in
  * @param {boolean} [cli.bundled]
@@ -97,7 +99,7 @@ export function runCli(command, args, { env = process.env, timeout = PATIENCE_MS
  * @returns {Promise<Setup>}
  */
 export async function cliSetup(
-  { command, args, install, signIn, ready = '', env, version = false, bundled = false },
+  { command, args, install, signIn, ready = '', signedOut, env, version = false, bundled = false },
   { run = runCli } = {}
 ) {
   if (!command) return { state: 'missing', note: install };
@@ -133,6 +135,8 @@ export async function cliSetup(
           ? 'The program could not start (EACCES). Check its path and permissions.'
           : `The check failed (${code}). Try running the program in Terminal.`,
     };
+  if (code === 0 && signedOut?.test(stripVTControlCharacters(answer.stdout || '')))
+    return { ...details, state: 'signed-out', note: signIn };
   if (code === 0) return { ...details, state: 'ready', note: ready };
   return {
     ...details,

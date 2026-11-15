@@ -1,4 +1,4 @@
-buddylist brings Claude Code, Codex, Gemini, OpenCode and Hermes into a classic messenger buddy list.
+buddylist brings Claude Code, Codex, Gemini, OpenCode, Hermes and Grok into a classic messenger buddy list.
 
 This release contains the latest changes that passed the automated tests and Mac, Windows and Linux builds.
 
@@ -24,4 +24,4 @@ Download **buddylist-linux-x86_64.AppImage**, make it executable (`chmod +x budd
 
 On Debian or Ubuntu, you can instead download **buddylist-linux-amd64.deb** and run `sudo apt install ./buddylist-linux-amd64.deb`. Install the new package when an update is announced.
 
-Intel Mac and ARM Windows/Linux installers are not provided. Use your own agent accounts: Claude Code is bundled; Codex, Gemini, OpenCode and Hermes need their respective CLI installed and signed in.
+Intel Mac and ARM Windows/Linux installers are not provided. Use your own agent accounts: Claude Code is bundled; Codex, Gemini, OpenCode, Hermes and Grok need their respective CLI installed and signed in.

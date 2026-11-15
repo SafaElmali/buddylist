@@ -1,8 +1,8 @@
 // One contact <-> one session with an agent that speaks the Agent Client
 // Protocol (ACP, https://agentclientprotocol.com): JSON-RPC over the stdin
-// and stdout of the agent's own command-line program. Gemini CLI, opencode and
-// Hermes are all driven through this, with the same login and settings as in a
-// terminal.
+// and stdout of the agent's own command-line program. Gemini CLI, opencode,
+// Hermes and Grok Build are all driven through this, with the same login and
+// settings as in a terminal.
 import { selectQueued } from '../queued-message.js';
 import { appToolBridge, APP_TOOL_INSTRUCTIONS } from '../app-tool-bridge.js';
 import { BaseSession, truncateOutput } from '../base-session.js';
@@ -37,6 +37,8 @@ const CUT_SHORT = {
  * @property {string[]} args          what makes it speak ACP, e.g. ["acp"]
  * @property {string} notInstalled    what to say when the program isn't there
  * @property {string[]} [alwaysOptions]  the permission options to pick for "Always allow", when it offers several
+ * @property {true} [alwaysOptionsOnly]  only `alwaysOptions` are "Always allow": its others allow a step for good, in
+ *   every session from then on, so a card without one of them offers "Allow once" alone
  * @property {(text: string) => string | null} [modeFromText]  spots a mode change the agent announces as reply text.
  *   Its model writes that text too, so what it says is taken only where it can't loosen what the user picked: the
  *   mode the app has it in, a stricter one, or the one `modeAfter` says the user's answer leads to
@@ -47,9 +49,17 @@ const CUT_SHORT = {
  * @property {(answer: any) => boolean} [loaded]  for an agent that answers for a saved session it hasn't got as if
  *   it had it: whether its answer to `session/load` is for the one asked for. Its sessions are loaded, not
  *   resumed, as resuming one it hasn't got starts another without a word
+ * @property {(mode: string) => Record<string, unknown>} [sessionMeta]  the `_meta` its sessions are started and picked
+ *   up with in `mode`, the one the contact works in: for an agent with a switch besides its modes, such as Grok's
+ *   always-approve, which would otherwise start as its own settings say
+ * @property {(rpc: import('../json-rpc.js').RpcConnection, sessionId: string, mode: string) => Promise<any>} [setMode]
+ *   how a session is put in one of the descriptor's modes, for an agent whose sessions don't list their modes. Which
+ *   one it is in isn't known, so the contact's is set as each session starts
+ * @property {(mode: string, current: string) => string} [modeHeard]  the descriptor's mode the agent is in when it
+ *   says it is in `mode`, where its own ids aren't all the app's, with the contact in `current`
  */
 
-/** @typedef {{ current: string, choices: { id: string, label: string }[], set: (id: string) => Promise<any> }} Setting */
+/** @typedef {{ current: string | null, choices: { id: string, label: string }[], set: (id: string) => Promise<any> }} Setting */
 
 const isAuthError = (err) => AUTH_ERRORS.includes(err.code);
 
@@ -155,9 +165,9 @@ export class AcpSession extends BaseSession {
     return this.opening;
   }
 
-  /** The modes that never ask: Gemini's yolo, Hermes's dont_ask. */
+  /** The modes that never ask, which the descriptor marks as risky: Gemini's and Grok's yolo, Hermes's dont_ask. */
   appToolsUnasked() {
-    return ['yolo', 'dont_ask'].includes(this.contact.permissionMode);
+    return this.agent.descriptor.permissionModes.some((mode) => mode.danger && mode.id === this.contact.permissionMode);
   }
 
   async #connect() {
@@ -214,7 +224,12 @@ export class AcpSession extends BaseSession {
   }
 
   async #startSession(rpc) {
-    const params = { cwd: this.contact.cwd, mcpServers: this.bridge ? [this.bridge.acp] : [] };
+    const meta = this.agent.sessionMeta?.(this.#wantedMode());
+    const params = {
+      cwd: this.contact.cwd,
+      mcpServers: this.bridge ? [this.bridge.acp] : [],
+      ...(meta && { _meta: meta }),
+    };
     const saved = this.contact.sessionId;
     if (saved) {
       const { loadSession, sessionCapabilities } = this.capabilities;
@@ -288,7 +303,13 @@ export class AcpSession extends BaseSession {
           choices: (modes.availableModes || []).map((m) => ({ id: m.id, label: m.name || m.id })),
           set: (modeId) => rpc.request('session/set_mode', { sessionId, modeId }),
         }
-      : null;
+      : this.agent.setMode
+        ? {
+            current: null,
+            choices: this.agent.descriptor.permissionModes.map(({ id, label }) => ({ id, label })),
+            set: (modeId) => this.agent.setMode(rpc, sessionId, modeId),
+          }
+        : null;
     this.models = models
       ? {
           current: models.currentModelId,
@@ -320,6 +341,11 @@ export class AcpSession extends BaseSession {
     return (this.contact.readOnly && this.agent.descriptor.readOnlyMode) || null;
   }
 
+  /** The mode the agent is to work in: the contact's, or the one for changing no files where it is kept from that. */
+  #wantedMode() {
+    return this.#readOnlyMode() || this.contact.permissionMode;
+  }
+
   /**
    * Put the agent in the contact's mode, or say why it is staying in its own. One kept from changing files doesn't go
    * on in its own: nothing else keeps its edits and commands from running unasked there, so this throws why.
@@ -327,7 +353,7 @@ export class AcpSession extends BaseSession {
   async #applyMode(rpc) {
     const { modes } = this;
     const readOnlyMode = this.#readOnlyMode();
-    const wanted = readOnlyMode || this.contact.permissionMode;
+    const wanted = this.#wantedMode();
     if (modes?.current === wanted) return;
     try {
       if (!modes) {
@@ -465,7 +491,10 @@ export class AcpSession extends BaseSession {
         if (this.announced) this.#ready();
         return;
       case 'current_mode_update':
-        if (update.currentModeId) this.#modeChanged(update.currentModeId);
+        if (update.currentModeId) {
+          const { modeHeard = (mode) => mode } = this.agent;
+          this.#modeChanged(modeHeard(update.currentModeId, this.contact.permissionMode));
+        }
         return;
       case 'config_option_update':
         if (!this.rpc) return;
@@ -587,13 +616,18 @@ export class AcpSession extends BaseSession {
     throw new Error(`buddylist can’t answer "${method}" requests.`);
   }
 
-  async #askPermission({ sessionId, toolCall = {}, options = [] }) {
+  async #askPermission({ sessionId, toolCall = {}, options: offered = [] }) {
     // Another session's question, or one for a turn that is already over.
     if (sessionId !== this.sessionId || !this.turn || !toolCall.toolCallId) return CANCELLED;
     const entry = this.#tool(toolCall, { keepKnown: true });
     this.#showTool(entry);
     // It isn't to be done unless the user says so.
     entry.declined = true;
+    // An agent whose other "always" options allow a step for good has only the ones of its own kept.
+    const { alwaysOptions, alwaysOptionsOnly } = this.agent;
+    const options = alwaysOptionsOnly
+      ? offered.filter((option) => option.kind !== 'allow_always' || alwaysOptions?.includes(option.optionId))
+      : offered;
     const pick = (kinds, preferred) => {
       const optionId = chooseOption(options, kinds, preferred);
       return optionId ? { outcome: { outcome: 'selected', optionId } } : CANCELLED;
@@ -620,7 +654,7 @@ export class AcpSession extends BaseSession {
       case 'allow':
         return allow(['allow_once', 'allow_always']);
       case 'always':
-        return allow(['allow_always', 'allow_once'], this.agent.alwaysOptions);
+        return allow(['allow_always', 'allow_once'], alwaysOptions);
       case 'feedback':
         // Don't do it, but carry on: the feedback is the next thing the agent hears.
         if (response.message) this.queue.unshift({ text: response.message, feedback: true });

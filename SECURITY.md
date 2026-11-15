@@ -23,5 +23,5 @@ Only the latest release is fixed. Installed apps update themselves from v0.2.8 o
 ## What doesn't
 
 - What an agent does after you accept it, choose **Always allow**, or pick a mode that doesn't ask.
-- A bug in Claude Code, Codex, Gemini, OpenCode or Hermes themselves. Please report those to the people who make them.
+- A bug in Claude Code, Codex, Gemini, OpenCode, Hermes or Grok Build themselves. Please report those to the people who make them.
 - Files you put in your own [pack folder](docs/custom-pack.md).

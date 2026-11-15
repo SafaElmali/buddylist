@@ -17,7 +17,7 @@ export const DOCS = [
       {
         file: 'getting-started.md',
         about:
-          'Download buddylist for Mac, Windows or Linux, run the welcome wizard and start your first conversation with Claude Code, Codex, Gemini, OpenCode or Hermes.',
+          'Download buddylist for Mac, Windows or Linux, run the welcome wizard and start a first conversation with Claude Code, Codex, Gemini, OpenCode, Hermes or Grok.',
       },
       {
         file: 'welcome-wizard.md',
@@ -153,6 +153,11 @@ export const DOCS = [
         file: 'hermes.md',
         about:
           'Chat with Hermes: buddylist runs the Hermes Agent installed on your computer, with its own providers, config.yaml, SOUL.md, memories and skills.',
+      },
+      {
+        file: 'grok.md',
+        about:
+          'Chat with Grok: buddylist runs the Grok Build installed on your computer, with its own sign-in, config.toml, AGENTS.md, skills and MCP servers.',
       },
     ],
   },

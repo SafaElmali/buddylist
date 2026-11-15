@@ -41,6 +41,11 @@ const avatars = {
   hermes: () =>
     `<svg viewBox="0 0 96 96" aria-hidden="true"><rect width="96" height="96" fill="#2a1f4a"/>` +
     `<path d="M18 71C24 47 48 31 80 27C74 37 68 41 60 43C70 45 74 47 76 49C64 55 56 57 50 57C58 61 62 63 62 65C48 71 32 73 18 71Z" fill="#f2c14e"/></svg>`,
+  // Grok: an eye, as to grok is to understand something deeply, on a near-black tile. Original art, not xAI's logo.
+  grok: () =>
+    `<svg viewBox="0 0 96 96" aria-hidden="true"><rect width="96" height="96" fill="#14161b"/>` +
+    `<path d="M14 48C24 32 36 25 48 25S72 32 82 48C72 64 60 71 48 71S24 64 14 48Z" fill="none" stroke="#eef0f3" stroke-width="7" stroke-linejoin="round"/>` +
+    `<circle cx="48" cy="48" r="10" fill="#eef0f3"/></svg>`,
   // Background pull-request updates have no agent as their speaker.
   'pull-request': () => toolbarIcon.pullRequest(),
   // You, by default: the classic buddy on a sky tile.
@@ -70,7 +75,10 @@ globalThis.document?.addEventListener(
   true
 );
 
-/** @param {string} id  an avatar id ("claude", "claude-code", "codex", "gemini", "opencode", "hermes"), or "default" for you */
+/**
+ * @param {string} id  an avatar id ("claude", "claude-code", "codex", "gemini", "opencode", "hermes", "grok"), or
+ *   "default" for you
+ */
 export function avatarSvg(id) {
   return (avatars[id] || avatars.default)();
 }

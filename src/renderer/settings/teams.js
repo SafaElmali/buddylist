@@ -176,7 +176,7 @@ export function teamsPage(ctx) {
     showMode();
     const readOnly = toggle({
       label: 'Read only',
-      hint: 'It doesn’t change files, in any mode. Claude goes without the tools that write files, and Claude and Codex run its commands in a sandbox that writes nothing. Gemini and OpenCode work in Plan, and Hermes asks before changing a file and is told no.',
+      hint: 'It doesn’t change files, in any mode. Claude goes without the tools that write files, and Claude and Codex run its commands in a sandbox that writes nothing. Gemini, OpenCode and Grok work in Plan, and Hermes asks before changing a file and is told no.',
       checked: role.readOnly,
       // What the default comes to, and what the mode picked does, changes with it. Turned off under a mode that never
       // asks, it changes files unasked from then on: that is asked first, and it stays on if not.

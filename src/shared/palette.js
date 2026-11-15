@@ -71,6 +71,8 @@ export const KEYWORDS = Object.freeze({
     'codex',
     'gemini',
     'opencode',
+    'hermes',
+    'grok',
   ],
   fallbacks: ['limit', 'weekly', 'credits', 'paid', 'automatic', 'recovery'],
   'project-fallbacks': ['limit', 'weekly', 'credits', 'paid', 'automatic', 'recovery'],

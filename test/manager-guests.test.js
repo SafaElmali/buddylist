@@ -10,6 +10,7 @@ import { descriptor as codexProvider } from '../src/providers/codex/descriptor.j
 import { descriptor as geminiProvider } from '../src/providers/gemini/descriptor.js';
 import { descriptor as hermesProvider } from '../src/providers/hermes/descriptor.js';
 import { descriptor as opencodeProvider } from '../src/providers/opencode/descriptor.js';
+import { descriptor as grokProvider } from '../src/providers/grok/descriptor.js';
 import { tempDir } from './fixtures/temp-dir.js';
 
 const descriptors = {
@@ -18,6 +19,7 @@ const descriptors = {
   gemini: geminiProvider,
   opencode: opencodeProvider,
   hermes: hermesProvider,
+  grok: grokProvider,
 };
 
 const ROLE = {
@@ -122,7 +124,7 @@ test('a contact invited into a manager’s conversation works read-only there, a
 
 test('a new agent of any service that can, a role and an agent of yours all join a manager read-only', () => {
   const app = setup();
-  for (const provider of ['codex', 'gemini', 'opencode', 'claude']) {
+  for (const provider of ['codex', 'gemini', 'opencode', 'grok', 'claude']) {
     app.conversations.inviteNew(app.manager.id, { provider, name: `New ${provider}` });
   }
   app.conversations.inviteSavedRole(app.manager.id, 'tester');
@@ -131,6 +133,7 @@ test('a new agent of any service that can, a role and an agent of yours all join
     ['New codex', 'read-only', false, true],
     ['New gemini', 'plan', false, true],
     ['New opencode', 'plan', false, true],
+    ['New grok', 'plan', false, true],
     ['New claude', 'default', true, true],
     ['Tester', 'read-only', false, true],
     ['code-reviewer', 'default', true, true],

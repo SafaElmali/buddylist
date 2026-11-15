@@ -6,15 +6,15 @@ What people ask about buddylist, by topic. The [landing page](https://buddylist.
 
 ### Is this just a chat window with a retro theme?
 
-No. Each conversation runs a real Claude Code, Codex, Gemini, OpenCode or Hermes session, with the same agent loop, tools and settings as `claude`, `codex`, `gemini`, `opencode` or `hermes` in your terminal. It can read your project, run commands and edit files.
+No. Each conversation runs a real Claude Code, Codex, Gemini, OpenCode, Hermes or Grok session, with the same agent loop, tools and settings as `claude`, `codex`, `gemini`, `opencode`, `hermes` or `grok` in your terminal. It can read your project, run commands and edit files.
 
 ### How do I chat with Codex?
 
 Choose **Codex** as the **Service** in **Add a Contact**. Codex is not bundled, so install the Codex CLI first with `npm install -g @openai/codex` and run `codex login`. It uses the same login, `config.toml`, `AGENTS.md` and MCP servers as `codex` in your terminal. Codex contacts have their own permission modes, and **Conversation > Commands** has `/compact`, `/review` and your Codex skills. They have no plan approval. More in the [Codex guide](codex.md).
 
-### How do I chat with Gemini, OpenCode or Hermes?
+### How do I chat with Gemini, OpenCode, Hermes or Grok?
 
-Choose **Gemini**, **OpenCode** or **Hermes** as the **Service** in **Add a Contact**. None is bundled. For Gemini, install Gemini CLI 0.33 or newer with `npm install -g @google/gemini-cli` and run `gemini` once to sign in. For OpenCode, run `npm install -g opencode-ai` and `opencode auth login`. For Hermes, install [Hermes Agent](https://hermes-agent.nousresearch.com) and choose a provider with `hermes model`. Each uses the same settings, commands and MCP servers as in your terminal, and has its own permission modes. More in the guides to [Gemini](gemini.md), [OpenCode](opencode.md) and [Hermes](hermes.md).
+Choose **Gemini**, **OpenCode**, **Hermes** or **Grok** as the **Service** in **Add a Contact**. None is bundled. For Gemini, install Gemini CLI 0.33 or newer with `npm install -g @google/gemini-cli` and run `gemini` once to sign in. For OpenCode, run `npm install -g opencode-ai` and `opencode auth login`. For Hermes, install [Hermes Agent](https://hermes-agent.nousresearch.com) and choose a provider with `hermes model`. For Grok, install Grok Build with `curl -fsSL https://x.ai/cli/install.sh | bash` and run `grok login`. Each uses the same settings, commands and MCP servers as in your terminal, and has its own permission modes. More in the guides to [Gemini](gemini.md), [OpenCode](opencode.md), [Hermes](hermes.md) and [Grok](grok.md).
 
 ## Code and GitHub
 

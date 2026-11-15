@@ -17,6 +17,6 @@ Good to know:
 - **Check-ins last while buddylist is open.** They end when you quit the app, start a new chat (`/clear`), or archive or delete the contact. Claude is told that, so it can say so when you ask for something that should last longer.
 - **One that repeats ends by itself after 7 days**, as Claude Code has it.
 - In a [group conversation](group-conversations.md), each agent's check-ins are its own. The status bar says whose they are, and they go when that agent leaves.
-- **Only Claude contacts have them.** Codex, Gemini, OpenCode and Hermes have nothing like it to set.
+- **Only Claude contacts have them.** Codex, Gemini, OpenCode, Hermes and Grok have nothing like it to set.
 - **For something that should outlast the app**, such as a task every weekday at 9, use a [schedule](schedules.md) instead: you set it, any service can answer it, each run is a new contact, and it is kept when you quit, with a run you missed meanwhile run once when the app opens.
 - In the [live demo](https://buddylist.dev/demo/) and in demo mode, a message with "check back" or "check in" in it has a scripted Claude set a check-in that is due a few seconds later.

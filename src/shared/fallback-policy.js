@@ -1,5 +1,5 @@
 // Ordered recovery rules. Billing consent is independent of permission to switch agents.
-export const FALLBACK_SERVICES = ['claude', 'codex', 'gemini', 'opencode', 'hermes'];
+export const FALLBACK_SERVICES = ['claude', 'codex', 'gemini', 'opencode', 'hermes', 'grok'];
 export const FALLBACK_TRIGGERS = ['session', 'weekly', 'unavailable'];
 export const PAID_USAGE = ['never', 'ask', 'allow'];
 const oneOf = (value, choices, otherwise) => (choices.includes(value) ? value : otherwise);

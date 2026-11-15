@@ -50,5 +50,5 @@ Good to know:
 - The two can't send each other anything else. To tell the new one something, open it and say it.
 - In a [group conversation](group-conversations.md), what any agent starts is listed under the contact whose conversation it is, and that contact's agent hears back.
 - An archived contact hears nothing while it is archived. A deleted one leaves the conversations it started in the list, on their own.
-- Claude, Codex, Gemini, OpenCode and Hermes can start one using the app's tools.
+- Claude, Codex, Gemini, OpenCode, Hermes and Grok can start one using the app's tools.
 - In demo mode, say "new conversation": the contact starts one for a side task, and passes on what came of it a few seconds later. Say "new conversation with Codex" for one with Codex in it.

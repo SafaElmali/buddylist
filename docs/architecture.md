@@ -63,6 +63,7 @@ src/
     gemini/             Gemini CLI, via `gemini --acp`
     opencode/           OpenCode, via `opencode acp`
     hermes/             Hermes, via `hermes acp`
+    grok/               Grok Build, via `grok agent stdio`
     demo/               scripted fake session and made-up accounts (npm run demo, UI tests)
   main/                 Electron main process
     index.js            wiring

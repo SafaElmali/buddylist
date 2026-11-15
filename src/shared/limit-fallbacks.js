@@ -14,6 +14,7 @@ const MODE_ACCESS = {
   gemini: { plan: 0, default: 1, autoEdit: 2, yolo: 4 },
   opencode: { plan: 0, build: 4 },
   hermes: { default: 4, accept_edits: 4, dont_ask: 4 },
+  grok: { plan: 0, default: 1, yolo: 4 },
 };
 
 /**
