@@ -10,6 +10,9 @@ import { checkInWhen, isLoopSentinel } from '../../shared/check-ins.js';
 
 const clip = (s, max = 160) => (s.length > max ? `${s.slice(0, max)}…` : s);
 
+/** Which model the advisor is, after what was asked of it: " · Fable". Nothing where that isn't known. */
+const advisorModel = (a) => (a.label ? html` · <b>${a.label}</b>` : '');
+
 /**
  * What to say about an activity. Returns trusted markup.
  * @param {Activity} a
@@ -45,6 +48,8 @@ export function describeActivity(a, cwd) {
       return html`asked you a question`;
     case 'skill':
       return html`used the <b>${a.label}</b> skill`;
+    case 'advisor':
+      return html`asked the advisor${advisorModel(a)}`;
     case 'schedule': {
       if (a.action === 'cancel') return html`cancelled a check-in`;
       if (a.action === 'list') return html`looked at its check-ins`;
@@ -143,6 +148,8 @@ export function describePending(a, cwd, { asked = false } = {}) {
       return html`asking a subagent to <i>${a.label}</i>`;
     case 'skill':
       return html`using the <b>${a.label}</b> skill`;
+    case 'advisor':
+      return html`asking the advisor${advisorModel(a)}`;
     default: {
       // What its status line says: "Sending a message", "Using lookup".
       const status = activityStatus(a);

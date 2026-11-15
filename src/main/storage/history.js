@@ -27,6 +27,7 @@ export const WRITE_EVERY_MS = 250;
  * @property {string} [speaker]      on what a guest in the conversation wrote: its contact id. The host's have none
  * @property {string} [speakerName]  that guest's name when it was written
  * @property {number} [costUsd]      on a result: the session's reported running cost in US dollars
+ * @property {number} [advisorUsd]   on a result: the part of that its advisor model ran up, a running total too
  * @property {string} [costOrigin]   on a forked result: the original result's id, so it is counted once
  * @property {boolean} [costReset]   on a fork notice: subsequent results start a new running total
  * @property {boolean} [sessionReset] on a service-switch notice: new sessions start new running totals

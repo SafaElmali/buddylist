@@ -688,6 +688,7 @@ export function activityIcon(kind) {
     skill: smallIcon.sparkle,
     schedule: smallIcon.clock,
     app: smallIcon.terminal,
+    advisor: smallIcon.review,
   };
   return (map[kind] || smallIcon.gear)();
 }

@@ -14,6 +14,7 @@ import { InputQueue } from './input-queue.js';
 import { draftActivity, toActivity, toQuestions, toolResultPictures, toolResultText } from './activity.js';
 import { APP_TOOL_INSTRUCTIONS, appToolName, appToolServer } from './app-tools.js';
 import { Background } from './background.js';
+import { listedAs as listedModel } from './models.js';
 import { toMcpServer } from './mcp.js';
 import { forkSession, getSessionMessages, query } from './sdk.js';
 import { TASK_TOOLS, Tasks } from './tasks.js';
@@ -291,6 +292,14 @@ export class ClaudeSession extends BaseSession {
     this.streamedMessages = new Set();
     /** The tool calls shown in the chat that have had no result yet, by id. */
     this.openTools = new Set();
+    /** Of those, the ones asking the advisor: Claude Code says nothing of one a Stop cut short. */
+    this.advising = new Set();
+    /** Which model the advisor is, as the app names models: what the line of a call to it says. '' while unknown. */
+    this.advisorLabel = '';
+    /** The models that answered as the advisor here, by their full ids: what they ran up is the advisor's. */
+    this.advisorModels = new Set();
+    /** The model Claude answers with, by its full id, as Claude Code last said. */
+    this.mainModel = '';
     this.declinedTools = new Set();
     /** Of those, the ones whose question was withdrawn unanswered, as a Stop does: nobody declined them. */
     this.withdrawnTools = new Set();
@@ -439,9 +448,27 @@ export class ClaudeSession extends BaseSession {
       // Started to be asked about itself, with no message to answer (see #ask): it is there, and waits for one. Not
       // where it was started for a turn that waits for its plan to be asked about first (see #deliverChecked).
       if (this.state === 'connecting' && !this.creditCheck) this.setState('idle');
+      // Which model its advisor is, as its settings come to (`effective` of its get_settings, which the SDK's types
+      // leave out): the line of a call to it names that model, which Claude Code says only once the request is over.
+      const advisor = (await q.getSettings?.())?.effective?.advisorModel;
+      if (this.q === q && typeof advisor === 'string') this.advisorLabel = this.#modelName(advisor);
     } catch {
-      // It never connected, and #pump says why.
+      // It never connected, and #pump says why. Or it can't say what its settings come to: its advisor's line names
+      // no model until one has answered.
     }
+  }
+
+  /**
+   * A model as the app names it, as this Claude Code lists its models: "Fable" for "fable" or its full id.
+   * @param {string} id
+   */
+  #modelName(id) {
+    return (
+      listedModel(
+        this.models.filter((m) => m.value !== 'default'),
+        id
+      )?.displayName || id
+    );
   }
 
   // The style a contact was saved with can be gone by now (its file was
@@ -583,6 +610,7 @@ export class ClaudeSession extends BaseSession {
       this.initialized = true;
       this.sentBeforeInit = [];
       this.contact.sessionId = msg.session_id;
+      this.mainModel = msg.model || '';
       this.#forgetMissingOutputStyle();
       this.emit({
         type: 'ready',
@@ -675,6 +703,7 @@ export class ClaudeSession extends BaseSession {
    */
   #settleTools() {
     this.withdrawnTools.clear();
+    this.advising.clear();
     for (const toolId of this.openTools) {
       this.emit({
         type: 'tool-result',
@@ -767,6 +796,21 @@ export class ClaudeSession extends BaseSession {
       this.#tellDraft(key);
     } else if (event.type === 'content_block_stop') {
       this.drafts.delete(key);
+    } else if (event.type === 'message_delta') {
+      this.#advisorAnswered(event.usage?.iterations);
+    }
+  }
+
+  /**
+   * The models that answered as the advisor in a request, as Claude Code says once the request is over: what they ran
+   * up is the advisor's, and the next call's line names the one it is now.
+   * @param {{ type?: string, model?: string }[] | undefined} iterations  the requests that went into it
+   */
+  #advisorAnswered(iterations) {
+    for (const { type, model } of Array.isArray(iterations) ? iterations : []) {
+      if (type !== 'advisor_message' || typeof model !== 'string') continue;
+      this.advisorModels.add(model);
+      this.advisorLabel = this.#modelName(model);
     }
   }
 
@@ -815,9 +859,14 @@ export class ClaudeSession extends BaseSession {
       } else if (block.type === 'tool_use' && TASK_TOOLS.has(block.name)) {
         // Claude keeping its to-do list. What changed is known from the call's result (see #handleToolResults).
         this.tasks.call(block.id, block.name, block.input);
-      } else if (block.type === 'tool_use') {
-        const activity = this.#activity(block.name, block.input);
+      } else if (block.type === 'tool_use' || (block.type === 'server_tool_use' && block.name === 'advisor')) {
+        // Claude asks its advisor, a stronger model, on Anthropic's side: there is nothing for anyone to allow.
+        const advisor = block.type === 'server_tool_use';
+        const activity = advisor
+          ? { kind: 'advisor', ...(this.advisorLabel && { label: this.advisorLabel }) }
+          : this.#activity(block.name, block.input);
         this.openTools.add(block.id);
+        if (advisor) this.advising.add(block.id);
         // A command may go on in the background, now or later: its task says what it runs by this call.
         this.background.call(block.id, activity);
         this.emit({
@@ -828,8 +877,36 @@ export class ClaudeSession extends BaseSession {
           // A helper's own step says whose it is: the call that started that helper.
           ...(!isMain && { helper: msg.parent_tool_use_id }),
         });
+      } else if (block.type === 'advisor_tool_result') {
+        this.#adviceBack(block.tool_use_id, block.content);
       }
     });
+  }
+
+  /**
+   * The advisor answered. Its advice is sealed, for Claude alone, so the call's line has nothing to show of it; one it
+   * couldn't give says why, as Claude Code does.
+   * @param {string} toolId
+   * @param {{ type?: string, error_code?: string } | undefined} content
+   */
+  #adviceBack(toolId, content) {
+    if (!this.advising.has(toolId)) return;
+    const failed = content?.type === 'advisor_tool_result_error';
+    this.#endAdvice(toolId, {
+      isError: failed,
+      output: failed ? content.error_code || 'The advisor couldn’t answer.' : '',
+    });
+  }
+
+  /**
+   * A call to the advisor is over, as `result` says.
+   * @param {string} toolId
+   * @param {{ isError?: boolean, output?: string, stopped?: boolean }} result
+   */
+  #endAdvice(toolId, { isError = false, output = '', stopped = false }) {
+    this.advising.delete(toolId);
+    this.openTools.delete(toolId);
+    this.emit({ type: 'tool-result', toolId, isError, declined: false, output, ...(stopped && { stopped: true }) });
   }
 
   #handleToolResults(msg) {
@@ -900,6 +977,7 @@ export class ClaudeSession extends BaseSession {
     if (msg.is_error && !this.initialized && this.resumingFrom && !msg.startup_failure_reason)
       return this.#restartFresh();
     this.#flushText();
+    this.#adviceCutShort();
     const said = (msg.errors || []).join('\n');
     // Said once: the process ending after it adds nothing (see #pump).
     this.refused = msg.is_error ? this.#refusal(said) : null;
@@ -911,7 +989,8 @@ export class ClaudeSession extends BaseSession {
     const isError = msg.is_error && !this.stopped;
     const limited = this.limited && !this.stopped;
     this.limited = false;
-    if (credit) this.#stoppedAtLimit(credit, { durationMs: msg.duration_ms, costUsd: msg.total_cost_usd });
+    const advisorUsd = this.#advisorSpent(msg.modelUsage);
+    if (credit) this.#stoppedAtLimit(credit, { durationMs: msg.duration_ms, costUsd: msg.total_cost_usd, advisorUsd });
     else
       this.emit({
         type: 'result',
@@ -930,6 +1009,7 @@ export class ClaudeSession extends BaseSession {
         errorText: isError ? (this.refused ?? errorTextOf(said || this.turnError, this.turnFailure)) : '',
         durationMs: msg.duration_ms,
         costUsd: msg.total_cost_usd,
+        ...(advisorUsd > 0 && { advisorUsd }),
       });
     this.turnError = '';
     this.turnFailure = null;
@@ -943,6 +1023,28 @@ export class ClaudeSession extends BaseSession {
     this.hurried = false;
     if (limited || credit) queueMicrotask(() => this.#goOnElsewhere(credit));
     else queueMicrotask(() => this.#drain());
+  }
+
+  /**
+   * The turn is over, and so is every call to the advisor in it: Claude Code says nothing of one a Stop cut short,
+   * or of one whose request failed.
+   */
+  #adviceCutShort() {
+    for (const toolId of [...this.advising])
+      this.#endAdvice(toolId, this.stopped ? { stopped: true } : { isError: true });
+  }
+
+  /**
+   * What the advisor ran up in this session so far, a running total as Claude Code keeps one for each model: none
+   * where no advisor answered here, nor where it is the model Claude answers with, whose part can't be told from it.
+   * @param {Record<string, { costUSD?: number }> | undefined} modelUsage
+   */
+  #advisorSpent(modelUsage) {
+    let usd = 0;
+    for (const model of this.advisorModels) {
+      if (model !== this.mainModel) usd += Number(modelUsage?.[model]?.costUSD) || 0;
+    }
+    return usd;
   }
 
   // ---- the plan's limit, where the login stops at it rather than spend usage credits ---------------------
@@ -1006,7 +1108,7 @@ export class ClaudeSession extends BaseSession {
    * happens (see #goOnElsewhere), and what waits waits on.
    * @param {import('../contract.js').PlanLimitStop & { account: string }} stop
    */
-  #stoppedAtLimit(stop, { durationMs = 0, costUsd = 0 } = {}) {
+  #stoppedAtLimit(stop, { durationMs = 0, costUsd = 0, advisorUsd = 0 } = {}) {
     this.held = stop;
     const { kind, resetsAt, when } = stop;
     this.emit({
@@ -1019,6 +1121,7 @@ export class ClaudeSession extends BaseSession {
       errorText: planLimitText(stop),
       durationMs,
       costUsd,
+      ...(advisorUsd > 0 && { advisorUsd }),
     });
   }
 

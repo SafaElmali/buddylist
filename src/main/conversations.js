@@ -5134,6 +5134,7 @@ export class Conversations {
           ...(event.planLimit && { planLimit: event.planLimit }),
           durationMs: event.durationMs,
           costUsd: event.costUsd,
+          ...(event.advisorUsd > 0 && { advisorUsd: event.advisorUsd }),
           ...by,
         });
         if (reply && !event.stopped && !event.isError) this.#suggest(host, reply, result.id);

@@ -36,7 +36,7 @@ const some = (count, one) => `${count === 1 ? 'a' : count} ${plural(count, one)}
 const again = (count) => (count === 1 ? '' : count === 2 ? ' twice' : ` ${count} times`);
 
 /** The kinds of call `tally` has words of their own for. Any other is a tool. */
-const TALLIED = ['command', 'read', 'edit', 'write', 'search', 'web', 'delegate', 'skill'];
+const TALLIED = ['command', 'read', 'edit', 'write', 'search', 'web', 'delegate', 'skill', 'advisor'];
 
 /**
  * What some tool calls came to, in a few words: "ran 3 commands, read 2 files and edited a file".
@@ -55,6 +55,7 @@ export function tally(activities) {
   const web = of('web').length;
   const helpers = of('delegate').length;
   const skills = of('skill');
+  const advice = of('advisor').length;
   const said = [
     commands && `ran ${some(commands, 'command')}`,
     left && `started ${some(left, 'command')} in the background`,
@@ -64,6 +65,7 @@ export function tally(activities) {
     web && `browsed the web${again(web)}`,
     helpers && `asked ${some(helpers, 'subagent')}`,
     skills.length && (skills.length === 1 ? `used the ${skills[0].label} skill` : `used ${skills.length} skills`),
+    advice && `asked the advisor${again(advice)}`,
   ].filter(Boolean);
   const others = activities.length - of(...TALLIED).length;
   if (others && said.length) said.push(`used ${others === 1 ? 'one other tool' : `${others} other tools`}`);

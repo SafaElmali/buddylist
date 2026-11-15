@@ -35,6 +35,11 @@ test('a file change clips each side', () => {
   assert.deepEqual(fileChange('', lines(500)), { before: '', after: clipLines(lines(500)) });
 });
 
+test('asking the advisor is a status of its own, named the same whatever model it is', () => {
+  assert.equal(activityStatus({ kind: 'advisor', label: 'Fable' }), 'Asking the advisor');
+  assert.equal(activityStatus({ kind: 'advisor' }), 'Asking the advisor');
+});
+
 test('a manager’s invite is said by who joins which conversation, and as what', () => {
   const invite = {
     kind: 'app',

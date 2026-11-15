@@ -273,6 +273,8 @@ export class Conversation {
     this.lastReceived = null;
     /** @type {Map<string, number>} participant id -> the running total its latest result carried, to tell what its next turn cost */
     this.spent = new Map();
+    /** @type {Map<string, number>} and the part of it its advisor ran up, to tell what the advisor added to a turn */
+    this.advised = new Map();
   }
 
   // ---- scrolling ------------------------------------------------------------------------
@@ -451,6 +453,7 @@ export class Conversation {
     this.live.clear();
     this.lastReceived = null;
     this.spent.clear();
+    this.advised.clear();
     this.#turnReply.clear();
     this.#waiting = 0;
     this.#waitingIds = null;
@@ -1081,13 +1084,20 @@ export class Conversation {
 
   /** How a turn ended. With several agents here, the line says whose. */
   addResult(result) {
-    const { isError, stopped, errorText, durationMs, costUsd } = result;
+    const { isError, stopped, errorText, durationMs, costUsd, advisorUsd } = result;
     const who = byline(this.ctx.participants, result);
     // A result carries its session's running total; the line says what this turn added.
     // Every agent here has a session, and so a total, of its own.
     const session = this.#sessionOf(result);
-    const turn = costUsd > 0 ? turnCost(this.spent.get(session) || 0, costUsd) : 0;
-    if (costUsd > 0) this.spent.set(session, costUsd);
+    const added = (totals, total) => {
+      if (!(total > 0)) return 0;
+      const usd = turnCost(totals.get(session) || 0, total);
+      totals.set(session, total);
+      return usd;
+    };
+    const turn = added(this.spent, costUsd);
+    // Of that, what its advisor added, where one has answered.
+    const advice = added(this.advised, advisorUsd);
     // The turn's last reply says how long it took.
     const reply = this.#turnReply.get(session);
     this.#turnReply.delete(session);
@@ -1125,7 +1135,9 @@ export class Conversation {
         `${who}Stopped early: ${sentence(errorText || 'something went wrong')}`
       );
     const secs = durationMs ? ` in ${(durationMs / 1000).toFixed(durationMs < 10000 ? 1 : 0)}s` : '';
-    const cost = turn > 0 ? ` · $${turn.toFixed(turn < 0.1 ? 4 : 2)}` : '';
-    return this.line('result', smallIcon.check(), `${who}Done${secs}${cost}`);
+    const usd = (amount) => `$${amount.toFixed(amount < 0.1 ? 4 : 2)}`;
+    const cost = turn > 0 ? ` · ${usd(turn)}` : '';
+    const advisor = advice > 0 ? ` · advisor ${usd(advice)}` : '';
+    return this.line('result', smallIcon.check(), `${who}Done${secs}${cost}${advisor}`);
   }
 }

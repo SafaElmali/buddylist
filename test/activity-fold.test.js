@@ -64,6 +64,12 @@ test('helpers and skills are named', () => {
   );
 });
 
+test('asking the advisor is said by how often', () => {
+  const advisor = { kind: 'advisor', label: 'Fable' };
+  assert.equal(tally([advisor]), 'asked the advisor');
+  assert.equal(tally([advisor, run('ls'), advisor]), 'ran a command and asked the advisor twice');
+});
+
 test('any other call is a tool, and "other" beside the ones that are named', () => {
   const plan = { kind: 'plan' };
   const mcp = { kind: 'mcp', label: 'search_docs', source: 'Docs' };
@@ -221,4 +227,70 @@ test('no more opened lines are kept than so many: the newest ones', (t) => {
   assert.equal(details.length, OPENED_AT_MOST);
   assert.equal(details[0], 't5');
   assert.equal(details.at(-1), `t${OPENED_AT_MOST + 4}`);
+});
+
+// ---- the advisor ------------------------------------------------------------------------------------------
+
+/** A conversation with a host and a guest, in a page. */
+function advised(t) {
+  const document = page(t);
+  const root = document.createElement('div');
+  document.body.append(root);
+  const ctx = {
+    participants: [
+      { id: 'host', name: 'Claude (cart)' },
+      { id: 'guest', name: 'Claude (review)' },
+    ],
+    profile: {},
+    myColor: '',
+    contact: { cwd: '/repo' },
+  };
+  const conversation = new Conversation(/** @type {any} */ (root), ctx);
+  const activities = new ActivityLines(conversation, ctx);
+  const said = (node) => node.textContent.replace(/\s+/g, ' ').trim();
+  return { root, conversation, activities, said };
+}
+
+test('an advisor call’s line goes on until the advice is back, under whoever asked, and is drawn done again', (t) => {
+  const { root, activities, said } = advised(t);
+  activities.add({ toolId: 'srv1', activity: { kind: 'advisor', label: 'Fable' }, speaker: 'guest' });
+  const line = () => root.querySelector('.tool[data-tool="srv1"]');
+  assert.equal(said(line().querySelector('.line')), 'Claude (review) asked the advisor · Fable…');
+  activities.setResult('srv1', { output: '', isError: false, declined: false });
+  assert.equal(
+    said(line().querySelector('.line')),
+    'Claude (review) asked the advisor · Fable',
+    'nothing to show of the advice'
+  );
+  assert.equal(line().querySelector('.toggle'), null);
+
+  const again = advised(t);
+  again.activities.add(
+    /** @type {any} */ ({ kind: 'tool', toolId: 'srv1', activity: { kind: 'advisor', label: 'Fable' }, output: '' }),
+    { fromHistory: true }
+  );
+  assert.equal(
+    again.said(again.root.querySelector('.tool[data-tool="srv1"] .line')),
+    'Claude (cart) asked the advisor · Fable'
+  );
+});
+
+test('a turn’s line says what the advisor added to it, by each agent’s own running totals, and nothing without it', (t) => {
+  const { conversation, said } = advised(t);
+  const line = (result) =>
+    said(conversation.addResult({ isError: false, stopped: false, durationMs: 9700, ...result }));
+  assert.equal(line({ costUsd: 0.5, advisorUsd: 0.31 }), 'Claude (cart): Done in 9.7s · $0.50 · advisor $0.31');
+  // A turn it wasn't asked in carries the same advisor total: it added nothing.
+  assert.equal(line({ costUsd: 0.62, advisorUsd: 0.31 }), 'Claude (cart): Done in 9.7s · $0.12');
+  assert.equal(line({ costUsd: 1.2, advisorUsd: 0.6 }), 'Claude (cart): Done in 9.7s · $0.58 · advisor $0.29');
+  // A guest's session has totals of its own.
+  assert.equal(
+    line({ speaker: 'guest', costUsd: 0.4, advisorUsd: 0.05 }),
+    'Claude (review): Done in 9.7s · $0.40 · advisor $0.0500'
+  );
+  assert.equal(
+    line({ costUsd: 1.3 }),
+    'Claude (cart): Done in 9.7s · $0.10',
+    'a turn with no advisor total says nothing of one'
+  );
 });
