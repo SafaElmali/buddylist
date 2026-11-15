@@ -213,8 +213,9 @@ If buddylist is useful to you, you can [buy me a coffee](https://buymeacoffee.co
 The code is [MIT](LICENSE).
 
 - The Claude spark and the Claude Code mascot are Anthropic's marks. Their SVG paths come from [Simple Icons](https://simpleicons.org).
+- The Grok mark is xAI's. Its SVG path comes from [LobeHub Icons](https://github.com/lobehub/lobe-icons) (MIT, Copyright (c) 2023 LobeHub).
 - The bundled classic Winks and their soundtracks, and the [notification recordings](docs/msn-look.md#the-classic-sounds), are Microsoft's original MSN Messenger media. See the [pack attribution](src/pack/README.md).
-- Other interface artwork is original SVG, including the Codex, Gemini, OpenCode, Hermes and Grok pictures.
+- Other interface artwork is original SVG, including the Codex, Gemini, OpenCode and Hermes pictures.
 - The app and the live demo each carry `THIRD_PARTY_NOTICES.txt`, with the license of every package and copied file they ship. The build writes it from what it bundles ([`scripts/notices.js`](scripts/notices.js)); the app has it beside its resources, and the demo at `/demo/THIRD_PARTY_NOTICES.txt`.
 
-The artwork and sounds that belong to Anthropic or Microsoft are theirs, and the license does not cover them. buddylist is an independent project, not affiliated with or endorsed by Microsoft, Anthropic, OpenAI or Google.
+The artwork and sounds that belong to Anthropic, xAI or Microsoft are theirs, and the license does not cover them. buddylist is an independent project, not affiliated with or endorsed by Microsoft, Anthropic, OpenAI, Google or xAI.

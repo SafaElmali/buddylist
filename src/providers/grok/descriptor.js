@@ -7,7 +7,7 @@ export const descriptor = {
   appTools: true,
   name: 'Grok',
   avatar: 'grok',
-  avatars: [{ id: 'grok', label: 'Grok eye' }],
+  avatars: [{ id: 'grok', label: 'Grok mark' }],
   // Grok Build's own session modes, under the ids it gives them, and its always-approve as Never ask: no mode of its
   // sessions, but a switch on top of Ask before acting (see grok/index.js).
   permissionModes: [
