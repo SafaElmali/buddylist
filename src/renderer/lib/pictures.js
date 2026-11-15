@@ -15,6 +15,10 @@ const CLAUDE_SPARK =
 const CLAUDE_CODE_MASCOT =
   'M21 10.5h3v3h-3v3h-1.5v3H18v-3h-1.5v3H15v-3H9v3H7.5v-3H6v3H4.5v-3H3v-3H0v-3h3v-6h18Zm-15 0h1.5v-3H6Zm10.5 0H18v-3h-1.5z';
 const CLAUDE_ORANGE = '#D97757';
+// Grok's mark, as LobeHub's icons draw it (https://github.com/lobehub/lobe-icons, MIT, Copyright (c) 2023
+// LobeHub). The mark itself is xAI's.
+const GROK_MARK =
+  'M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815';
 
 const avatars = {
   // Claude's spark on cream, like the Claude app icon.
@@ -41,11 +45,10 @@ const avatars = {
   hermes: () =>
     `<svg viewBox="0 0 96 96" aria-hidden="true"><rect width="96" height="96" fill="#2a1f4a"/>` +
     `<path d="M18 71C24 47 48 31 80 27C74 37 68 41 60 43C70 45 74 47 76 49C64 55 56 57 50 57C58 61 62 63 62 65C48 71 32 73 18 71Z" fill="#f2c14e"/></svg>`,
-  // Grok: an eye, as to grok is to understand something deeply, on a near-black tile. Original art, not xAI's logo.
+  // Grok's mark in white on black, like the Grok app icon.
   grok: () =>
-    `<svg viewBox="0 0 96 96" aria-hidden="true"><rect width="96" height="96" fill="#14161b"/>` +
-    `<path d="M14 48C24 32 36 25 48 25S72 32 82 48C72 64 60 71 48 71S24 64 14 48Z" fill="none" stroke="#eef0f3" stroke-width="7" stroke-linejoin="round"/>` +
-    `<circle cx="48" cy="48" r="10" fill="#eef0f3"/></svg>`,
+    `<svg viewBox="0 0 96 96" aria-hidden="true"><rect width="96" height="96" fill="#000"/>` +
+    `<path transform="translate(16 16) scale(2.6667)" d="${GROK_MARK}" fill="#fff" fill-rule="evenodd"/></svg>`,
   // Background pull-request updates have no agent as their speaker.
   'pull-request': () => toolbarIcon.pullRequest(),
   // You, by default: the classic buddy on a sky tile.
