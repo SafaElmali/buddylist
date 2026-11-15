@@ -2,6 +2,7 @@
 import { AcpSession } from '../acp/session.js';
 import { descriptor } from './descriptor.js';
 import { listGrokModels } from './models.js';
+import { READ_ONLY_ENV, readOnlyProfile } from './read-only.js';
 import { cliSetup } from '../setup.js';
 
 export { descriptor };
@@ -13,16 +14,22 @@ const NEVER_ASKS = 'yolo';
 /**
  * How Grok Build is run, and where it has ways of its own.
  * @param {string} [command]  the grok to run
+ * @param {{ readOnly?: boolean }} [opts]  `readOnly`: for a contact kept from changing files (see `readOnly` on
+ *   SessionContact), which works as the read-only profile (see read-only.js)
  * @returns {import('../acp/session.js').AcpAgent}
  */
-export const grokAgent = (command = 'grok') => ({
+export const grokAgent = (command = 'grok', { readOnly = false } = {}) => ({
   descriptor,
   command,
   args: ['agent', 'stdio'],
   notInstalled: NOT_INSTALLED,
   // Each session starts with always-approve as its mode says, and with auto mode off, whatever Grok's settings say:
   // either would have it run commands unasked, a read-only one's too.
-  sessionMeta: (mode) => ({ yoloMode: mode === NEVER_ASKS, autoMode: false }),
+  sessionMeta: (mode) => ({
+    yoloMode: mode === NEVER_ASKS,
+    autoMode: false,
+    ...(readOnly && { agentProfile: readOnlyProfile() }),
+  }),
   // Its sessions don't list their modes, and Never ask isn't one of them: it is Grok's always-approve, which goes on
   // and off with a notification of Grok's own, over Ask before acting. Auto mode, where a judge of Grok's runs what it
   // finds safe unasked, goes off with it: the app has no mode for it.
@@ -56,8 +63,8 @@ export function createGrokProvider({ cliPath = () => '', tools = () => [] } = {}
       new AcpSession({
         contact,
         emit,
-        agent: grokAgent(cli()),
-        env,
+        agent: grokAgent(cli(), { readOnly: Boolean(contact.readOnly) }),
+        env: contact.readOnly ? { ...env, ...READ_ONLY_ENV } : env,
         instructions,
         appTools: conversation ? tools(conversation, contact.id, { readOnly: Boolean(contact.readOnly) }) : [],
       }),

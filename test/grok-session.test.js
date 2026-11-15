@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { AcpSession } from '../src/providers/acp/session.js';
 import { createGrokProvider, descriptor, grokAgent } from '../src/providers/grok/index.js';
+import { READ_ONLY_ENV, readOnlyProfile } from '../src/providers/grok/read-only.js';
 import { listGrokModels } from '../src/providers/grok/models.js';
 import { createProviders } from '../src/providers/index.js';
 import { readOnlyPermissionMode } from '../src/shared/limit-fallbacks.js';
@@ -71,7 +72,11 @@ const REPLIES = {
   'session/set_config_option': ({ value }) => ({ configOptions: configOptions(value) }),
 };
 
-const begun = (opts = {}) => started(GROK, { ...opts, replies: { ...REPLIES, ...opts.replies } });
+const begun = (opts = {}) =>
+  started(opts.contact?.readOnly ? grokAgent('grok', { readOnly: true }) : GROK, {
+    ...opts,
+    replies: { ...REPLIES, ...opts.replies },
+  });
 const selected = (optionId) => ({ outcome: { outcome: 'selected', optionId } });
 const YOLO = '_x.ai/yolo_mode_changed';
 /** Grok's switches and modes as the session set them: always-approve on or off, and the mode. */
@@ -192,7 +197,11 @@ test('a saved session is resumed with always-approve as its mode says', async ()
 
 test('a read-only contact works in Plan mode with always-approve off, whatever its own mode', async () => {
   const { agent, of, session } = await begun({ contact: { readOnly: true, permissionMode: 'yolo' } });
-  assert.deepEqual(agent.params('session/new')[0]._meta, { yoloMode: false, autoMode: false });
+  assert.deepEqual(agent.params('session/new')[0]._meta, {
+    yoloMode: false,
+    autoMode: false,
+    agentProfile: readOnlyProfile(),
+  });
   assert.deepEqual(switched(agent), { yolo: [false], modes: ['plan'] });
   assert.equal(session.appToolsUnasked(), true, 'its mode is still the user’s: the app’s own tools ask as it says');
 
@@ -207,6 +216,33 @@ test('a read-only contact works in Plan mode with always-approve off, whatever i
   await tick();
   assert.deepEqual(switched(agent), { yolo: [false, false], modes: ['plan', 'plan'] });
   assert.equal(of('mode').length, 0);
+});
+
+test('a read-only contact works as the app’s read-only profile, a resumed session too', async () => {
+  const resumed = await begun({ contact: { readOnly: true, sessionId: 's-old' } });
+  assert.deepEqual(resumed.agent.params('session/resume')[0]._meta.agentProfile, readOnlyProfile());
+
+  // Any other contact works as Grok's own agent, in every mode.
+  for (const permissionMode of ['default', 'plan', 'yolo']) {
+    const { agent } = await begun({ contact: { permissionMode } });
+    assert.equal('agentProfile' in agent.params('session/new')[0]._meta, false, permissionMode);
+  }
+});
+
+test('the provider starts a read-only contact’s Grok as the read-only profile, without others’ MCP settings', () => {
+  const contact = { cwd: '/tmp', model: '', permissionMode: 'default', sessionId: null };
+  const provider = createGrokProvider();
+  const env = { API_URL: 'http://localhost' };
+  const readOnly = provider.createSession({ contact: { ...contact, readOnly: true }, emit: () => {}, env });
+  assert.deepEqual(readOnly.agent.sessionMeta('plan').agentProfile, readOnlyProfile());
+  assert.deepEqual(
+    [readOnly.env.API_URL, readOnly.env.GROK_CLAUDE_MCPS_ENABLED, readOnly.env.GROK_CURSOR_MCPS_ENABLED],
+    ['http://localhost', 'false', 'false']
+  );
+  assert.equal(readOnly.env.GROK_MANAGED_MCPS_ENABLED, READ_ONLY_ENV.GROK_MANAGED_MCPS_ENABLED);
+  const own = provider.createSession({ contact, emit: () => {}, env });
+  assert.equal(own.agent.sessionMeta('default').agentProfile, undefined);
+  assert.equal('GROK_CLAUDE_MCPS_ENABLED' in own.env, false);
 });
 
 test('a read-only contact Grok can’t put in Plan mode ends its session', async () => {

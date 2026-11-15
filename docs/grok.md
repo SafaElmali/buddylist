@@ -34,14 +34,16 @@ Grok has its own **Permission mode** menu, under **Conversation** and in the mod
 
 Never ask is Grok's always-approve. Each conversation starts with it on or off as its mode says, and with Grok's auto mode off, whatever your Grok settings say.
 
+**Your Claude Code settings count too.** Grok follows the hooks and allow rules in your Claude Code settings (`~/.claude/settings.json`), in every folder. So **Ask before acting** doesn't ask about a command they approve, such as one a `PreToolUse` hook allows.
+
 Good to know:
 
 - A new mode or model applies straight away.
 - **Always allow** is offered for file edits only, and lasts until you quit the app or start a new chat. Grok's own "always allow" for a command, an MCP tool or a website keeps it allowed in that folder for good, so buddylist never picks it: there you get **Accept** and **Decline**.
 - A message sent while Grok is busy waits for its turn.
 - Grok leaves Plan mode with your approval of its plan, which buddylist can't give yet. To let it start, pick **Ask before acting**.
-- It can't look at pictures here, so only your words are sent.
+- It looks at the pictures you send, in versions of Grok Build that take them.
 - Its thinking and its reasoning effort aren't shown, and it doesn't report what a reply cost.
-- With a **Read only** role, or as a guest in a [manager's conversation](project-managers.md), Grok works in Plan mode, and every file change or command it asks for is declined without asking you.
+- With a **Read only** role, as a guest in a [manager's conversation](project-managers.md), or as a manager, Grok works in Plan mode without its shell, its file tools and agents of its own. It reads, searches and looks things up, and of MCP tools it has only buddylist's own: those of your MCP servers are refused, and the ones from your Claude Code and Cursor settings aren't started. It can't run commands, so a Grok reviewer can't run your tests. A hook of buddylist's lets through only the tools it knows to read, so a tool a later Grok adds is refused too (checked against Grok Build 1.0.77). Whatever else it asks to change is declined without asking you.
 
 **Folders Grok doesn't trust.** Grok reads a folder's `AGENTS.md`, `CLAUDE.md`, `.grok/config.toml`, hooks, plugins and `.claude/settings.json` only once you trust that folder in Grok. Out of the box it trusts none of the contacts' worktrees, in `~/.buddylist/worktrees`. Keep it that way. A worktree's branch can be someone else's pull request, and in a folder it trusts Grok runs the hooks and MCP servers the branch sets up.
