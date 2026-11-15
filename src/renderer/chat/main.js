@@ -114,6 +114,7 @@ import {
 } from './models.js';
 import { readMyColor, saveMyColor } from './my-color.js';
 import { outputStyleItems, outputStyleLabel } from './output-styles.js';
+import { watchOutputLinks } from './output-links.js';
 import {
   answerOrderNotice,
   isGroup,
@@ -531,7 +532,20 @@ const pullRequest = new PullRequestButton(ctx, {
   checks: () => checks.show(),
   stack: showPrStack,
 });
+/** Whether a click on a link to a web page opens it beside the conversation: where you asked for that and there is a browser there. */
+const linksBeside = () => !ctx.web && Boolean(ctx.settings.linksBeside);
+/**
+ * A link in what a command printed, in a terminal or in a script's output: a click opens it where a link in the
+ * conversation opens, ⌘-click in your own browser (see output-links.js).
+ * @type {import('./output-links.js').OutputLinks}
+ */
+const outputLinks = {
+  beside: linksBeside,
+  open: (url, how) => (how === 'beside' ? browser.open(url) : api.app.openExternal(url)),
+  menu: (url) => linkItems(url, outputLinks.beside() ? 'beside' : 'external'),
+};
 const terminals = new Terminals(sidePane, ctx, {
+  links: outputLinks,
   error: (text) => conversation.addError(text),
   leave: () => composer.focus(),
   // What a terminal shows, or what is selected in it, goes in the message box as a card.
@@ -566,17 +580,25 @@ const browser = new Browser(sidePane, api, {
 function openLink(url, href) {
   const file = !ctx.web && linkedFile(href);
   if (file) void files.openLinked(file);
-  else if (!ctx.web && ctx.settings.linksBeside && isWebAddress(url)) browser.open(url);
+  else if (linksBeside() && isWebAddress(url)) browser.open(url);
   else api.app.openExternal(url);
 }
 
-/** What a right-click on a link to a web page offers: beside the conversation and in your own browser, and copying it. */
-const linkItems = (url) =>
-  linkMenu(url, {
-    beside: ctx.web ? undefined : (page) => browser.open(page),
-    external: (page) => api.app.openExternal(page),
-    copy: (page) => navigator.clipboard.writeText(page),
-  });
+/**
+ * What a right-click on a link to a web page offers: beside the conversation and in your own browser, and copying it.
+ * @param {string} url
+ * @param {'beside' | 'external'} [clicks]  what a click on it does, where the menu is to say so
+ */
+const linkItems = (url, clicks) =>
+  linkMenu(
+    url,
+    {
+      beside: ctx.web ? undefined : (page) => browser.open(page),
+      external: (page) => api.app.openExternal(page),
+      copy: (page) => navigator.clipboard.writeText(page),
+    },
+    { clicks }
+  );
 
 // What was shared in the conversation: its pull requests and issues, links, files and pictures.
 const shared = new SharedTab(sidePane, ctx, {
@@ -2450,6 +2472,7 @@ const windowMenus = () => [
 
 function mountChrome() {
   mountTips();
+  watchOutputLinks(document, outputLinks);
   frame = mountFrame({ title: 'Conversation', pinnable: true, settings: true, menus: windowMenus() });
 
   buildToolbar({

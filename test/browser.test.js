@@ -282,6 +282,16 @@ test('where there is no browser beside the conversation, a link is not offered o
   );
 });
 
+test('a link’s menu can say in bold what a click on it does', () => {
+  const actions = { beside: () => {}, external: () => {}, copy: () => {} };
+  const bold = (items) => items.filter((item) => item.bold).map((item) => item.label);
+  assert.deepEqual(bold(linkMenu('http://localhost:4100/', actions, { clicks: 'beside' })), [
+    'Open beside the conversation',
+  ]);
+  assert.deepEqual(bold(linkMenu('http://localhost:4100/', actions, { clicks: 'external' })), ['Open in your browser']);
+  assert.deepEqual(bold(linkMenu('http://localhost:4100/', actions)), [], 'nothing, unless asked');
+});
+
 /** The ⋯ of a page's bar, with what each of its items did. */
 function menuOf(page, opts = {}) {
   const done = [];

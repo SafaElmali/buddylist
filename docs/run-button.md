@@ -24,6 +24,7 @@
 - **Run** has a button for each of the project's run scripts, and shows what each prints. The first button is the **Run** button's own.
 - A project with no script yet offers to add one right there. **Add manually** opens a box with a guess from what is in the folder, such as `pnpm install`. **Ask Claude** asks your contact to work the script out: it answers in the conversation, for you to add.
 - A script added here is the project's, as one added in Settings is: every contact working on the project uses it.
+- A web address a script prints is a link, as in a [terminal](terminal.md): a click opens it as a link in the conversation does, `⌘`-click in your own browser, and a right-click offers both.
 
 **A port of its own.** A contact's first run picks a port that is free at that moment and that no other contact has: 4100, 4110, 4120 and so on. The contact keeps it between runs and when you reopen the app, so your bookmarks stay valid.
 

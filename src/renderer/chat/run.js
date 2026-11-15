@@ -10,6 +10,7 @@ import { $, el, errorText, html, raw } from '../lib/dom.js';
 import { formatDate, formatTime } from '../lib/format.js';
 import { smallIcon, toolbarIcon } from '../lib/icons.js';
 import { OUTPUT_KEPT, tailOf } from '../../shared/run-output.js';
+import { appendOutput } from './output-links.js';
 import { runDialog } from './run-dialog.js';
 
 /** @typedef {import('../../main/runs.js').RunView} RunView */
@@ -393,8 +394,8 @@ export class RunCommand {
         <pre class="output" hidden></pre>
       </div>`
     );
-    // As text, never as markup: a command prints whatever it likes.
-    $('pre', line).textContent = run.output;
+    // As text, never as markup: a command prints whatever it likes. Its web addresses are links.
+    appendOutput($('pre', line), run.output);
     $('.toggle', line).addEventListener('click', () => this.#showOutput(line, $('pre', line).hidden));
     this.#shown.set(run.id, { run: { ...run }, line, shown: run.output.length, text: run.output });
     this.conversation.append(line, { force: true });
@@ -422,13 +423,15 @@ export class RunCommand {
     this.conversation.keepPinned(() => {
       // Follows the newest, unless you scrolled up in it to read.
       const atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 20;
-      box.append(text);
+      appendOutput(box, text);
       entry.shown += text.length;
       entry.text = tailOf(entry.text + text);
       // A dev server prints for hours: once the box holds twice what is kept, it is cut back.
       if (entry.shown > 2 * OUTPUT_KEPT) {
-        box.textContent = tailOf(box.textContent);
-        entry.shown = box.textContent.length;
+        const kept = tailOf(box.textContent);
+        box.replaceChildren();
+        appendOutput(box, kept);
+        entry.shown = kept.length;
       }
       if (atEnd) box.scrollTop = box.scrollHeight;
     });

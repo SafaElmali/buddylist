@@ -9,6 +9,7 @@ import { api } from '../lib/api.js';
 import { el, errorText, html, raw } from '../lib/dom.js';
 import { smallIcon } from '../lib/icons.js';
 import { askForScript } from '../../shared/project-settings.js';
+import { appendOutput } from './output-links.js';
 import { howItEnded, oneLine } from './run.js';
 
 /** @typedef {import('../../main/runs.js').RunView} RunView */
@@ -256,14 +257,23 @@ class ScriptTab {
     );
   }
 
-  /** Puts what each run printed in its box. As text, never as markup: a command prints whatever it likes. */
+  /**
+   * Puts what each run printed in its box. As text, never as markup: a command prints whatever it likes. Its web
+   * addresses are links (see output-links.js).
+   */
   #print(runs) {
     for (const { run, text } of runs) {
       const box = this.body.querySelector(`[data-run="${run.id}"] pre`);
-      if (!box || box.textContent === text) continue;
+      const shown = box?.textContent;
+      if (!box || shown === text) continue;
       // Follows the newest, unless you scrolled up in it to read.
       const atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 20;
-      box.textContent = text;
+      // What came since is added. What was cut at the top, as a long run's output is, is drawn again.
+      if (shown && text.startsWith(shown)) appendOutput(box, text.slice(shown.length));
+      else {
+        box.replaceChildren();
+        appendOutput(box, text);
+      }
       if (atEnd) box.scrollTop = box.scrollHeight;
     }
   }
