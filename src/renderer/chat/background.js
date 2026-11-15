@@ -8,6 +8,7 @@ import { plainText } from '../../shared/run-output.js';
 import { el, errorText, html } from '../lib/dom.js';
 import { clock } from '../lib/format.js';
 import { smallIcon } from '../lib/icons.js';
+import { outputNodes } from './output-links.js';
 import { isGroup } from './participants.js';
 
 /** @typedef {import('../../providers/contract.js').BackgroundTask} BackgroundTask */
@@ -315,7 +316,9 @@ export class Background {
     const pre = /** @type {HTMLElement} */ (row.node.querySelector('.background-output'));
     // Read at the end, as a terminal is: unless it was scrolled up to read what came before.
     const atEnd = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 4;
-    pre.textContent = outputText(row.output, row.task.status === 'running');
+    const text = outputText(row.output, row.task.status === 'running');
+    // Drawn again only when it changed: words selected in it stay selected. Its web addresses are links.
+    if (pre.textContent !== text) pre.replaceChildren(...outputNodes(text));
     pre.classList.toggle('none', !row.output?.trim());
     if (atEnd) pre.scrollTop = pre.scrollHeight;
   }

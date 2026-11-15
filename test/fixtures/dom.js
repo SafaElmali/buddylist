@@ -241,8 +241,8 @@ export class Element {
   }
   before(...nodes) {
     const parent = this.parentElement;
-    parent.#adopt(nodes);
-    parent.childNodes.splice(parent.childNodes.indexOf(this), 0, ...nodes);
+    const adopted = parent.#adopt(nodes);
+    parent.childNodes.splice(parent.childNodes.indexOf(this), 0, ...adopted);
   }
   after(...nodes) {
     const parent = this.parentElement;

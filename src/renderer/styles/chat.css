@@ -4739,6 +4739,14 @@ button.session-row:hover,
   user-select: text;
 }
 
+/* A web address in what a command printed (output-links.js): in the words' own colour, underlined while
+   pointed at, as a terminal's link is. */
+.output-link,
+.output-link:hover {
+  color: inherit;
+  cursor: pointer;
+}
+
 /* A terminal, filling its tab. Its colours are the ones its letters are drawn in (see terminals.js). */
 .terminal-tab {
   position: relative;

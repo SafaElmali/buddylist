@@ -287,6 +287,8 @@ a:hover,
   color: #000;
   font: 11px/14px var(--font-ui);
   white-space: pre-line;
+  /* A long web address (see output-links.js) goes on in the next line, not out of the tip. */
+  overflow-wrap: anywhere;
   /* It is read, never pointed at: the button under it stays the one the pointer is on. */
   pointer-events: none;
 }
