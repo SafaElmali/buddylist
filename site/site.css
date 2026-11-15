@@ -1220,7 +1220,7 @@ button.xp-btn:active {
   transform: none;
 }
 
-/* ---- five agents ------------------------------------------------------------------------ */
+/* ---- six agents ------------------------------------------------------------------------- */
 .agents {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
@@ -1253,9 +1253,10 @@ button.xp-btn:active {
   text-wrap: pretty;
 }
 
+/* Three over three, so a card's name and its line keep to one line each. */
 .agent-cards {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin: 0;
   padding: 0;
@@ -1301,21 +1302,6 @@ button.xp-btn:active {
   .agents {
     grid-template-columns: 1fr;
     padding: 22px 18px;
-  }
-}
-
-/* Narrow: three cards over two, the two centred under them. */
-@media (max-width: 639px) {
-  .agent-cards {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-
-  .agent-cards li {
-    grid-column: span 2;
-  }
-
-  .agent-cards li:nth-child(4) {
-    grid-column: 2 / span 2;
   }
 }
 
@@ -4350,6 +4336,10 @@ details p {
 
 .outro-buddies .dp:nth-child(5) {
   animation-delay: -0.5s;
+}
+
+.outro-buddies .dp:nth-child(6) {
+  animation-delay: -1.5s;
 }
 
 /* ---- feedback: a dialog with a form in it ------------------------------------------------- */
