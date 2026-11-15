@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>buddylist: Claude Code, Codex, Gemini, OpenCode and Hermes on your desktop</title>
+    <title>buddylist: Claude Code, Codex, Gemini, OpenCode, Hermes and Grok on your desktop</title>
     <meta
       name="description"
-      content="Run Claude Code, Codex, Gemini, OpenCode and Hermes side by side, each in its own worktree, with group chats where they review each other. Mac, Windows, Linux."
+      content="Run Claude Code, Codex, Gemini, OpenCode, Hermes and Grok side by side, each in its own worktree, reviewing each other in group chats. Mac, Windows, Linux."
     />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#0a5ce0" />
@@ -17,9 +17,9 @@
     <meta property="og:title" content="buddylist: run every coding agent side by side" />
     <meta
       property="og:description"
-      content="Real Claude Code, Codex, Gemini, OpenCode and Hermes sessions side by side, each in its own worktree, with group chats where they review each other, and the diff, pull request and checks in one place."
+      content="Real Claude Code, Codex, Gemini, OpenCode, Hermes and Grok sessions side by side, each in its own worktree, with group chats where they review each other, and the diff, pull request and checks in one place."
     />
-    <meta property="og:image" content="__SITE_URL__/og-image.png?v=pro-20261024" />
+    <meta property="og:image" content="__SITE_URL__/og-image.png?v=pro-20261115" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -93,6 +93,15 @@
         <path
           d="M18 71C24 47 48 31 80 27C74 37 68 41 60 43C70 45 74 47 76 49C64 55 56 57 50 57C58 61 62 63 62 65C48 71 32 73 18 71Z"
           fill="#f2c14e"
+        />
+      </symbol>
+      <symbol id="av-grok" viewBox="0 0 96 96">
+        <rect width="96" height="96" fill="#000" />
+        <path
+          transform="translate(16 16) scale(2.6667)"
+          d="M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815"
+          fill="#fff"
+          fill-rule="evenodd"
         />
       </symbol>
       <symbol id="av-you" viewBox="0 0 96 96">
@@ -194,13 +203,13 @@
         <div class="wrap hero-split">
           <div class="hero-copy">
             <a class="pill" href="changelog" data-release-notes="hero">
-              <b>New</b><span>v0.7.4: link a pull request, and see which one is failing</span
+              <b>New</b><span>v0.7.5: Grok as an agent, and pictures on your phone</span
               ><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2.5 7.5 6 4 9.5" /></svg>
             </a>
             <h1>Run every coding agent side by side.</h1>
             <p class="lede">
-              One desktop app for Claude Code, Codex, Gemini, OpenCode and Hermes. Parallel worktrees, group chats where
-              agents review each other, and the diff, pull request and checks in one place.
+              One desktop app for Claude Code, Codex, Gemini, OpenCode, Hermes and Grok. Parallel worktrees, group chats
+              where agents review each other, and the diff, pull request and checks in one place.
             </p>
             <div class="cta">
               <a class="go" href="#download" data-download="hero" data-download-auto>
@@ -292,8 +301,8 @@
           <p class="eyebrow" data-reveal>The 30-second tour</p>
           <h2 id="tour-title" data-reveal>Your coding agents, together</h2>
           <p class="intro" data-reveal>
-            Bring Claude Code, Codex, Gemini, OpenCode and Hermes into one buddy list. Give each a job in the same group
-            chat.
+            Bring Claude Code, Codex, Gemini, OpenCode, Hermes and Grok into one buddy list. Give each a job in the same
+            group chat.
           </p>
           <!-- Wide screens can put the live demo in the film's place. -->
           <p class="tour-switch" data-tour-switch hidden>
@@ -366,10 +375,10 @@
 
             <div class="agents" data-reveal>
               <div class="agents-text">
-                <h3>Five agents, one list</h3>
+                <h3>Six agents, one list</h3>
                 <p>
-                  Pick Claude Code, Codex, Gemini, OpenCode or Hermes when you add a contact. Claude Code is built in.
-                  The others run the CLI on your computer, with the same login, settings and MCP servers.
+                  Pick Claude Code, Codex, Gemini, OpenCode, Hermes or Grok when you add a contact. Claude Code is built
+                  in. The others run the CLI on your computer, with the same login, settings and MCP servers.
                 </p>
               </div>
               <ul class="agent-cards" data-stagger>
@@ -388,6 +397,9 @@
                 </li>
                 <li>
                   <svg class="dp"><use href="#av-hermes" /></svg><b>Hermes</b><span>Your <code>hermes</code> CLI</span>
+                </li>
+                <li>
+                  <svg class="dp"><use href="#av-grok" /></svg><b>Grok</b><span>Your <code>grok</code> CLI</span>
                 </li>
               </ul>
             </div>
@@ -1008,8 +1020,8 @@
                 <span class="route-say">Claude (api) changed 3 files</span>
                 <h3>It looks at every change</h3>
                 <p>
-                  Choose Claude, Codex, Gemini, OpenCode or Hermes. Each time a conversation changes files, your manager
-                  checks them against the tickets, the design and the other worktrees.
+                  Choose Claude, Codex, Gemini, OpenCode, Hermes or Grok. Each time a conversation changes files, your
+                  manager checks them against the tickets, the design and the other worktrees.
                 </p>
               </li>
               <li data-reveal>
@@ -1737,10 +1749,10 @@
               <details>
                 <summary>What is buddylist?</summary>
                 <p>
-                  buddylist is a free desktop app for working with the Claude Code, Codex, Gemini, OpenCode and Hermes
-                  coding agents side by side. Every project folder is a contact in a buddy list, and every conversation
-                  is a real agent session that can read the project, run commands and edit files, in its own worktree.
-                  It comes in a quiet professional look, and in one styled after MSN Messenger 7.5.
+                  buddylist is a free desktop app for working with the Claude Code, Codex, Gemini, OpenCode, Hermes and
+                  Grok coding agents side by side. Every project folder is a contact in a buddy list, and every
+                  conversation is a real agent session that can read the project, run commands and edit files, in its
+                  own worktree. It comes in a quiet professional look, and in one styled after MSN Messenger 7.5.
                 </p>
               </details>
               <details>
@@ -1748,17 +1760,18 @@
                 <p>
                   Yes. buddylist is free to download and use, and open source under the MIT license, with its code on
                   GitHub. Each agent runs on your own account, as it does in your terminal: a Claude Code login or an
-                  Anthropic API key for Claude Code, and the CLI's own sign-in for Codex, Gemini, OpenCode and Hermes,
-                  so what they do counts against those plans.
+                  Anthropic API key for Claude Code, and the CLI's own sign-in for Codex, Gemini, OpenCode, Hermes and
+                  Grok, so what they do counts against those plans.
                 </p>
               </details>
               <details>
                 <summary>Do I need to install the agents myself?</summary>
                 <p>
-                  Not Claude Code: it comes with the app. Codex, Gemini, OpenCode and Hermes are not bundled, so install
-                  the ones you want: the guides to <a href="docs/codex">Codex</a>, <a href="docs/gemini">Gemini</a>,
-                  <a href="docs/opencode">OpenCode</a> and <a href="docs/hermes">Hermes</a> say how. Each agent signs in
-                  the way it does in your terminal. For Claude Code that is a Claude Code login on this computer, or an
+                  Not Claude Code: it comes with the app. Codex, Gemini, OpenCode, Hermes and Grok are not bundled, so
+                  install the ones you want: the guides to <a href="docs/codex">Codex</a>,
+                  <a href="docs/gemini">Gemini</a>, <a href="docs/opencode">OpenCode</a>,
+                  <a href="docs/hermes">Hermes</a> and <a href="docs/grok">Grok</a> say how. Each agent signs in the way
+                  it does in your terminal. For Claude Code that is a Claude Code login on this computer, or an
                   Anthropic API key.
                 </p>
               </details>
@@ -1790,7 +1803,7 @@
               <details>
                 <summary>Can an agent change my files without asking?</summary>
                 <p>
-                  Not unless you let it. Claude, Codex and Gemini ask first by default, and every command or edit
+                  Not unless you let it. Claude, Codex, Gemini and Grok ask first by default, and every command or edit
                   arrives as an invitation. <b>Permission mode</b>, or the mode's badge under the message box, can
                   loosen that, <b>Settings &gt; New contacts</b> picks the mode each service's new contacts start in,
                   and <b>Settings &gt; Roles &amp; teams</b> the one each role starts in. <b>Never ask</b> lets the
@@ -1911,7 +1924,7 @@
           <div class="outro-buddies" aria-hidden="true" data-reveal>
             <svg class="dp"><use href="#av-claude" /></svg><svg class="dp"><use href="#av-codex" /></svg
             ><svg class="dp"><use href="#av-gemini" /></svg><svg class="dp"><use href="#av-opencode" /></svg
-            ><svg class="dp"><use href="#av-hermes" /></svg>
+            ><svg class="dp"><use href="#av-hermes" /></svg><svg class="dp"><use href="#av-grok" /></svg>
           </div>
           <h2 data-reveal>Your agents have just signed in.</h2>
           <p class="lede" data-reveal>Add a project, pick who works on it, and say hello.</p>
