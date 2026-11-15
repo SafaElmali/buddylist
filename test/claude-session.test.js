@@ -3892,3 +3892,185 @@ test('a rejected Claude Send now does not disguise a subsequent usage limit as a
   assert.equal(result.stopped, false);
   assert.equal(session.waiting, 1, 'the selected message stays queued while usage recovery is offered');
 });
+
+// ---- the advisor --------------------------------------------------------------------------------------------
+
+// What Claude Code 2.1.325 streams when Claude asks its advisor (recorded 2026-11-16; ids and amounts made up): a
+// server-side call with no input, then the advice, sealed for Claude alone, in the same request. Which model advised
+// is said once the request is over, and what it ran up in the result's running totals by model.
+const ADVISOR_MODELS = [
+  ...MODELS,
+  { value: 'fable', resolvedModel: 'claude-fable-5-2', displayName: 'Fable', description: 'Most capable' },
+];
+const asksAdvisor = (id, message = 'ma') => ({
+  type: 'assistant',
+  parent_tool_use_id: null,
+  message: { id: message, content: [{ type: 'server_tool_use', id, name: 'advisor', input: {} }] },
+});
+const advice = (id, message = 'ma') => ({
+  type: 'assistant',
+  parent_tool_use_id: null,
+  message: {
+    id: message,
+    content: [
+      {
+        type: 'advisor_tool_result',
+        tool_use_id: id,
+        content: { type: 'advisor_redacted_result', encrypted_content: 'c2VhbGVk' },
+      },
+    ],
+  },
+});
+const says = (text, message = 'ma') => ({
+  type: 'assistant',
+  parent_tool_use_id: null,
+  message: { id: message, content: [{ type: 'text', text }] },
+});
+const requestOver = (...advisors) => ({
+  type: 'stream_event',
+  parent_tool_use_id: null,
+  event: {
+    type: 'message_delta',
+    delta: { stop_reason: 'end_turn' },
+    usage: {
+      iterations: [
+        { type: 'message' },
+        ...advisors.map((model) => ({ type: 'advisor_message', model })),
+        { type: 'message' },
+      ],
+    },
+  },
+});
+const spentOn = (byModel) => ({
+  ...DONE,
+  total_cost_usd: Object.values(byModel).reduce((sum, usd) => sum + usd, 0),
+  modelUsage: Object.fromEntries(Object.entries(byModel).map(([model, costUSD]) => [model, { costUSD }])),
+});
+/** Claude Code's get_settings, which the SDK's types leave out, saying what its settings come to. */
+const withSettings = (queryFn, effective) => (opts) =>
+  Object.assign(queryFn(opts), { getSettings: async () => ({ effective }) });
+const settled = () => new Promise((resolve) => setTimeout(resolve, 5));
+const OPUS = 'claude-opus-5-5';
+const FABLE = 'claude-fable-5-2';
+
+for (const [seat, more] of [
+  ['Asks first', {}],
+  ['Never ask', { permissionMode: 'bypassPermissions' }],
+  ['a read-only seat', { readOnly: true }],
+]) {
+  test(`an advisor call is a line named by the advisor the settings give, done once the advice is back, asking nothing: ${seat}`, async () => {
+    const { queryFn } = fakeQuery(
+      [
+        initOn(OPUS),
+        settled,
+        asksAdvisor('srv1'),
+        advice('srv1'),
+        says('Start with the cart total test.'),
+        requestOver(FABLE),
+        spentOn({ [OPUS]: 0.19, [FABLE]: 0.31 }),
+      ],
+      { models: ADVISOR_MODELS }
+    );
+    const session = new ClaudeSession({
+      contact: { ...contact(), ...more },
+      emit: () => {},
+      queryFn: withSettings(queryFn, { advisorModel: 'fable' }),
+    });
+    const events = collect(session);
+    session.send({ text: 'Ask the advisor which cart bug to fix first.' });
+    await until(events, 'result');
+    const told = events.filter((e) => ['tool', 'tool-result', 'text-end', 'permission', 'result'].includes(e.type));
+    assert.deepEqual(
+      told.map((e) => e.type),
+      ['tool', 'tool-result', 'text-end', 'result'],
+      'no card to allow it'
+    );
+    assert.deepEqual(told[0], {
+      type: 'tool',
+      toolId: 'srv1',
+      activity: { kind: 'advisor', label: 'Fable' },
+      sub: false,
+    });
+    assert.deepEqual(told[1], { type: 'tool-result', toolId: 'srv1', isError: false, declined: false, output: '' });
+    assert.equal(told[3].advisorUsd, 0.31, 'what the advisor ran up, beside the running total');
+    assert.equal(told[3].costUsd, 0.5);
+  });
+}
+
+test('where its settings can’t say, the advisor is named by what the request it answered in says', async () => {
+  const { queryFn } = fakeQuery(
+    [
+      initOn(OPUS),
+      asksAdvisor('srv1'),
+      advice('srv1'),
+      requestOver(FABLE),
+      asksAdvisor('srv2', 'mb'),
+      advice('srv2', 'mb'),
+      says('Both agree.', 'mb'),
+      requestOver(FABLE),
+      spentOn({ [OPUS]: 0.3, [FABLE]: 0.6 }),
+    ],
+    { models: ADVISOR_MODELS }
+  );
+  const session = new ClaudeSession({ contact: contact(), emit: () => {}, queryFn });
+  const events = collect(session);
+  session.send({ text: 'Ask the advisor twice.' });
+  const result = await until(events, 'result');
+  assert.deepEqual(
+    events.filter((e) => e.type === 'tool').map((e) => e.activity),
+    [{ kind: 'advisor' }, { kind: 'advisor', label: 'Fable' }]
+  );
+  assert.equal(result.advisorUsd, 0.6);
+});
+
+test('a turn the advisor answered nobody in, or one whose advisor is Claude’s own model, tells no advisor share', async () => {
+  const run = async (model, script) => {
+    const { queryFn } = fakeQuery([initOn(model), ...script], { models: ADVISOR_MODELS });
+    const session = new ClaudeSession({ contact: contact(), emit: () => {}, queryFn });
+    const events = collect(session);
+    session.send({ text: 'go' });
+    return until(events, 'result');
+  };
+  assert.equal((await run(OPUS, [says('Done.'), spentOn({ [OPUS]: 0.2 })])).advisorUsd, undefined);
+  // Claude Code totals by model: what Fable did as the advisor can't be told from what it did as Claude.
+  const same = await run(FABLE, [asksAdvisor('srv1'), advice('srv1'), requestOver(FABLE), spentOn({ [FABLE]: 0.9 })]);
+  assert.equal(same.advisorUsd, undefined);
+});
+
+test('an advisor call ends with its turn: stopped by a Stop, failed where the request did, never left going', async () => {
+  let release;
+  const held = new Promise((resolve) => (release = resolve));
+  const { queryFn } = fakeQuery([
+    START,
+    asksAdvisor('srv1'),
+    () => held,
+    { ...DONE, subtype: 'error_during_execution', is_error: true },
+  ]);
+  const session = new ClaudeSession({ contact: contact(), emit: () => {}, queryFn });
+  const events = collect(session);
+  session.send({ text: 'go' });
+  await until(events, 'tool');
+  await session.interrupt();
+  release();
+  await until(events, 'result');
+  const ends = events.filter((e) => e.type === 'tool-result' || e.type === 'result').map((e) => e.type);
+  assert.deepEqual(ends, ['tool-result', 'result'], 'its line is settled before the turn’s');
+  assert.deepEqual(
+    events.find((e) => e.type === 'tool-result'),
+    {
+      type: 'tool-result',
+      toolId: 'srv1',
+      isError: false,
+      declined: false,
+      output: '',
+      stopped: true,
+    }
+  );
+
+  const failing = fakeQuery([START, asksAdvisor('srv1'), { ...DONE, is_error: true, errors: ['Overloaded'] }]);
+  const other = new ClaudeSession({ contact: contact(), emit: () => {}, queryFn: failing.queryFn });
+  const told = collect(other);
+  other.send({ text: 'go' });
+  await until(told, 'result');
+  assert.equal(told.find((e) => e.type === 'tool-result').isError, true);
+});

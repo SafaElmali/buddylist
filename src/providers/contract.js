@@ -21,8 +21,9 @@
 /**
  * Something the agent is doing, described without provider-specific tool names.
  * @typedef {Object} Activity
- * @property {'command' | 'read' | 'write' | 'edit' | 'search' | 'web' | 'delegate' | 'todo' | 'plan' | 'question' | 'skill' | 'schedule' | 'app' | 'account' | 'tool'} kind
- *   `account`: going on in another of the user's accounts, after the one in use reached a limit
+ * @property {'command' | 'read' | 'write' | 'edit' | 'search' | 'web' | 'delegate' | 'todo' | 'plan' | 'question' | 'skill' | 'schedule' | 'app' | 'account' | 'advisor' | 'tool'} kind
+ *   `account`: going on in another of the user's accounts, after the one in use reached a limit. `advisor`: Claude
+ *   asked a stronger model for advice, which only Claude reads (`label` names that model, as the app names models)
  * @property {string} [command]      shell command (`command`), or the one typed into the terminals the app opened (`app`)
  * @property {true} [background]     the command goes on in the background once the call is over (`command`): a
  *   {@link BackgroundTask}, which names the call as its `toolId`
@@ -152,7 +153,8 @@
  *
  * `result.costUsd` is the session's running total in US dollars, not the price
  * of that turn; 0 when the provider doesn't say. src/shared/cost.js turns two
- * totals into what a turn cost.
+ * totals into what a turn cost. `result.advisorUsd` is the part of it an advisor
+ * model ran up, a running total too, where the session's advisor has been asked.
  *
  * `ready.outputStyles` names the output styles the session can answer in, and
  * `ready.outputStyle` the one it is answering in. A provider without output
@@ -233,7 +235,7 @@
  *   { type: 'tool-result', toolId: string, isError: boolean, declined: boolean, output: string, pictures?: string[], stopped?: true, skipped?: true, durationMs?: number } |
  *   ({ type: 'permission', requestId: string } & PermissionRequest) |
  *   { type: 'permission-resolved', requestId: string, decision: PermissionResponse['decision'], answers?: Record<string, string> } |
- *   { type: 'result', isError: boolean, stopped: boolean, errorText: string, usageLimited?: true, limitKind?: 'session' | 'weekly', planLimit?: PlanLimitStop, failureKind?: 'unavailable' | 'offline', durationMs: number, costUsd: number } |
+ *   { type: 'result', isError: boolean, stopped: boolean, errorText: string, usageLimited?: true, limitKind?: 'session' | 'weekly', planLimit?: PlanLimitStop, failureKind?: 'unavailable' | 'offline', durationMs: number, costUsd: number, advisorUsd?: number } |
  *   { type: 'session-reset' } |
  *   { type: 'context', used: number, size: number } |
  *   { type: 'limits', limits: UsageLimit[], account?: string } |

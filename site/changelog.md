@@ -11,6 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
+## v0.7.6
+
+- **Claude's advisor shows in the conversation** — When Claude asks the advisor you set in Claude Code (`/advisor`), a line says so, such as “Claude asked the advisor · Fable”, until the advice is back, and the turn’s last line says what the advisor added to its cost, such as “advisor $0.31”. The advice itself is for Claude alone, so there is nothing to open.
+
 ## v0.7.5 — 2026-11-15
 
 - **Chat with Grok** — Pick **Grok** as the **Service** in **Add a Contact** to run the Grok Build installed on your computer, with its own sign-in, models and MCP servers. It asks before acting, plans without changing files, or never asks. A manager can start Grok workers and invite Grok reviewers, which read and search but run no commands. The welcome wizard says whether it is installed and signed in.

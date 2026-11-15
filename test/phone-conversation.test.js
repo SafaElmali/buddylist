@@ -477,6 +477,8 @@ test('a call still going says what it does now, and what it wants while its card
   assert.equal(said({ kind: 'skill', label: 'pdf' }), 'using the pdf skill');
   assert.equal(said({ kind: 'app', action: 'message', label: 'w1' }), 'sending a message');
   assert.equal(said({ kind: 'mcp', label: 'lookup' }), 'using lookup');
+  assert.equal(said({ kind: 'advisor', label: 'Fable' }), 'asking the advisor · Fable');
+  assert.equal(said({ kind: 'advisor' }), 'asking the advisor');
   // While its card waits for you.
   assert.equal(said({ kind: 'command', command: 'ls -la' }, { asked: true }), 'wants to run ls -la');
   assert.equal(said({ kind: 'edit', path: '/shop/a.js' }, { asked: true }), 'wants to edit a.js');
@@ -486,6 +488,26 @@ test('a call still going says what it does now, and what it wants while its card
   assert.equal(strip(describeActivity({ kind: 'command', command: 'npm test' }, '/shop')), 'ran npm test');
   assert.equal(strip(describeActivity({ kind: 'read', path: '/shop/src/cart.js' }, '/shop')), 'read src/cart.js');
   assert.equal(strip(describeActivity({ kind: 'edit', path: '/shop/a.js' }, '/shop')), 'edited a.js');
+  assert.equal(strip(describeActivity({ kind: 'advisor', label: 'Fable' }, '/shop')), 'asked the advisor · Fable');
+});
+
+test('an advisor call is a line going on until the advice is back, then done, and drawn done when opened again', async (t) => {
+  const history = [
+    { kind: 'user', id: 'u1', text: 'Ask the advisor' },
+    { kind: 'tool', toolId: 'old', activity: { kind: 'advisor', label: 'Fable' }, output: '' },
+    { kind: 'result', isError: false, stopped: false, costUsd: 0.5, advisorUsd: 0.31 },
+  ];
+  const { open, root } = setup(t, { state: 'working', history });
+  const screen = await open('a');
+  const line = (id) => root.querySelector(`[data-tool="${id}"]`);
+  const text = (id) => line(id).querySelector('.ph-tool-text').textContent.trim();
+  assert.equal(text('old'), 'asked the advisor · Fable');
+  screen.heard({ type: 'tool', toolId: 'srv1', activity: { kind: 'advisor', label: 'Fable' } });
+  assert.equal(text('srv1'), 'asking the advisor · Fable');
+  assert.ok(line('srv1').classList.contains('ph-pending'));
+  screen.heard({ type: 'tool-result', toolId: 'srv1', isError: false, declined: false, output: '' });
+  assert.equal(text('srv1'), 'asked the advisor · Fable');
+  assert.ok(line('srv1').classList.contains('ph-done'));
 });
 
 test('a tool line is present while it runs, wants while its card waits, past once done, and stopped after Stop', async (t) => {

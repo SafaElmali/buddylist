@@ -49,7 +49,7 @@ async function settingsOf(q, models) {
  * @param {{ value: string, resolvedModel?: string }[]} models
  * @param {string} id
  */
-function listedAs(models, id) {
+export function listedAs(models, id) {
   const is = (wanted) => models.find((model) => model.value === wanted || model.resolvedModel === wanted);
   return is(id) || is(id.replace(/\[[^\]]*\]$/, ''));
 }

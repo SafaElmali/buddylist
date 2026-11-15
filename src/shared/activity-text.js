@@ -138,6 +138,8 @@ export function activityStatus(activity) {
       return APP_STATUS[activity.action] || `Opening ${terminals(activity)}`;
     case 'account':
       return `Switching to ${activity.label}`;
+    case 'advisor':
+      return 'Asking the advisor';
     default:
       return `Using ${activity?.label || 'a tool'}`;
   }

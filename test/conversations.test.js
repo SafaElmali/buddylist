@@ -579,6 +579,30 @@ test('session events drive history, contact status, windows and notifications', 
   assert.ok(chats.sent.length >= 10, 'every event reaches the chat window');
 });
 
+test('an advisor call is kept as its line, and its turn’s result with what the advisor ran up, for the window again', () => {
+  const { conversations, contact, sessions, history, chats } = setup();
+  conversations.send(contact.id, { text: 'Ask the advisor', images: [] });
+  const { emit } = sessions[0];
+  emit({ type: 'tool', toolId: 'srv1', activity: { kind: 'advisor', label: 'Fable' }, sub: false });
+  emit({ type: 'tool-result', toolId: 'srv1', isError: false, declined: false, output: '' });
+  emit({
+    type: 'result',
+    isError: false,
+    stopped: false,
+    errorText: '',
+    durationMs: 900,
+    costUsd: 0.5,
+    advisorUsd: 0.31,
+  });
+  emit({ type: 'result', isError: false, stopped: false, errorText: '', durationMs: 900, costUsd: 0.6 });
+  const [, call, advised, plain] = history.read(contact.id);
+  assert.deepEqual([call.kind, call.activity, call.output], ['tool', { kind: 'advisor', label: 'Fable' }, '']);
+  assert.equal(advised.advisorUsd, 0.31);
+  assert.equal('advisorUsd' in plain, false, 'a turn without one keeps none');
+  const told = chats.sent.filter(([, event]) => event.type === 'result').map(([, event]) => event.advisorUsd);
+  assert.deepEqual(told, [0.31, undefined], 'and the window hears it as it is');
+});
+
 test('a contact waiting for you says what on: the kind and a line of the first request it asked', () => {
   const { conversations, contact, sessions, store } = setup();
   const prompt = () => conversations.view(store.getContact(contact.id)).prompt;
