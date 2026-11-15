@@ -13,6 +13,7 @@ version into package.json and package-lock.json in the release prep PR.
 
 ## v0.7.5
 
+- **Chat with Grok** — Pick **Grok** as the **Service** in **Add a Contact** to run the Grok Build installed on your computer, with its own sign-in, models and MCP servers. It asks before acting, plans without changing files, or never asks, and a manager can start Grok workers and invite Grok reviewers. The welcome wizard says whether it is installed and signed in.
 - **See a conversation’s pictures on your phone** — The phone app now shows the pictures you sent, the screenshots an agent’s tools took and the pictures its replies show from the contact’s folder, each loading as you scroll to it. Tap one to see it full screen: swipe to the others, pinch or double-tap to zoom, swipe down to close, and **Share** to save it to your phone. Your Mac sends only that conversation’s pictures, over the phone’s signed-in connection, and a phone-sized copy until you open one.
 
 ## v0.7.4 — 2026-11-13

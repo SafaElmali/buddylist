@@ -23,5 +23,5 @@ Good to know:
 - A task's output can't be read any more once its Claude Code has ended. What you read before then stays on show.
 - [Subagents](subagents.md) are not listed here: they have a tab of their own.
 - In a [group conversation](group-conversations.md), everyone's tasks are listed, each with whose it is.
-- Codex, Gemini, OpenCode and Hermes don't say what they leave running, so their conversations have no **Background** tab.
+- Codex, Gemini, OpenCode, Hermes and Grok don't say what they leave running, so their conversations have no **Background** tab.
 - In the [live demo](https://buddylist.dev/demo/) and in demo mode, a message with "background" in it has a Claude contact start a scripted dev server and a watcher on CI. The watcher ends after a few seconds; the dev server runs until you stop it.

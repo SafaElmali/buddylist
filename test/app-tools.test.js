@@ -20,6 +20,7 @@ import { descriptor as claude } from '../src/providers/claude/descriptor.js';
 import { descriptor as codex } from '../src/providers/codex/descriptor.js';
 import { descriptor as gemini } from '../src/providers/gemini/descriptor.js';
 import { descriptor as hermes } from '../src/providers/hermes/descriptor.js';
+import { createProviders } from '../src/providers/index.js';
 import { APP_TOOL_INSTRUCTIONS, appToolName, appToolServer, sdkTool } from '../src/providers/claude/app-tools.js';
 import { NAME_MAX } from '../src/shared/terminal.js';
 import { BRIEF_MAX, MESSAGE_MAX, REPORT_UP_MAX } from '../src/shared/managers.js';
@@ -1122,6 +1123,19 @@ test('with services to invite, a manager also invites agents into its workers, a
     ]
   );
   assert.ok(!toolsFor('c1').some((tool) => tool.name === APP_TOOLS.invite), 'a contact that is no manager has none');
+});
+
+test('every service the app has can be asked for, Grok too: in a conversation started, and invited in', () => {
+  const agents = createProviders({ app: { isPackaged: false } }).list();
+  const { tool, start } = setup({ contacts: [{ id: 'c1' }, { id: 'm1' }], managers: invitingFor(), agents });
+  const invite = tool('m1', APP_TOOLS.invite);
+  assert.ok(agents.some(({ id }) => id === 'grok'));
+  for (const { id } of agents) {
+    assert.ok(takes(start, { prompt: 'Fix the cart total', invite: [id, { service: id, model: '' }] }), id);
+    assert.ok(takes(invite, { to: 'Claude (tags)', service: id }), id);
+  }
+  assert.ok(!takes(start, { prompt: 'Fix the cart total', invite: ['grok-build'] }), 'only a service there is');
+  assert.ok(!takes(invite, { to: 'Claude (tags)', service: 'grok-build' }));
 });
 
 test('an invite takes a conversation, a service, and a model, effort, role, message and whether the user asked', () => {

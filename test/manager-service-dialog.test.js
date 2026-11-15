@@ -7,6 +7,7 @@ import { descriptor as codex } from '../src/providers/codex/descriptor.js';
 import { descriptor as gemini } from '../src/providers/gemini/descriptor.js';
 import { descriptor as opencode } from '../src/providers/opencode/descriptor.js';
 import { descriptor as hermes } from '../src/providers/hermes/descriptor.js';
+import { descriptor as grok } from '../src/providers/grok/descriptor.js';
 
 function open(t, provider = codex, from = claude, mode = 'default') {
   const document = page(t);
@@ -17,7 +18,7 @@ function open(t, provider = codex, from = claude, mode = 'default') {
   return { document, result, form, mode: form.elements.permissionMode, cancel };
 }
 
-for (const provider of [claude, codex, gemini, opencode, hermes]) {
+for (const provider of [claude, codex, gemini, opencode, hermes, grok]) {
   test(`switching to ${provider.name} offers only its own approval modes and explains read-only`, async (t) => {
     const dialog = open(t, provider);
     assert.deepEqual(

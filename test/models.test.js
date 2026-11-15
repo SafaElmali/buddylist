@@ -582,7 +582,7 @@ function providersWith(listModels, opts = {}) {
   return providers;
 }
 
-test('Claude, Codex and OpenCode can be asked for their models; Gemini and Hermes cannot', () => {
+test('Claude, Codex, OpenCode and Grok can be asked for their models; Gemini and Hermes cannot', () => {
   const providers = createProviders({ app: { isPackaged: false } });
   assert.deepEqual(
     providers.list().map((d) => [d.id, typeof providers.get(d.id).listModels]),
@@ -592,6 +592,7 @@ test('Claude, Codex and OpenCode can be asked for their models; Gemini and Herme
       ['gemini', 'undefined'],
       ['opencode', 'function'],
       ['hermes', 'undefined'],
+      ['grok', 'function'],
     ]
   );
 });

@@ -1,6 +1,6 @@
 # Getting started
 
-buddylist puts your coding agents in a buddy list, the way MSN Messenger had your friends. Each contact is an agent working in one of your project folders, or on [This computer](contact-list.md#this-computer) with no project, for a question or some writing, and each conversation is a real session of it: the same agent, tools, settings and login as `claude` in your terminal. Claude Code comes with the app. [Codex](codex.md), [Gemini](gemini.md), [OpenCode](opencode.md) and [Hermes](hermes.md) contacts run the ones you already use.
+buddylist puts your coding agents in a buddy list, the way MSN Messenger had your friends. Each contact is an agent working in one of your project folders, or on [This computer](contact-list.md#this-computer) with no project, for a question or some writing, and each conversation is a real session of it: the same agent, tools, settings and login as `claude` in your terminal. Claude Code comes with the app. [Codex](codex.md), [Gemini](gemini.md), [OpenCode](opencode.md), [Hermes](hermes.md) and [Grok](grok.md) contacts run the ones you already use.
 
 Want to look around first? The [live demo](https://buddylist.dev/demo/) is the app's real windows in your browser, with scripted contacts.
 

@@ -42,6 +42,7 @@ One agent that is ready is enough to start. **Check again** asks them all once m
 - **Claude** comes with the app, so it is only ever signed in or not, and it is [signed in from this page](#signing-in-to-claude). A sign-in from `claude` in a terminal counts too, and so does `ANTHROPIC_API_KEY`.
 - **Codex** is asked with `codex login status`.
 - **Gemini**, **OpenCode** and **Hermes** can't be asked whether they are signed in. They are ready once they are installed, and whether they are signed in shows with your first message.
+- **Grok** is asked with `grok models`, which says first whether it is signed in. It is signed in from a terminal, with `grok login`.
 - **The GitHub CLI** is optional. With it, a contact shows how its pull request stands, and you can pick one of your repositories to clone. One that is not signed in has a **Sign in...** button too: it opens the same **Connect to GitHub** dialog as [the contact list](contact-list.md), and the line turns to **Ready** once you are done in the browser.
 
 Nothing is sent to an agent to find this out: each program is asked how it stands, and that is all. In demo mode nothing is asked either, and everyone is ready.

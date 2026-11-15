@@ -1,6 +1,6 @@
 /**
- * The contract every AI provider implements (Claude, Codex, Gemini, OpenCode
- * and Hermes today).
+ * The contract every AI provider implements (Claude, Codex, Gemini, OpenCode,
+ * Hermes and Grok today).
  *
  * A provider has two parts:
  *  1. `descriptor`: plain, serializable data the windows use to show choices

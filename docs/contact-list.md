@@ -166,7 +166,7 @@ Deleting a contact never touches the folder it was added from. Its worktree stay
 - Type in the list to find any model the service has, or to use one by its exact name.
 - **Add models...** at the bottom opens the service's own list. Tick the models you want to choose from; the list keeps them for every contact of that service.
 
-Claude, Codex and OpenCode are asked for their lists as you open the dialog, so new models show up by themselves. No message is sent for that. OpenCode lists its models as `provider/model`, for each provider you set up in it, and its own free ones. Gemini and Hermes can't be asked this way: Gemini offers its usual models, and a Hermes model is typed as `provider:model`. A service with no models to list says why in **Add models...**: say, that its program isn't installed, and what to do about it.
+Claude, Codex, OpenCode and Grok are asked for their lists as you open the dialog, so new models show up by themselves. No message is sent for that. OpenCode lists its models as `provider/model`, for each provider you set up in it, and its own free ones. Gemini and Hermes can't be asked this way: Gemini offers its usual models, and a Hermes model is typed as `provider:model`. A service with no models to list says why in **Add models...**: say, that its program isn't installed, and what to do about it.
 
 **Contact card.** Rest the mouse on a contact for half a second to see where its project stands:
 

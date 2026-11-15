@@ -11,27 +11,28 @@ import { descriptor as codex } from '../src/providers/codex/descriptor.js';
 import { descriptor as gemini } from '../src/providers/gemini/descriptor.js';
 import { descriptor as opencode } from '../src/providers/opencode/descriptor.js';
 import { descriptor as hermes } from '../src/providers/hermes/descriptor.js';
+import { descriptor as grok } from '../src/providers/grok/descriptor.js';
 
 test('every Claude and Codex permission mode maps to the same or stricter fallback permissions', () => {
   for (const [source, targets, cases] of [
     [
       claude,
-      [codex, gemini, opencode, hermes],
+      [codex, gemini, opencode, hermes, grok],
       {
-        plan: ['read-only', 'plan', 'plan', undefined],
-        default: ['ask', 'default', 'plan', undefined],
-        acceptEdits: ['ask', 'autoEdit', 'plan', undefined],
-        bypassPermissions: ['full-access', 'yolo', 'build', 'default'],
+        plan: ['read-only', 'plan', 'plan', undefined, 'plan'],
+        default: ['ask', 'default', 'plan', undefined, 'default'],
+        acceptEdits: ['ask', 'autoEdit', 'plan', undefined, 'default'],
+        bypassPermissions: ['full-access', 'yolo', 'build', 'default', 'yolo'],
       },
     ],
     [
       codex,
-      [claude, gemini, opencode, hermes],
+      [claude, gemini, opencode, hermes, grok],
       {
-        'read-only': ['plan', 'plan', 'plan', undefined],
-        ask: ['default', 'default', 'plan', undefined],
-        auto: ['default', 'default', 'plan', undefined],
-        'full-access': ['bypassPermissions', 'yolo', 'build', 'default'],
+        'read-only': ['plan', 'plan', 'plan', undefined, 'plan'],
+        ask: ['default', 'default', 'plan', undefined, 'default'],
+        auto: ['default', 'default', 'plan', undefined, 'default'],
+        'full-access': ['bypassPermissions', 'yolo', 'build', 'default', 'yolo'],
       },
     ],
   ]) {
@@ -98,9 +99,9 @@ test('a limit continuation works with no checklist or a completed checklist', ()
 
 test('the mode a service works read-only in: its mode that changes no files, or asking first for Claude', () => {
   assert.deepEqual(
-    [claude, codex, gemini, opencode, hermes].map(readOnlyPermissionMode),
+    [claude, codex, gemini, opencode, hermes, grok].map(readOnlyPermissionMode),
     // Claude's plan mode would end each turn in a plan: its session takes away the tools that write files instead.
-    ['default', 'read-only', 'plan', 'plan', null]
+    ['default', 'read-only', 'plan', 'plan', null, 'plan']
   );
 });
 

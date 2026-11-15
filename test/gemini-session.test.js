@@ -231,7 +231,7 @@ test('Gemini is offered as a service, with modes and a picture of its own', () =
   const providers = createProviders({ app: { isPackaged: false } });
   assert.deepEqual(
     providers.list().map((p) => p.id),
-    ['claude', 'codex', 'gemini', 'opencode', 'hermes']
+    ['claude', 'codex', 'gemini', 'opencode', 'hermes', 'grok']
   );
   assert.equal(providers.descriptor('gemini'), descriptor);
   assert.equal(descriptor.name, 'Gemini');

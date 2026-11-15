@@ -4,7 +4,7 @@
 
 **Chat with your coding agents like it's 2005.**
 
-Claude Code, Codex, Gemini, OpenCode and Hermes in an MSN Messenger 7.5-style buddy list, on Mac, Windows and Linux.
+Claude Code, Codex, Gemini, OpenCode, Hermes and Grok in an MSN Messenger 7.5-style buddy list, on Mac, Windows and Linux.
 
 [![Latest release](https://img.shields.io/github/v/release/SafaElmali/buddylist?label=release&color=2860e0)](https://github.com/SafaElmali/buddylist/releases/latest)
 [![macOS Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-555?logo=apple)](https://github.com/SafaElmali/buddylist/releases/latest/download/buddylist-mac-arm64.dmg)
@@ -19,7 +19,7 @@ Claude Code, Codex, Gemini, OpenCode and Hermes in an MSN Messenger 7.5-style bu
 
 It is not a chatbot skin. Each conversation runs a real **Claude Code** session: the same agent loop, tools, settings and login as `claude` in your terminal. Claude reads your project, runs commands and edits files. You just see it as a classic messenger, with a buddy list, conversation windows, nudges and _"Claude is typing a message..."_.
 
-[Codex](docs/codex.md), [Gemini](docs/gemini.md), [OpenCode](docs/opencode.md) and [Hermes](docs/hermes.md) contacts work the same way, on top of the `codex`, `gemini`, `opencode` and `hermes` you already use.
+[Codex](docs/codex.md), [Gemini](docs/gemini.md), [OpenCode](docs/opencode.md), [Hermes](docs/hermes.md) and [Grok](docs/grok.md) contacts work the same way, on top of the `codex`, `gemini`, `opencode`, `hermes` and `grok` you already use.
 
 ## Highlights
 
@@ -41,7 +41,7 @@ It is not a chatbot skin. Each conversation runs a real **Claude Code** session:
 
 Mac, Windows and AppImage installations download updates in the background. Debian packages show an update notice; install the new `.deb` to update. Intel Mac and ARM Windows/Linux installers are not provided.
 
-The first time, a [welcome wizard](docs/welcome-wizard.md) says which of your agents are ready, signs you in to Claude through your browser if you aren't yet, and ends in your first project. Claude Code is bundled. Codex, Gemini, OpenCode and Hermes contacts use their own CLIs: see [Codex](docs/codex.md), [Gemini](docs/gemini.md), [OpenCode](docs/opencode.md) and [Hermes](docs/hermes.md).
+The first time, a [welcome wizard](docs/welcome-wizard.md) says which of your agents are ready, signs you in to Claude through your browser if you aren't yet, and ends in your first project. Claude Code is bundled. Codex, Gemini, OpenCode, Hermes and Grok contacts use their own CLIs: see [Codex](docs/codex.md), [Gemini](docs/gemini.md), [OpenCode](docs/opencode.md), [Hermes](docs/hermes.md) and [Grok](docs/grok.md).
 
 ### Run from source
 
@@ -149,7 +149,7 @@ Everything you do with `claude` in a terminal has a place in buddylist.
 - [Schedules](docs/schedules.md): prompts that start a contact by themselves, on a cadence, and the runs missed while the app was closed
 - [Project managers](docs/project-managers.md): a manager on your choice of service that follows PRDs, tickets and designs, and checks the conversations assigned to it, with read-only guests that hand changes to workers
 - [Accounts](docs/accounts.md): each Claude account’s allowance, optional switching before a limit, and fallback spending rules
-- [Codex](docs/codex.md), [Gemini](docs/gemini.md), [OpenCode](docs/opencode.md) and [Hermes](docs/hermes.md)
+- [Codex](docs/codex.md), [Gemini](docs/gemini.md), [OpenCode](docs/opencode.md), [Hermes](docs/hermes.md) and [Grok](docs/grok.md)
 - [The Run button](docs/run-button.md): your project's dev server, on a port of its own for each contact
 - [The terminal](docs/terminal.md): your own shell in a contact's folder, beside the conversation
 - [The browser](docs/browser-tab.md): a web page beside the conversation, for a dev server or a link from a reply
@@ -214,7 +214,7 @@ The code is [MIT](LICENSE).
 
 - The Claude spark and the Claude Code mascot are Anthropic's marks. Their SVG paths come from [Simple Icons](https://simpleicons.org).
 - The bundled classic Winks and their soundtracks, and the [notification recordings](docs/msn-look.md#the-classic-sounds), are Microsoft's original MSN Messenger media. See the [pack attribution](src/pack/README.md).
-- Other interface artwork is original SVG, including the Codex, Gemini, OpenCode and Hermes pictures.
+- Other interface artwork is original SVG, including the Codex, Gemini, OpenCode, Hermes and Grok pictures.
 - The app and the live demo each carry `THIRD_PARTY_NOTICES.txt`, with the license of every package and copied file they ship. The build writes it from what it bundles ([`scripts/notices.js`](scripts/notices.js)); the app has it beside its resources, and the demo at `/demo/THIRD_PARTY_NOTICES.txt`.
 
 The artwork and sounds that belong to Anthropic or Microsoft are theirs, and the license does not cover them. buddylist is an independent project, not affiliated with or endorsed by Microsoft, Anthropic, OpenAI or Google.

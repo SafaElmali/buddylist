@@ -51,7 +51,7 @@ async function showAbout(askVersion) {
           <p><b>buddylist</b> ${version}</p>
           <p>
             Chat with AI coding agents in a classic messenger window.<br />Each conversation is a real Claude Code,
-            Codex, Gemini, OpenCode or Hermes session.
+            Codex, Gemini, OpenCode, Hermes or Grok session.
           </p>
         </div>
       </div>`

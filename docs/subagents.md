@@ -24,5 +24,5 @@ Good to know:
 - Subagents end when you quit the app, and when you delete or archive their contact. They are listed as stopped.
 - Subagents from before this tab existed are listed without their steps: those were not saved with whose they were.
 - Commands and watchers Claude leaves running are not subagents: the [**Background**](background.md) tab lists those.
-- Codex, Gemini, OpenCode and Hermes do not say what their subagents do, so their conversations have no **Subagents** tab.
+- Codex, Gemini, OpenCode, Hermes and Grok do not say what their subagents do, so their conversations have no **Subagents** tab.
 - In the [live demo](https://buddylist.dev/demo/) and in demo mode, a message with "subagents" (or "helpers") in it has a Claude contact start two scripted ones.

@@ -65,13 +65,13 @@ Click a line, or press Enter on it, to open it:
 
 A [check-in](check-ins.md) is something a Claude contact sets itself, to be woken in the same conversation: "keep an eye on CI". A schedule is yours, and starts fresh contacts.
 
-|                   | Check-ins                                      | Schedules                                       |
-| ----------------- | ---------------------------------------------- | ----------------------------------------------- |
-| Who sets it       | Claude, when you ask it in a conversation      | You, in the New schedule dialog                 |
-| Services          | Claude only                                    | Claude, Codex, Gemini, OpenCode and Hermes      |
-| Each time it runs | the same conversation is sent the prompt again | a new contact, in a worktree of its own         |
-| Quitting the app  | ends it                                        | keeps it, and a missed run runs once on opening |
-| How long it lasts | 7 days, or until `/clear`, archive or delete   | until you turn it off, or it reaches Max runs   |
+|                   | Check-ins                                      | Schedules                                        |
+| ----------------- | ---------------------------------------------- | ------------------------------------------------ |
+| Who sets it       | Claude, when you ask it in a conversation      | You, in the New schedule dialog                  |
+| Services          | Claude only                                    | Claude, Codex, Gemini, OpenCode, Hermes and Grok |
+| Each time it runs | the same conversation is sent the prompt again | a new contact, in a worktree of its own          |
+| Quitting the app  | ends it                                        | keeps it, and a missed run runs once on opening  |
+| How long it lasts | 7 days, or until `/clear`, archive or delete   | until you turn it off, or it reaches Max runs    |
 
 ## Good to know
 

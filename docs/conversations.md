@@ -85,7 +85,7 @@ Git's ignored files are left out. The list shows up to 30 matches and refreshes 
 - Your contact's files are left as they are: only the conversation goes back.
 - Editing your first message starts the conversation over with the new one.
 - A message that still waits to be read is taken back instead, as **Cancel** under it does: it is in the message box again, with no line over it, and what is going on goes on.
-- It is for a Claude contact on its own. Codex, Gemini, OpenCode and Hermes can't go back to a message, a slash command is no message to go back to, and with several agents in a [group conversation](group-conversations.md) the others heard it too. Nor can a message from before Claude compacted the conversation be edited: the conversation says so.
+- It is for a Claude contact on its own. Codex, Gemini, OpenCode, Hermes and Grok can't go back to a message, a slash command is no message to go back to, and with several agents in a [group conversation](group-conversations.md) the others heard it too. Nor can a message from before Claude compacted the conversation be edited: the conversation says so.
 - A message sent while **Let Claude decide** picks the effort is not one either: its effort check went first.
 
 **Fork chat from here.** Point at one of your contact's replies, and click the fork under it:
@@ -94,7 +94,7 @@ Git's ignored files are left out. The list shows up to 30 matches and refreshes 
 - Its agent's conversation is copied at that reply, so the two go on apart from there. This conversation stays as it is, and so does its agent.
 - Both work in the same folder, on the same files: what one changes, the other finds changed.
 - Its conversation ends with a line saying where it came from. What you said before the fork can't be edited there; what you say after can.
-- It is for a Claude contact on its own. Codex, Gemini, OpenCode and Hermes can't copy a conversation, and with several agents in a [group conversation](group-conversations.md) each has a conversation of its own. Nor can a reply from before Claude compacted the conversation be forked from: the conversation says so.
+- It is for a Claude contact on its own. Codex, Gemini, OpenCode, Hermes and Grok can't copy a conversation, and with several agents in a [group conversation](group-conversations.md) each has a conversation of its own. Nor can a reply from before Claude compacted the conversation be forked from: the conversation says so.
 
 **How long a turn took.** Point at the last reply of a turn, and the line under it says, like _Worked for 12s_. It is kept with the conversation: it is there when the window opens again, and in [Message history](#message-history).
 
@@ -148,7 +148,7 @@ Git's ignored files are left out. The list shows up to 30 matches and refreshes 
 - **Default** leaves the model to your own settings for that service. The list names what that comes to, such as **Default (Opus 5.5)**, once the service or a message of yours has shown it. Claude reads the account and folder's settings, including the project's settings in the main checkout when the contact works in a worktree.
 - An effort level goes with the model. A model that takes none has no **Effort** entry, and switching to a model that doesn't take the level you chose goes to that model's own.
 - Until you choose a level, the badge only names the model: the model uses its own level. **Default**, first in the **Effort** menu, is checked meanwhile, naming the level it comes to where the service says, such as **Default (High)** for Claude or Codex. Where it can't say, the hint explains that it is the model's own. Choose it to give the level back to the model after you picked one.
-- Gemini, OpenCode and Hermes say which models they have once you have sent a message, and they are all listed. They have no effort levels.
+- Gemini, OpenCode, Hermes and Grok say which models they have once you have sent a message, and they are all listed. They have no effort levels.
 - **⚡ Fast mode** turns Claude's fast mode on and off: faster answers from the same model, at a higher price. While it is on, an amber bolt follows the model on the badge.
   - It is there only for a model that has fast mode, which is Opus today. On another model the contact answers at its usual speed, and fast again once it is back on one that has it.
   - When something keeps fast mode from working, the bolt is faint, and pointing at the badge says why: a pause after a rate limit, usage credits that are off, a plan without it, or your organization having turned it off. Claude answers at its usual speed meanwhile.
@@ -187,7 +187,7 @@ If an agent's tool loses track of its checklist, so that the agent can't tick of
 
 **A message you send while a contact works** waits for it in the **queued** tray over the message box, until the contact reads it. The tray lists every message that waits, oldest first, each on one line with its pictures, files and, in a [group conversation](group-conversations.md), who it is for. Click a line to read all of it, or point at it. Three lines show at once, and more scroll, so the message box stays where it is. Once the contact reads a message, it leaves the tray and shows in the conversation where it was read, under what the contact did meanwhile, and stays there when you open the conversation again. The tray is gone once nothing waits, and is back as it was after a reload. A screen reader hears _Message queued._ when one of yours starts to wait.
 
-- Claude reads it at its next step, between two tool calls, or once its turn is over. Gemini, OpenCode and Hermes read it once their turn is over. Codex reads it as you send it, so nothing waits there.
+- Claude reads it at its next step, between two tool calls, or once its turn is over. Gemini, OpenCode, Hermes and Grok read it once their turn is over. Codex reads it as you send it, so nothing waits there.
 - **Send now** on its line stops what the contact is doing, a command it is running too, and the contact reads your message right away. The turn it stopped says _Stopped._, like one you nudged.
 - Messages that wait for the same turn each have a line, and **Send now** on any of them stops that turn.
 - Several messages that wait are answered one by one, in the order you sent them, each in a turn of its own, never together. In a [group conversation](group-conversations.md) too.
@@ -199,7 +199,7 @@ If an agent's tool loses track of its checklist, so that the agent can't tick of
 - A [manager's](project-managers.md) message has **Edit** too. It leaves the tray unread, as **Cancel** drops it, and its words are in the message box under a line that says whose they were: _Editing shop manager’s message. It goes as yours once you send it._ What you were writing waits until the edit is over, as it does while you edit a message of yours. Send it and it goes as a message of yours, in a round of its own like any you send. **Put back**, or **Esc**, returns it to the tray as it was, last in line, and a Stop or a pause holds it again as before; so does going on to another contact or closing the window. A note with no words of the manager's own, such as a worker's report to its manager, has **Cancel** only. Edit or Cancel, the manager is told its message wasn't read (see [Project managers](project-managers.md)).
 - If Claude has read it by then, it stays where it is: **Cancel** says _That message is no longer queued._, and **Edit** edits it as it would any message you sent.
 - **Edit** and **Cancel** go for the same messages as **Edit** above, and for every message that waits in a [group conversation](group-conversations.md). Other messages that wait have **Send now** only.
-- **Stop**, or a nudge, stops the turn without reading anything: Claude still reads what waited once it has stopped, and Gemini, OpenCode and Hermes drop it.
+- **Stop**, or a nudge, stops the turn without reading anything: Claude still reads what waited once it has stopped, and Gemini, OpenCode, Hermes and Grok drop it.
 
 The tool calls a contact makes one after another fold into one line:
 
@@ -224,7 +224,7 @@ The tool calls a contact makes one after another fold into one line:
 - A new style applies from your next message, and the contact keeps it when you reopen the app.
 - The app remembers the choice itself. Nothing is written to your Claude Code settings or your project's `.claude` folder.
 - Styles you wrote yourself are listed once you have sent a message. A project's own come from its main checkout, as its other Claude Code settings do (see [The contact list](contact-list.md)).
-- Codex, Gemini, OpenCode and Hermes have no output styles, so their **Conversation** menu has no such entry.
+- Codex, Gemini, OpenCode, Hermes and Grok have no output styles, so their **Conversation** menu has no such entry.
 - A contact keeps its style as a guest: invited into a [group conversation](group-conversations.md), it answers in the same one.
 
 **Keep a window on top.** The pin by the window's buttons keeps it in front of other apps' windows, as **View > Always on top** does. It stays pressed in while it does; click it again to let the window go. The contact list has one too, and **Tools > Always on top** there. The pin is kept: the contact list comes back on top when you open buddylist again, and each conversation keeps its own, so its window opens on top again if you pinned it, after you close it or quit too. A window that shows another conversation from the list beside it stays as it is, and its pin is kept for the conversation it shows when you click it.
@@ -295,7 +295,7 @@ In plan mode, Claude writes a plan and waits for your answer before it changes a
 - **Closing the last tab** closes the pane, and the window goes back to its size.
 - **A plan kept in a file** gets a tab too. When an agent writes or edits a Markdown file named for a plan, like `COM-630-plan.md`, `PLAN.md` or one in a `plans` folder, its line in the conversation has a **View plan** link. A run of calls that is folded away shows the plan under its line, so you don't have to open the run to find it. The tab shows the file as a document, as it reads now, and it updates as the agent revises it. There is nothing to answer under it: reply in the conversation. **View > Plans** lists it with the others.
 
-Codex, Gemini, OpenCode and Hermes have no plans to approve, so nothing opens for them.
+Codex, Gemini, OpenCode, Hermes and Grok have no plans to approve, so nothing opens for them.
 
 ## Changes
 
@@ -466,4 +466,4 @@ The local conversations you had with Claude Code or Codex outside the app, in a 
 
 **When they can't be read**, such as when `~/.claude/projects` can't be opened or the Codex CLI is missing or too old, the window says so, with what went wrong, instead of listing none. A conversation that can't be opened says why in place of its transcript.
 
-The contact list's search and the palette (⌘K) look through the conversations held in the app only. Gemini, OpenCode and Hermes contacts list the ones held in the app.
+The contact list's search and the palette (⌘K) look through the conversations held in the app only. Gemini, OpenCode, Hermes and Grok contacts list the ones held in the app.

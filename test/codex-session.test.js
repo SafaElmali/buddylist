@@ -1489,7 +1489,7 @@ test('Codex is offered next to Claude, with modes and pictures of its own', () =
   const providers = createProviders({ app: { isPackaged: false } });
   assert.deepEqual(
     providers.list().map((p) => p.id),
-    ['claude', 'codex', 'gemini', 'opencode', 'hermes']
+    ['claude', 'codex', 'gemini', 'opencode', 'hermes', 'grok']
   );
   for (const p of providers.list()) {
     assert.ok(
