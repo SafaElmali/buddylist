@@ -452,6 +452,61 @@ test('a project with a manager offers a project manager, and once it has one, it
   assert.ok(!labels(projectMenuItems(section([claude]), on, none)).includes('Add a project manager...'));
 });
 
+// ---- its own folder ----------------------------------------------------------------------------------------------
+
+test('a project’s menu opens and copies its own folder, in a group of their own after the new contacts', () => {
+  const { on, chosen } = projectRecorder([
+    'addFrom',
+    'addFromItem',
+    'openFolder',
+    'copyPath',
+    'settings',
+    'pin',
+    'hide',
+    'archiveAll',
+    'deleteAll',
+    'remove',
+  ]);
+  // Where the main process says it is: the main checkout, whichever worktree its contacts are in.
+  const project = { ...shop(false), root: '/w/shop' };
+  const items = projectMenuItems(section([claude, codex]), on, project);
+  assert.deepEqual(labels(items).slice(0, 7), [
+    'New contact in this project',
+    'New contact from an issue or pull request...',
+    '-',
+    'Open folder',
+    'Copy path',
+    '-',
+    'Project settings...',
+  ]);
+  // As in a contact's menu: no icon, and nothing to ask before.
+  assert.equal(find(items, 'Open folder').icon, undefined);
+  assert.equal(find(items, 'Open folder').disabled, undefined);
+  find(items, 'Open folder').action();
+  find(items, 'Copy path').action();
+  assert.deepEqual(chosen, [
+    ['openFolder', project],
+    ['copyPath', project],
+  ]);
+});
+
+test('a pinned project, and one beside a conversation, have their folder too', () => {
+  const { on } = projectRecorder(['addFrom', 'addFromItem', 'openFolder', 'copyPath', 'pin', 'archiveAll']);
+  const project = { ...shop(true), root: '/w/shop' };
+  for (const pinned of [false, true]) {
+    const items = labels(projectMenuItems({ ...section([claude]), pinned }, on, project));
+    assert.deepEqual(items.slice(2, 6), ['-', 'Open folder', 'Copy path', '-'], `pinned: ${pinned}`);
+  }
+});
+
+test('a project not known yet has no folder to open', () => {
+  const { on } = projectRecorder(['addFrom', 'addFromItem', 'openFolder', 'copyPath', 'pin']);
+  for (const project of [null, undefined, shop(false)]) {
+    const items = labels(projectMenuItems(section([claude]), on, project));
+    assert.ok(!items.includes('Open folder') && !items.includes('Copy path'), String(project));
+  }
+});
+
 // ---- This computer ---------------------------------------------------------------------------------
 
 const computerSection = (members, fields = {}) => ({
@@ -524,6 +579,14 @@ test('beside a conversation, and in the preview, This computer’s menu leaves o
   ]);
 });
 
+test('This computer has no one folder to open: each contact there has its own', () => {
+  const { on } = projectRecorder(['addOnComputer', 'openFolder', 'copyPath', 'settings', 'pin', 'archiveAll']);
+  for (const members of [[onComputer], []]) {
+    const items = labels(projectMenuItems(computerSection(members), on, { key: 'dir:/u', root: '/u' }));
+    assert.ok(!items.includes('Open folder') && !items.includes('Copy path'), `${members.length} on it`);
+  }
+});
+
 // ---- a project nobody works on any more ------------------------------------------------------------------------
 
 /** Its section, as the list hands it over: known by the project, with nobody in it. */
@@ -537,11 +600,23 @@ const emptySection = (fields = {}) => ({
 });
 
 test('a project nobody works on offers a contact on it again, its settings, pinning, hiding and removing it', () => {
-  const { on, chosen } = projectRecorder(['addIn', 'projectSettings', 'pin', 'hide', 'remove']);
+  const { on, chosen } = projectRecorder([
+    'addIn',
+    'openFolder',
+    'copyPath',
+    'projectSettings',
+    'pin',
+    'hide',
+    'remove',
+  ]);
   const section = emptySection();
   const items = projectMenuItems(section, on);
   assert.deepEqual(labels(items), [
     'New contact in this project',
+    '-',
+    'Open folder',
+    'Copy path',
+    '-',
     'Project settings...',
     'Project instructions...',
     'Pin project',
@@ -554,6 +629,9 @@ test('a project nobody works on offers a contact on it again, its settings, pinn
   for (const item of items) item.action?.();
   assert.deepEqual(chosen, [
     ['addIn', section.empty],
+    // Its own folder, as the list knows it with nobody on it.
+    ['openFolder', section.empty],
+    ['copyPath', section.empty],
     // By its key: there is no contact to find it by.
     ['projectSettings', 'git:/w/shop/.git'],
     ['projectSettings', 'git:/w/shop/.git', 'instructions'],
@@ -568,14 +646,18 @@ test('a repository nobody works on offers a manager; beside a conversation and i
   const { on, chosen } = managerRecorder(['addIn', 'projectSettings', 'pin', 'hide', 'remove']);
   const project = shop(false);
   const items = projectMenuItems(emptySection(), on, project);
-  assert.deepEqual(labels(items).slice(1, 4), ['Project settings...', 'Project instructions...', 'Add a manager...']);
+  assert.deepEqual(labels(items).slice(5, 8), ['Project settings...', 'Project instructions...', 'Add a manager...']);
   find(items, 'Add a manager...').action();
   assert.deepEqual(chosen, [['add manager', project]]);
 
   // A folder outside a repository has none, and where there is no Settings window nor hiding, those are not offered.
-  const { on: fewer } = projectRecorder(['addIn', 'pin', 'remove']);
+  const { on: fewer } = projectRecorder(['addIn', 'openFolder', 'copyPath', 'pin', 'remove']);
   assert.deepEqual(labels(projectMenuItems(emptySection({ pinned: true }), fewer, shop(false, false))), [
     'New contact in this project',
+    '-',
+    'Open folder',
+    'Copy path',
+    '-',
     'Unpin project',
     '-',
     'Remove project...',

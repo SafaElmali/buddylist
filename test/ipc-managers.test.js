@@ -20,10 +20,13 @@ const electron = `data:text/javascript,${encodeURIComponent(`
   export const ipcMain = { handle: (name, fn) => handlers.set(name, fn), on() {} };
   export const app = { getVersion: () => '0.0.0' };
   export const nativeTheme = { on() {} };
-  export const BrowserWindow = {}, dialog = {}, nativeImage = {}, screen = {}, shell = {};
+  export const BrowserWindow = {}, dialog = {}, nativeImage = {}, screen = {};
+  // What was opened in Finder (or the file manager), written down instead.
+  export const shell = { opened: [], openPath: async (folder) => (shell.opened.push(folder), '') };
 `)}`;
 let registerIpc;
 let handlers;
+let shell;
 if (module.registerHooks) {
   const hook = module.registerHooks({
     resolve(name, context, next) {
@@ -32,7 +35,7 @@ if (module.registerHooks) {
   });
   try {
     ({ registerIpc } = await import('../src/main/ipc.js'));
-    ({ handlers } = await import(electron));
+    ({ handlers, shell } = await import(electron));
   } finally {
     hook.deregister();
   }
@@ -349,6 +352,25 @@ test('a manager is added to a repository no contact works in, picked by a folder
   assert.deepEqual([blog.key, blog.repository], [`dir:${app.blog}`, false], 'a folder outside a repository');
   assert.equal(await app.invoke(REQUESTS.projectManager, { folder: 'shop' }), null, 'a folder not named in full');
   assert.equal(await app.invoke(REQUESTS.projectManager, { folder: 42 }), null);
+});
+
+test('a project’s menu opens its own folder, the main checkout, and says so once it is gone', opts, async (t) => {
+  const app = fixture(t);
+  // A contact in a worktree of the shop: its project is the main checkout, not the worktree.
+  const tags = app.store.addContact({ provider: 'claude', name: 'Claude', cwd: path.join(app.home, 'shop', 'tags') });
+  const found = await app.invoke(REQUESTS.projectManager, { contactId: tags.id });
+  assert.deepEqual([found.key, found.root], [app.shopKey, app.repo]);
+  // Open folder, as its Settings' Open opens it.
+  shell.opened.length = 0;
+  await app.invoke(REQUESTS.projectReveal, found.key, 'root');
+  assert.deepEqual(shell.opened, [app.repo]);
+
+  // A folder outside a repository is its own root. Once it is gone, nothing is opened and the window is told why.
+  const blog = await app.invoke(REQUESTS.projectManager, { folder: app.blog });
+  assert.equal(blog.root, app.blog);
+  fs.rmSync(app.blog, { recursive: true });
+  await assert.rejects(app.invoke(REQUESTS.projectReveal, blog.key, 'root'), /The folder .*blog isn’t there\./);
+  assert.deepEqual(shell.opened, [app.repo]);
 });
 
 test(

@@ -35,6 +35,9 @@ import { THIS_COMPUTER } from '../../shared/projects.js';
  *   more, by its key; left out where there is no such window
  * @property {ManagerHandlers} [manager]  what its manager's choices do; left out where it can have none, as in
  *   the preview
+ * @property {(project: ProjectFolder) => void} openFolder  its own folder in Finder (or the file manager), as a
+ *   contact's Open folder opens the contact's. One that is gone says so
+ * @property {(project: ProjectFolder) => void} copyPath  that folder's, to paste elsewhere
  * @property {(name: string, pinned: boolean) => void} pin  list it before the other projects, or no longer
  * @property {(name: string) => void} [hide]       leave its contacts out of the contact list; left out
  *   beside a conversation, which lists every project (see paneView in contacts-pane.js)
@@ -55,12 +58,17 @@ import { THIS_COMPUTER } from '../../shared/projects.js';
 /** @typedef {import('./manager-dialog.js').ProjectManager} ProjectManager */
 
 /**
+ * A project's own folder: its main checkout, or the folder outside a repository, not a contact's worktree.
+ * @typedef {{ key: string, root: string }} ProjectFolder
+ */
+
+/**
  * A project's right-click menu.
  * @param {import('../../shared/groups.js').Section} section  the project's, as the list shows it
  * @param {ProjectHandlers} on
  * @param {ProjectManager | null} [manager]  the project's manager, as the main process says it: a repository
  *   without one offers to add it, and one with it offers its settings and to turn it off. A folder outside a
- *   repository has nothing for a manager to oversee, and offers neither
+ *   repository has nothing for a manager to oversee, and offers neither. It says where the project's folder is too
  * @returns {MenuItem[]}
  */
 export function projectMenuItems(section, on, manager = null) {
@@ -72,6 +80,7 @@ export function projectMenuItems(section, on, manager = null) {
   return [
     { label: 'New contact in this project', icon: smallIcon.plus(), bold: true, action: () => on.addFrom(contact) },
     { label: 'New contact from an issue or pull request...', action: () => on.addFromItem(contact) },
+    ...folderItems(manager, on),
     ...(on.settings
       ? [
           { label: 'Project settings...', icon: smallIcon.gear(), action: () => on.settings(contact) },
@@ -103,6 +112,7 @@ function emptyMenuItems(section, on, manager) {
   const { key, name } = project;
   return [
     { label: 'New contact in this project', icon: smallIcon.plus(), bold: true, action: () => on.addIn(project) },
+    ...folderItems(project, on),
     ...(on.projectSettings
       ? [
           { label: 'Project settings...', icon: smallIcon.gear(), action: () => on.projectSettings(key) },
@@ -118,9 +128,27 @@ function emptyMenuItems(section, on, manager) {
 }
 
 /**
+ * Open folder and Copy path, of the project's own folder, in a group of their own after the new contacts: where a
+ * contact's menu beside a conversation has them. Nothing while the main process hasn't said where it is.
+ * @param {ProjectFolder | null | undefined} project
+ * @param {ProjectHandlers} on
+ * @returns {MenuItem[]}
+ */
+const folderItems = (project, on) =>
+  project?.root
+    ? [
+        { separator: true },
+        { label: 'Open folder', action: () => on.openFolder(project) },
+        { label: 'Copy path', action: () => on.copyPath(project) },
+        { separator: true },
+      ]
+    : [];
+
+/**
  * This computer's right-click menu: its contacts work on no project, so there is no issue or pull request to start
- * from, no manager and nothing to remove. What they are told is in Settings, as a project's is, once one is there to
- * find it by. It is pinned and hidden by its name, as a project is.
+ * from, no manager and nothing to remove. Each has a folder of its own, so there is no one folder to open either.
+ * What they are told is in Settings, as a project's is, once one is there to find it by. It is pinned and hidden by
+ * its name, as a project is.
  * @param {import('../../shared/groups.js').Section} section
  * @param {ProjectHandlers} on
  * @returns {MenuItem[]}

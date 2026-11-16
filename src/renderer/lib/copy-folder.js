@@ -1,7 +1,8 @@
-// Copy path and Copy branch name: from a contact's menus, and from the conversation's Open button.
-// And copyText, for every copy the usage counts know of.
+// Copy path and Copy branch name: from a contact's menus, and from the conversation's Open button. Open folder and
+// Copy path of a project's own folder, from its menu. And copyText, for every copy the usage counts know of.
 import { api } from './api.js';
 import { infoDialog, messageBody } from './dialog.js';
+import { errorText } from './dom.js';
 
 /**
  * Puts text on the clipboard, and tells the app what it was for the usage counts. The text stays here.
@@ -25,3 +26,14 @@ export async function copyBranch(contact, branch) {
   if (name) return copyText(name, 'branch');
   return infoDialog('buddylist', messageBody(`The folder of ${contact.name} is not on a branch.`));
 }
+
+/**
+ * Open folder and Copy path in a project's menu, in either list: its own folder, as Open in its Settings shows it.
+ * One that is gone says so.
+ * @type {Pick<import('../contacts/list-menu.js').ProjectHandlers, 'openFolder' | 'copyPath'>}
+ */
+export const projectFolder = {
+  openFolder: ({ key }) =>
+    api.projects.reveal(key, 'root').catch((err) => infoDialog('buddylist', messageBody(errorText(err)))),
+  copyPath: ({ root }) => copyText(root, 'path'),
+};

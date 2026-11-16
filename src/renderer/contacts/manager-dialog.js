@@ -19,6 +19,7 @@ import { creatingManager } from './creation-flow.js';
  * @typedef {Object} ProjectManager
  * @property {string} key
  * @property {string} name
+ * @property {string} root  its main checkout, or the folder outside a repository: what its menu's Open folder opens
  * @property {boolean} repository  only a repository has worktrees for a manager to oversee
  * @property {import('../../shared/managers.js').ManagerSettings} settings
  * @property {string | null} contactId  its manager, turned on or not; null while it has none

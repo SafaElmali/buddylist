@@ -376,7 +376,7 @@ function conversationSwitched({ store }, contactId) {
 /** Open folder, in a contact's menus: its working folder in the computer's own file browser. */
 const folderShown = ({ store }, contactId) => (store.getContact(contactId) ? { app: 'files' } : null);
 
-/** Which of a project's folders was shown from Settings: its main checkout, or where its worktrees are. */
+/** Which of a project's folders was shown, from Settings or Open folder in its menu: its main checkout, or where its worktrees are. */
 const projectFolderShown = (_answered, _key, which) => (['root', 'worktrees'].includes(which) ? { which } : null);
 
 /** The buttons of the browser beside a conversation. */
