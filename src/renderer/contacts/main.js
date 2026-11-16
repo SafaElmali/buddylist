@@ -4,7 +4,7 @@ import '../lib/error-reports.js';
 // Next, so that the window is drawn in its look from the start.
 import '../lib/look.js';
 import { api } from '../lib/api.js';
-import { copyBranch, copyPath } from '../lib/copy-folder.js';
+import { copyBranch, copyPath, projectFolder } from '../lib/copy-folder.js';
 import { $, el, errorText, html, raw } from '../lib/dom.js';
 import { confirmDialog, infoDialog, messageBody } from '../lib/dialog.js';
 import { mountFrame } from '../lib/frame.js';
@@ -325,6 +325,7 @@ const onProject = () => ({
   // The same dialog, started in its field for an issue or pull request.
   addFromItem: (contact) =>
     addWith(async () => ({ from: contact, repo: await repositoryOf(contact), startAt: 'github' })),
+  ...projectFolder,
   ...(state.platform !== 'web' && {
     settings: settingsOf,
     projectSettings: (key, section = 'overview') => api.settings.open({ section, project: key }),

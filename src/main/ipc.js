@@ -1394,9 +1394,12 @@ export function registerIpc({
   handleWithPath(REQUESTS.projectManager, async (_e, where) => {
     const key = await projectKeyOf(where);
     if (!/^(git|dir):./.test(key)) return null;
+    const { name, root } = projectOfKey(key);
     return {
       key,
-      name: projectOfKey(key).name,
+      name,
+      // Its own folder, for Open folder and Copy path in its menu.
+      root,
       // Only a repository has worktrees for a manager to oversee.
       repository: key.startsWith('git:'),
       settings: projects.settings(key).manager,

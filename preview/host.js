@@ -324,6 +324,12 @@ const demoEmptyProjects = () => {
 };
 const broadcastEmptyProjects = () => desktop.broadcast(EVENTS.emptyProjectsChanged, demoEmptyProjects());
 
+/** A project's own folder, by its name: the one its contacts' worktrees are copies of, or the one kept for it. */
+const demoProjectRoot = (name) => {
+  const contact = store.contacts.find(({ cwd }) => !onComputer(cwd, COMPUTER_HOME, HOME) && projectName(cwd) === name);
+  return contact ? demoFolderOf(contact.cwd) : demoProjectFolders.get(name);
+};
+
 // ---- requests from the windows --------------------------------------------------------------
 const pick = (obj, keys) => Object.fromEntries(Object.entries(obj || {}).filter(([k]) => keys.includes(k)));
 let folderCount = 0;
@@ -421,7 +427,7 @@ function removeDemoContact(id, withWorktree) {
   const cwd = store.getContact(id)?.cwd;
   if (cwd && !onComputer(cwd, COMPUTER_HOME, HOME)) {
     const name = projectName(cwd);
-    demoProjectFolders.set(name, demoWorktrees.get(cwd)?.folder ?? cwd);
+    demoProjectFolders.set(name, demoFolderOf(cwd));
     if (!store.getProject(name)) store.updateProject(name, {});
   }
   if (withWorktree) demoWorktrees.delete(cwd);
@@ -623,6 +629,8 @@ const NO_SCHEDULES = 'Schedules run in the app: the preview has none.';
 const demoWorktrees = new Map();
 
 const projectName = (cwd) => demoWorktrees.get(cwd)?.name || cwd.split('/').pop();
+/** The project's own folder a contact's folder is: the one its made-up worktree is a copy of, or itself. */
+const demoFolderOf = (cwd) => demoWorktrees.get(cwd)?.folder ?? cwd;
 
 // As in src/main/ipc.js, the nickname made up from a branch follows it to the name the branch gets.
 function nicknameFollows({ id, name, provider }, branch) {
@@ -1213,6 +1221,7 @@ const handlers = {
     return {
       key: name,
       name,
+      root: demoProjectRoot(name),
       repository: false,
       settings: projectSettings(store.getProject(name)).manager,
       contactId: null,
@@ -1235,7 +1244,13 @@ const handlers = {
     return members.length;
   },
   [REQUESTS.projectFiles]: () => ({ count: 0, files: [] }),
-  [REQUESTS.projectReveal]: () => {},
+  // Open folder in a project's menu: its own folder, by its name here.
+  [REQUESTS.projectReveal]: (_win, key) =>
+    showToast({
+      title: 'Open Folder',
+      body: `The desktop app opens ${demoProjectRoot(String(key)) || 'the folder'} in Finder.`,
+      avatar: 'default',
+    }),
   [REQUESTS.groupAdd]: (_win, name) => {
     const group = store.addGroup(cleanGroupName(name, store.groups));
     broadcastGroups();

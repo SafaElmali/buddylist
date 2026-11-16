@@ -5,7 +5,7 @@ import '../lib/error-reports.js';
 import { currentLook, onLook } from '../lib/look.js';
 import { api } from '../lib/api.js';
 import { $, $$, el, errorText, html } from '../lib/dom.js';
-import { copyBranch, copyPath, copyText } from '../lib/copy-folder.js';
+import { copyBranch, copyPath, copyText, projectFolder } from '../lib/copy-folder.js';
 import { confirmDialog, infoDialog, messageBody } from '../lib/dialog.js';
 import { listNames } from '../lib/format.js';
 import { deleteQuestion } from '../history/held.js';
@@ -1301,6 +1301,7 @@ const onProject = () => ({
   // The same dialog, started in its field for an issue or pull request.
   addFromItem: (contact) =>
     addWith(async () => ({ from: contact, repo: await repositoryOf(contact), startAt: 'github' })),
+  ...projectFolder,
   ...(!ctx.web && {
     settings: (contact, section = 'overview') => api.settings.open({ section, contactId: contact.id }),
     projectSettings: (key, section = 'overview') => api.settings.open({ section, project: key }),
