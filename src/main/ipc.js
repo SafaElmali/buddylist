@@ -1469,12 +1469,17 @@ export function registerIpc({
     return { count: files.length, files: files.slice(0, 8) };
   });
 
-  // Shows one of a project's folders: its main checkout, or where its contacts' worktrees are.
-  handle(REQUESTS.projectReveal, async (_e, key, which) => {
-    const { name, root } = projectOfKey(String(key));
-    const folder = which === 'worktrees' ? path.join(worktreesHome, name) : root;
+  /** Shows a folder in Finder (or the file manager). One that is gone, or that can't be opened, says why. */
+  const reveal = async (folder) => {
     if (!fs.existsSync(folder)) throw new Error(`The folder ${shortPath(folder)} isn’t there.`);
-    shell.openPath(folder);
+    const failed = await shell.openPath(folder);
+    if (failed) throw new Error(failed);
+  };
+
+  // Shows one of a project's folders: its main checkout, or where its contacts' worktrees are.
+  handle(REQUESTS.projectReveal, (_e, key, which) => {
+    const { name, root } = projectOfKey(String(key));
+    return reveal(which === 'worktrees' ? path.join(worktreesHome, name) : root);
   });
 
   // ---- groups ---------------------------------------------------------------------------
@@ -1783,10 +1788,8 @@ export function registerIpc({
     return true;
   });
 
-  handle(REQUESTS.chatOpenFolder, (_e, contactId) => {
-    const contact = store.getContact(contactId);
-    if (contact) shell.openPath(contact.cwd);
-  });
+  // Open folder in a contact's menus and on its card, and the Open button before an app is picked: its own folder.
+  handle(REQUESTS.chatOpenFolder, async (_e, contactId) => reveal(folderOf(contactId)));
 
   // ---- the Open button: the working folder in an editor, a terminal, the files or on GitHub ----
   /** path -> its icon as a data: address, or null: an app's icon is asked of the system once. */

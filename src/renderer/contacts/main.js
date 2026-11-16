@@ -4,7 +4,7 @@ import '../lib/error-reports.js';
 // Next, so that the window is drawn in its look from the start.
 import '../lib/look.js';
 import { api } from '../lib/api.js';
-import { copyBranch, copyPath, projectFolder } from '../lib/copy-folder.js';
+import { copyBranch, copyPath, openFolder, projectFolder } from '../lib/copy-folder.js';
 import { $, el, errorText, html, raw } from '../lib/dom.js';
 import { confirmDialog, infoDialog, messageBody } from '../lib/dialog.js';
 import { mountFrame } from '../lib/frame.js';
@@ -100,7 +100,7 @@ const settingsOf = (contact, section = 'overview') => api.settings.open({ sectio
 /** What each choice in a contact's menus does. Which choices a contact gets is in contact-menu.js. */
 const on = {
   chat: (contact) => api.chat.open(contact.id),
-  openFolder: (contact) => api.chat.openFolder(contact.id),
+  openFolder: (contact) => openFolder(contact.id),
   copyPath,
   copyBranch,
   linkPullRequest: (contact) => linkPullRequestDialog(contact),

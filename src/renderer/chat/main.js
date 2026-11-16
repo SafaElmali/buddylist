@@ -5,7 +5,7 @@ import '../lib/error-reports.js';
 import { currentLook, onLook } from '../lib/look.js';
 import { api } from '../lib/api.js';
 import { $, $$, el, errorText, html } from '../lib/dom.js';
-import { copyBranch, copyPath, copyText, projectFolder } from '../lib/copy-folder.js';
+import { copyBranch, copyPath, copyText, openFolder, projectFolder } from '../lib/copy-folder.js';
 import { confirmDialog, infoDialog, messageBody } from '../lib/dialog.js';
 import { listNames } from '../lib/format.js';
 import { deleteQuestion } from '../history/held.js';
@@ -331,7 +331,7 @@ const contacts = new ContactsPane($('#contacts-pane'), {
         here: ({ id }) => api.chat.switch(id),
         apart: ({ id }) => api.chat.open(id),
         history: ({ id }) => api.history.open(id),
-        openFolder: ({ id }) => api.chat.openFolder(id),
+        openFolder: ({ id }) => openFolder(id),
         copyPath,
         copyBranch,
         unread: ({ id, unread }) => api.contacts.setUnread(id, !unread),
@@ -625,7 +625,7 @@ const session = new Session(sidePane, ctx, {
   accounts: (providerId) => api.accounts.list(providerId),
   servers: (contactId) => api.chat.mcpServers(contactId),
   context: () => meter.context,
-  openFolder: () => api.chat.openFolder(ctx.contactId),
+  openFolder: () => openFolder(ctx.contactId),
   switchAccount: (anchor, picked) => openAccountMenu(anchor, ctx.provider, { picked }),
   showContext: () => meter.show(ctx.contactId),
   showServers: () => showMcpServers(),
