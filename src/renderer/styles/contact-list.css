@@ -222,6 +222,20 @@
   font-style: italic;
 }
 
+/* The service of a worker on another service than its manager's, beside its name (see serviceTagHtml): on its
+   row, its manager's Team tab and its conversation's To line. It keeps its room: the name is cut short first. */
+.service-tag {
+  flex: none;
+  padding: 0 4px;
+  border: 1px solid var(--pane-border-soft);
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: normal;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
 /* An archived contact is as grey as one whose folder is gone. */
 .contact.offline .name,
 .contact.archived .name,
@@ -856,7 +870,8 @@
   overflow-wrap: anywhere;
 }
 
-/* Everyone it is with, where the row had room for the first few only, and who started it. */
+/* Its service and model, everyone it is with, where the row had room for the first few only, and who started it. */
+.cc-service,
 .cc-company,
 .cc-started {
   margin-top: 1px;

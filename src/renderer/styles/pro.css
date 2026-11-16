@@ -1563,6 +1563,15 @@
     font-weight: 500;
   }
 
+  & .service-tag {
+    padding: 0 5px;
+    border-color: var(--pane-border);
+    border-radius: 4px;
+    color: var(--text-dim);
+    font-size: 10.5px;
+    line-height: 15px;
+  }
+
   & .team-row.online .team-name {
     color: var(--text-mid);
     font-weight: 400;

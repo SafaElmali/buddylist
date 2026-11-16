@@ -8,6 +8,7 @@ import { conversationStarter, workerStart } from '../shared/app-tools.js';
 import {
   branchPrefix,
   followedNickname,
+  freeNickname,
   madeUpNickname,
   shortBranchWords,
   withoutPrefix,
@@ -20,6 +21,7 @@ import { tabsOf } from '../shared/chat-tabs.js';
 import { cleanGroupName, knownGroupId } from '../shared/groups.js';
 import { cleanListView } from '../shared/list-view.js';
 import { cleanManager } from '../shared/managers.js';
+import { sameName } from '../shared/mentions.js';
 import { EVENTS, REQUESTS } from '../shared/ipc-channels.js';
 import { cleanModelSettings } from '../shared/models.js';
 import { cleanContactDefaults } from '../shared/contact-defaults.js';
@@ -237,19 +239,32 @@ export function registerIpc({
   const spending = new Spending(history);
   // What each conversation window had on show of a contact as it went on from it, to show it so again.
   const views = new KeptViews();
+  // Who a worker's name is told apart from: its manager, and the others under it, put away or not. Its manager, the
+  // manager's tools and @ find it by its name, which is its title alone (see madeUpNickname). Under none, nobody.
+  const teamTakes =
+    (managerId, exceptId = null) =>
+    (name) =>
+      Boolean(managerId) &&
+      store.contacts.some(
+        (one) =>
+          one.id !== exceptId && (one.id === managerId || one.managedBy === managerId) && sameName(one.name, name)
+      );
   // The nickname made up from a branch follows it to the name the branch gets: "Claude (shop-2)"
   // is "Claude (fix-the-login-redirect)" from then on, and "Claude (shop-3)" once the contact goes
-  // on to a new branch. One that says something else is the user's own and is kept, and so is one
-  // a namesake in its conversation stands in the way of.
-  const nicknameFollows = ({ id, name, provider }, branch) => {
-    const followed = followedNickname(name, providers.descriptor(provider).name, branch);
+  // on to a new branch; a worker's "shop-2" is "fix-the-login-redirect". One that says something else
+  // is the user's own and is kept, and so is one a namesake in its conversation stands in the way of.
+  const nicknameFollows = ({ id, name, provider, managedBy }, branch) => {
+    const followed = followedNickname(name, providers.descriptor(provider).name, branch, {
+      worker: Boolean(managedBy),
+    });
     if (!followed) return;
+    const free = freeNickname(followed, teamTakes(managedBy, id));
     try {
-      conversations.checkRename(id, followed);
+      conversations.checkRename(id, free);
     } catch {
       return;
     }
-    const contact = store.updateContact(id, { name: followed });
+    const contact = store.updateContact(id, { name: free });
     conversations.contactChanged(id, { renamed: true });
     chats.retitle(contact);
     historyWindows.retitle(contact);
@@ -777,19 +792,20 @@ export function registerIpc({
     const provider = providers.descriptor(worker.provider);
     // One on This computer starts another there, in a folder of its own: never in a worktree of the home folder.
     const computer = isOnComputer(host.cwd);
+    const project = await projects.of(host.cwd);
     const repo = computer
       ? null
-      : await describeRepository(host.cwd, {
-          home: worktreesHome,
-          ...startingFrom(await projects.of(host.cwd)),
-        });
-    // The branch and the nickname are made up, as the dialog makes them up: the prompt names both below.
+      : await describeRepository(host.cwd, { home: worktreesHome, ...startingFrom(project) });
+    // The branch and the nickname are made up, as the dialog makes them up: the prompt names both below. One that
+    // goes under a manager is a worker, which goes by its title alone, told apart from the rest of that one's team.
     const branch = repo ? await suggestBranch(host.cwd, repo, prefix()) : '';
     const detail = computer ? freeComputerName(computerHome) : branch && withoutPrefix(prefix(), branch);
+    const managerId = managers.managerFor({ key: project.key, startedBy: hostId });
+    const nickname = madeUpNickname(provider.name, detail, { worker: Boolean(managerId) });
     const contact = await addContact(
       {
         provider: worker.provider,
-        name: madeUpNickname(provider.name, detail),
+        name: freeNickname(nickname, teamTakes(managerId)),
         cwd: host.cwd,
         ...(computer && { computer: true }),
         model: worker.model,
@@ -1272,9 +1288,15 @@ export function registerIpc({
     unread === true ? conversations.markUnread(id) : conversations.markRead(id)
   );
 
-  handleWithPath(REQUESTS.contactCard, (_e, id) => {
+  // With the model it answers with, by the name its badge gives it: the card says its service and model.
+  handleWithPath(REQUESTS.contactCard, async (_e, id) => {
     const contact = store.getContact(id);
-    return contact ? contactCard(contact, history.read(id), Date.now(), made) : null;
+    if (!contact) return null;
+    const [card, model] = await Promise.all([
+      contactCard(contact, history.read(id), Date.now(), made),
+      conversations.modelName(id).catch(() => ''),
+    ]);
+    return { ...card, model };
   });
 
   // The hover card's look goes through the watcher, so the contact's line in the list hears of it too.

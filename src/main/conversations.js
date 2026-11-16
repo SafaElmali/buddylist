@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { activityStatus, activityRequest, helpersAtWork } from '../shared/activity-text.js';
 import { inAnswerOrder } from '../shared/answer-order.js';
-import { nicknameOnService } from '../shared/branch-names.js';
+import { freeNickname, namesService, nicknameOnService } from '../shared/branch-names.js';
 import { sentPictures } from '../shared/pictures.js';
 import { MOST_AT_ONCE, reportNote } from '../shared/app-tools.js';
 import { backgroundStatus } from '../shared/background.js';
@@ -576,6 +576,7 @@ export class Conversations {
       (made ? '' : shortPath(contact.cwd));
     const personalMessage =
       status === 'away' ? 'Waiting for you to approve something' : doing || (helpers ? helpersAtWork(helpers) : idle);
+    const manager = this.managing.managerOf(contact);
     return {
       ...contact,
       status,
@@ -601,7 +602,14 @@ export class Conversations {
       // A project's manager at work leads its project's section. One put away oversees nothing.
       oversees: !contact.archived && this.managing.oversees(contact),
       // The manager it is drawn under, and its Team tab lists it: by id; null for none.
-      overseenBy: this.managing.managerOf(contact)?.id ?? null,
+      overseenBy: manager?.id ?? null,
+      // Its service, for its row, its manager's Team tab and its conversation to say beside its name: a worker goes
+      // by its title alone, and on another service than its manager's that is worth saying. Null where the name
+      // says it, or there is nothing to tell apart.
+      serviceTag:
+        manager && manager.provider !== contact.provider && !namesService(contact.name, descriptor.name)
+          ? descriptor.name
+          : null,
       // For a manager, the project manager it is drawn under: by id; null for none.
       ledBy: this.managing.leadOf?.(contact)?.id ?? null,
       unread: this.#unread.get(contact.id) || 0,
@@ -869,9 +877,7 @@ export class Conversations {
     if (!next && source.otherActive?.length)
       throw new Error('The active target has different settings or permissions. Pause it before retrying.');
     if (!next) {
-      let name = provider.name;
-      for (let suffix = 2; here.some((one) => sameName(one.name, name)); suffix += 1)
-        name = `${provider.name} ${suffix}`;
+      const name = freeNickname(provider.name, (taken) => here.some((one) => sameName(one.name, taken)));
       next = this.inviteNew(host.id, { provider: provider.id, name, model }, { permissionMode: modes[0] }).find(
         (one) => !here.some((before) => before.id === one.id)
       );
@@ -1001,6 +1007,28 @@ export class Conversations {
   async #levelsOf(contact) {
     const provider = this.providers.descriptor(contact.provider);
     return effortsOf(this.#answersWith(contact), provider, await this.#catalog(contact));
+  }
+
+  /**
+   * The name of the model a contact answers with, as its model badge gives one its provider's list has:
+   * "GPT-6.1-Sol". The id picked for it where the list doesn't have that one, and '' where nothing says which.
+   * A provider asked for its list the first time isn't waited on, as the hover card asks: it is asked meanwhile,
+   * and its built-in models stand in until it answers.
+   * @param {string} contactId
+   * @returns {Promise<string>}
+   */
+  async modelName(contactId) {
+    const contact = this.store.getContact(contactId);
+    if (!contact) return '';
+    const said = this.#offers.get(contact.id)?.models;
+    let reported = said?.length ? said : null;
+    if (!reported) {
+      const asked = Promise.resolve(this.providers.models(contact.provider)).catch(() => null);
+      // A list known already is there by the next turn of the event loop; one still being asked for is not.
+      reported = await Promise.race([asked, new Promise((resolve) => setImmediate(resolve, null))]);
+    }
+    const catalog = modelCatalog(this.providers.descriptor(contact.provider), reported);
+    return currentModel(this.#answersWith(contact), catalog)?.label || contact.model || '';
   }
 
   /**
@@ -1415,9 +1443,7 @@ export class Conversations {
       throw new Error(`${host.name} has ${MOST_AT_ONCE} agents in it besides its own, as many as an agent can invite.`);
     }
     const here = this.participants(contactId);
-    const base = as?.name ?? provider.name;
-    let name = base;
-    for (let suffix = 2; here.some((one) => sameName(one.name, name)); suffix += 1) name = `${base} ${suffix}`;
+    const name = freeNickname(as?.name ?? provider.name, (taken) => here.some((one) => sameName(one.name, taken)));
     const said = String(message ?? '').trim();
     const guest = this.store.addContact({
       provider: provider.id,
@@ -3007,9 +3033,7 @@ export class Conversations {
           );
         });
         if (!next) {
-          let name = provider.name;
-          for (let suffix = 2; here.some((agent) => sameName(agent.name, name)); suffix += 1)
-            name = `${provider.name} ${suffix}`;
+          const name = freeNickname(provider.name, (taken) => here.some((agent) => sameName(agent.name, taken)));
           next = this.inviteNew(
             host.id,
             { provider: entry.provider, name, model: entry.model },

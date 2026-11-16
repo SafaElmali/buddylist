@@ -181,6 +181,7 @@ test('at work, a row says under its name what it is doing, and nothing of its br
     {
       id: 'cart',
       name: 'Claude (cart)',
+      service: null,
       status: 'busy',
       icon: 'busy',
       iconLabel: '',
@@ -221,6 +222,22 @@ test('otherwise a row says its branch, and its pull request’s tags and size as
       '20h ago',
     ]
   );
+});
+
+test('a worker named after its branch says it once, and one on another branch says that one', () => {
+  const titled = (name, branch) => teamRow(contact('cart', { name, branch, location: '~/w/shop/cart' }), NOW);
+  assert.equal(titled('cart-total-rounding', 'cart-total-rounding').branch, '');
+  assert.equal(titled('cart-total-rounding', 'safa/cart-total-rounding').branch, '', 'under the user’s prefix');
+  assert.equal(titled('Claude (cart-total-rounding)', 'cart-total-rounding').branch, 'cart-total-rounding');
+  assert.equal(titled('Cart helper', 'cart-total-rounding').branch, 'cart-total-rounding');
+  assert.equal(titled('total-rounding', 'cart-total-rounding').branch, 'cart-total-rounding');
+  // Its tooltip still says which branch it is on.
+  assert.match(titled('cart-total-rounding', 'cart-total-rounding').title, /On cart-total-rounding/);
+});
+
+test('a worker on another service than its manager’s says which beside its name', () => {
+  assert.equal(teamRow(contact('cart', { serviceTag: 'Codex' }), NOW).service, 'Codex');
+  assert.equal(teamRow(contact('cart'), NOW).service, null);
 });
 
 test('one that needs you says its branch too: the section and its end say it waits', () => {

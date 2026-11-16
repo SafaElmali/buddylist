@@ -7,7 +7,7 @@
 import { el, html, raw } from '../lib/dom.js';
 import { shortAgo } from '../lib/format.js';
 import { buddy, listIcon, smallIcon, tagIcon } from '../lib/icons.js';
-import { shownPullRequest, unreadTitle } from '../contacts/rows.js';
+import { serviceTagHtml, shownPullRequest, unreadTitle } from '../contacts/rows.js';
 import { WAITING_TO_START, waitingToStart } from '../../shared/drafted.js';
 import { inTeamOf, ledBy } from '../../shared/managers.js';
 import { pullRequestLine, pullRequestSize, pullRequestTags } from '../../shared/pull-request-text.js';
@@ -124,11 +124,20 @@ export function teamHeading(team, project) {
 }
 
 /**
+ * Whether a branch is what a contact is named: a worker goes by its branch's name alone, without the prefix the user
+ * puts in front of their branches (see madeUpNickname).
+ * @param {string} branch
+ * @param {string} name
+ */
+const branchSaysName = (branch, name) => branch === name || branch.endsWith(`/${name}`);
+
+/**
  * What a row shows, and so what it is drawn again for. Under its name, at work it says what it is doing.
- * Otherwise it says its branch, and how big its pull request is and how that stands, as the contact list's
- * tags say it; with neither, what its line in the contact list says. With its turn over and what it left running
- * in the background still running, it says that under its name, over its branch and pull request. Never the
- * folder it works in: that is the same for every worktree but its number, and is in the row's tooltip.
+ * Otherwise it says its branch, where its name doesn't, and how big its pull request is and how that stands, as
+ * the contact list's tags say it; with neither, what its line in the contact list says. With its turn over and
+ * what it left running in the background still running, it says that under its name, over its branch and pull
+ * request. Never the folder it works in: that is the same for every worktree but its number, and is in the row's
+ * tooltip. A worker on another service than its manager's says which beside its name (`service`).
  * @param {any} contact  as the contact list has it, with `branch`: the one its folder is on, if known
  * @param {number} now
  */
@@ -136,7 +145,8 @@ export function teamRow(contact, now = Date.now()) {
   const { status, location = '' } = contact;
   const pr = shownPullRequest(contact);
   const working = status === 'busy';
-  const branch = (!working && contact.branch) || '';
+  // A worker named after its branch says it once, in its name.
+  const branch = (!working && contact.branch && !branchSaysName(contact.branch, contact.name) && contact.branch) || '';
   const tags = working ? [] : pullRequestTags(pr);
   const said = contact.personalMessage && contact.personalMessage !== location ? contact.personalMessage : '';
   // Its turn over, what it left running in the background still runs: its buddy wears the arrow going round.
@@ -148,6 +158,7 @@ export function teamRow(contact, now = Date.now()) {
   return {
     id: contact.id,
     name: contact.name,
+    service: contact.serviceTag ?? null,
     status,
     icon: waiting ? 'draft' : background ? 'background' : status,
     iconLabel: waiting ? WAITING_TO_START : background ? said : '',
@@ -172,7 +183,22 @@ export function teamRow(contact, now = Date.now()) {
 }
 
 /** @param {ReturnType<typeof teamRow>} row */
-const rowNode = ({ id, name, status, icon, iconLabel, when, unread, doing, branch, tags, size, note, title }) =>
+const rowNode = ({
+  id,
+  name,
+  service,
+  status,
+  icon,
+  iconLabel,
+  when,
+  unread,
+  doing,
+  branch,
+  tags,
+  size,
+  note,
+  title,
+}) =>
   el(
     html`<button
       class="team-row ${status}${unread ? ' unread' : ''}"
@@ -184,7 +210,7 @@ const rowNode = ({ id, name, status, icon, iconLabel, when, unread, doing, branc
       aria-keyshortcuts="Shift+F10"
     >
       ${raw(buddy(icon, 16, { label: iconLabel }))}
-      <span class="team-name">${name}</span>
+      <span class="team-who"><span class="team-name">${name}</span>${serviceTagHtml(service)}</span>
       <span class="team-end">
         ${when ? html`<span class="team-when${status === 'away' ? ' needs-you' : ''}">${when}</span>` : ''}
         ${unread ? html`<span class="team-unread" title="${unreadTitle(unread)}">${unread}</span>` : ''}

@@ -11,6 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
+## v0.7.7
+
+- **Workers go by their task alone** — A conversation a manager starts, or one you add under a manager, is now named by its task, such as **cart-total-rounding**, without **Claude (…)** in front, so its row has room for the work. A worker on another service than its manager’s says which in a small label beside its name, such as **Codex**, and every contact’s card says its service and model. Your other contacts, and the names you typed, stay as they are.
+
 ## v0.7.6 — 2026-11-15
 
 - **See when Claude asks its advisor** — When Claude asks the advisor you set with `/advisor` in Claude Code, a line in the conversation says so, such as “Claude asked the advisor · Fable”, until the advice is back. The turn’s last line adds the advisor’s share of its cost, such as “advisor $0.31”. The advice is for Claude alone, so the line has nothing to open.

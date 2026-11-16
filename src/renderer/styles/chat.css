@@ -394,6 +394,13 @@
   padding-block: 2px;
 }
 
+.team-who {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
 .team-name {
   overflow: hidden;
   white-space: nowrap;
@@ -905,6 +912,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: bold;
+}
+
+.to-line .to-service {
+  flex: none;
+  display: flex;
+  align-items: center;
 }
 
 .to-line .to-addr {

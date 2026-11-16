@@ -154,7 +154,9 @@ export function contactDialog({
   // is the service's own unless `from` is there too: it can reach anything there, so it asks before it acts until
   // the user says otherwise.
   const startFor = (there) => newContactStart({ provider, defaults, from, computer: there });
-  const nameFor = (detail) => madeUpNickname(provider.name, detail);
+  // Under a manager it is a worker, which goes by its branch or folder alone (see madeUpNickname): Under says which.
+  let worker = false;
+  const nameFor = (detail) => madeUpNickname(provider.name, detail, { worker });
   const nameOf = (id) => providers.find((p) => p.id === id)?.name ?? id;
   // What tells a branch from the user's others: the prefix they all share says nothing about this one.
   const branchDetail = (branch) => withoutPrefix(repo?.branchPrefix ?? '', branch);
@@ -255,14 +257,11 @@ export function contactDialog({
     <button type="button" class="combo where-combo" aria-haspopup="menu"></button>
     <span class="hint folder-hint">${onComputer ? onItsOwn('') : WORKS_HERE}</span>
   </label>`;
+  // What the nickname is first made up from: the branch suggested for it, or the folder it works in.
+  const firstDetail = (repo ? branchDetail(repo.suggested) : from && folderName(startsIn)) || '';
   const nicknameField = html`<label
     >Nickname
-    <input
-      type="text"
-      name="name"
-      maxlength="${NICKNAME_MAX}"
-      value="${existing?.name || nameFor(repo ? branchDetail(repo.suggested) : from && folderName(startsIn))}"
-    />
+    <input type="text" name="name" maxlength="${NICKNAME_MAX}" value="${existing?.name || nameFor(firstDetail)}" />
   </label>`;
   // Who it is. A new contact is its service and its name, and has its service's picture. One being edited
   // shows its picture beside its name, and a click on it picks another.
@@ -436,7 +435,19 @@ export function contactDialog({
     suggested = name;
     fields.name.value = name;
   };
-  const suggestName = (detail) => offerName(nameFor(detail));
+  // What the one suggested was made from, to make it up again as Under changes; null for an issue's or pull
+  // request's title, which no manager changes, and for a contact being edited.
+  let suggestedDetail = existing ? null : firstDetail;
+  const suggestName = (detail) => {
+    suggestedDetail = detail;
+    offerName(nameFor(detail));
+  };
+  /** Under a manager or not: the nickname made up follows (see nameFor). */
+  const nameAsWorker = (under) => {
+    if (worker === under) return;
+    worker = under;
+    if (suggestedDetail !== null) offerName(nameFor(suggestedDetail));
+  };
 
   let looked = { folder: '', found: Promise.resolve(null) };
   const repositoryOf = (path) => {
@@ -607,8 +618,10 @@ export function contactDialog({
     if (!pull) suggestBranch(item ? branchFor(item, repo.branchPrefix) : startingBranch(repo));
     showCaption();
     // The contact is named after what it is started from, and otherwise after its branch.
-    if (item) offerName(nicknameFor(item));
-    else suggestName(branchDetail(branchName()));
+    if (item) {
+      suggestedDetail = null;
+      offerName(nicknameFor(item));
+    } else suggestName(branchDetail(branchName()));
     showOptions();
 
     // A closed or merged one is named as that, and works like any other.
@@ -733,6 +746,7 @@ export function contactDialog({
   const chooseUnder = (id, scoped = false) => {
     fields.under.value = underChosen = id;
     form.querySelector('.under-hint').textContent = underHint(id, scoped);
+    nameAsWorker(Boolean(id));
   };
   const followScopes = () => {
     if (!underShown() || underPicked) return;
@@ -747,7 +761,7 @@ export function contactDialog({
     if (!fields.under) return;
     const drawn = underFor(onComputer ? null : project, wanted);
     /** @type {HTMLElement} */ (form.querySelector('.under-field')).hidden = !drawn;
-    if (!drawn) return;
+    if (!drawn) return void nameAsWorker(false);
     fill(
       fields.under,
       drawn.choices.map(({ value, label }) => html`<option value="${value}">${label}</option>`)

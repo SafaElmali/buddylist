@@ -7,7 +7,9 @@ import {
   branchWords,
   followedNickname,
   freeBranchName,
+  freeNickname,
   madeUpNickname,
+  namesService,
   nicknameOnService,
   prefixed,
   shortBranchWords,
@@ -232,6 +234,36 @@ test('a made-up nickname is the service, and what tells the contact from the oth
   assert.equal(madeUpNickname('Claude'), 'Claude');
 });
 
+test('a worker’s made-up nickname is what tells it from the others alone, or else its service', () => {
+  const worker = { worker: true };
+  assert.equal(madeUpNickname('Codex', 'shop-2', worker), 'shop-2');
+  assert.equal(madeUpNickname('Codex', 'wip/shop-2', worker), 'wip/shop-2');
+  // Outside a repository there is nothing else to go by.
+  assert.equal(madeUpNickname('Codex', '', worker), 'Codex');
+  assert.equal(madeUpNickname('Codex', 'shop-2', { worker: false }), 'Codex (shop-2)');
+});
+
+test('a nickname says its service as one made up for anyone but a worker does', () => {
+  assert.equal(namesService('Codex (shop-2)', 'Codex'), true);
+  assert.equal(namesService('Codex', 'Codex'), true);
+  assert.equal(namesService('shop-2', 'Codex'), false);
+  assert.equal(namesService('Claude (shop-2)', 'Codex'), false);
+  assert.equal(namesService('Codex helper', 'Codex'), false);
+});
+
+test('a name nobody goes by is kept, and one somebody does is numbered', () => {
+  assert.equal(freeNickname('fix-login', free), 'fix-login');
+  assert.equal(freeNickname('fix-login', used('fix-login')), 'fix-login 2');
+  assert.equal(freeNickname('fix-login', used('fix-login', 'fix-login 2')), 'fix-login 3');
+});
+
+test('a worker’s nickname that is its title says no service, and stays as another agent answers', () => {
+  assert.equal(nicknameOnService('shop-2', 'Codex', 'Claude'), null);
+  assert.equal(nicknameOnService('fix-the-login-redirect', 'Claude', 'Grok'), null);
+  // One with nothing else to go by is its service, and follows it.
+  assert.equal(nicknameOnService('Codex', 'Codex', 'Claude'), 'Claude');
+});
+
 test('a nickname made up from a service says the one another agent answers on', () => {
   assert.equal(
     nicknameOnService('Codex (finish-com-628-content-pages-resource)', 'Codex', 'Claude'),
@@ -292,6 +324,29 @@ test('a nickname that says something else is the user’s own, and is kept', () 
   assert.equal(followedNickname('Claude (shop-2) ', 'Claude', branch), null, 'changed by hand, however little');
   assert.equal(followedNickname('Claude (shop-2)', 'Codex', branch), null, 'made up for another service');
   assert.equal(followedNickname('Claude', 'Claude', branch), null);
+});
+
+test('a worker’s nickname follows its branch as its title alone', () => {
+  const worker = { worker: true };
+  const branch = { from: 'safa/shop-2', name: 'safa/fix-the-login-redirect', prefix: 'safa' };
+  assert.equal(followedNickname('shop-2', 'Codex', branch, worker), 'fix-the-login-redirect');
+  assert.equal(
+    followedNickname('safa/shop-2', 'Codex', { ...branch, prefix: '' }, worker),
+    'safa/fix-the-login-redirect'
+  );
+  // Continue, after a pull request that is merged.
+  const on = { from: 'safa/fix-the-login-redirect', name: 'safa/shop-3', prefix: 'safa' };
+  assert.equal(followedNickname('fix-the-login-redirect', 'Codex', on, worker), 'shop-3');
+  // One made before workers went by their title keeps its service, and one typed is kept.
+  assert.equal(followedNickname('Codex (shop-2)', 'Codex', branch, worker), 'Codex (fix-the-login-redirect)');
+  assert.equal(followedNickname('Cart helper', 'Codex', branch, worker), null);
+  assert.equal(followedNickname('shop-2 2', 'Codex', branch, worker), null);
+});
+
+test('only a worker’s nickname follows as the branch’s name alone: anyone else’s that is so was typed', () => {
+  const branch = { from: 'shop-2', name: 'fix-the-login-redirect' };
+  assert.equal(followedNickname('shop-2', 'Claude', branch), null);
+  assert.equal(followedNickname('shop-2', 'Claude', branch, { worker: false }), null);
 });
 
 test('a branch that keeps its name leaves the nickname as it is', () => {
