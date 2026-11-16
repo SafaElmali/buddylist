@@ -67,7 +67,8 @@ export class OpenInButton {
     closeMenu();
     const chosen = this.#chosen;
     if (chosen) this.#open(chosen);
-    else api.chat.openFolder(this.ctx.contactId);
+    // The files, as Files in its ▼ opens them: one that is gone says so, as an app picked there does.
+    else api.chat.openFolder(this.ctx.contactId).catch((err) => this.handlers.error(errorText(err)));
   }
 
   /**

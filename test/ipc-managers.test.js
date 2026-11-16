@@ -21,8 +21,8 @@ const electron = `data:text/javascript,${encodeURIComponent(`
   export const app = { getVersion: () => '0.0.0' };
   export const nativeTheme = { on() {} };
   export const BrowserWindow = {}, dialog = {}, nativeImage = {}, screen = {};
-  // What was opened in Finder (or the file manager), written down instead.
-  export const shell = { opened: [], openPath: async (folder) => (shell.opened.push(folder), '') };
+  // What was opened in Finder (or the file manager), written down instead, and what the system says went wrong.
+  export const shell = { opened: [], failing: '', openPath: async (folder) => (shell.opened.push(folder), shell.failing) };
 `)}`;
 let registerIpc;
 let handlers;
@@ -371,6 +371,28 @@ test('a project’s menu opens its own folder, the main checkout, and says so on
   fs.rmSync(app.blog, { recursive: true });
   await assert.rejects(app.invoke(REQUESTS.projectReveal, blog.key, 'root'), /The folder .*blog isn’t there\./);
   assert.deepEqual(shell.opened, [app.repo]);
+});
+
+test('a contact’s Open folder opens its own folder, and says so once it is gone', opts, async (t) => {
+  const app = fixture(t);
+  const cart = path.join(app.home, 'shop', 'cart');
+  fs.mkdirSync(cart, { recursive: true });
+  const claude = app.store.addContact({ provider: 'claude', name: 'Claude', cwd: cart });
+  shell.opened.length = 0;
+  await app.invoke(REQUESTS.chatOpenFolder, claude.id);
+  assert.deepEqual(shell.opened, [cart], 'its worktree, not the main checkout');
+
+  // What the system says went wrong reaches the window, rather than nothing.
+  shell.failing = 'Failed to open path';
+  t.after(() => (shell.failing = ''));
+  await assert.rejects(app.invoke(REQUESTS.chatOpenFolder, claude.id), /Failed to open path/);
+  shell.failing = '';
+
+  // Gone, it is not opened, and the window is told why, as a project's folder says it.
+  fs.rmSync(cart, { recursive: true });
+  await assert.rejects(app.invoke(REQUESTS.chatOpenFolder, claude.id), /The folder .*cart isn’t there\./);
+  assert.deepEqual(shell.opened, [cart, cart]);
+  await assert.rejects(app.invoke(REQUESTS.chatOpenFolder, 'nobody'), /This contact no longer exists\./);
 });
 
 test(
