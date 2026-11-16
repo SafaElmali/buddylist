@@ -636,14 +636,14 @@ const checkList = ({ checks, ownChecks }) =>
     .join('\n');
 
 /**
- * What a manager is told of tags: "@Claude (cart)" in its conversation points at the conversation of that name,
+ * What a manager is told of tags: "@cart-total" in its conversation points at the conversation of that name,
  * and a click on one shows it (see renderer/chat/conversation-tags.js). A tag sends that conversation nothing.
  */
 const TAGS_NOTE =
-  'In the user’s messages, @ and a conversation’s name, such as @Claude (com-630-tags), is a tag: it means that ' +
+  'In the user’s messages, @ and a conversation’s name, such as @com-630-tags, is a tag: it means that ' +
   'conversation, the one by that name in project_conversations. A tag sends that conversation nothing, and is ' +
   'no request to message it: send it a message with message_conversation only where one is needed. In your ' +
-  'replies, write each conversation you name as @ and its name, such as @Claude (com-630-tags), and not in code: ' +
+  'replies, write each conversation you name as @ and its name, such as @com-630-tags, and not in code: ' +
   'the user clicks it to open that conversation.';
 
 /**
@@ -781,7 +781,7 @@ export function projectManagerInstructions(project, { sources, rules }, { name =
       'and which manager owes you an answer. Save it whenever that changes: it is what you keep from one session ' +
       'to the next. Read it when a session starts.',
     'If a note needs no action and you have nothing useful to tell the user, end silently with no reply text.',
-    'In the user’s messages, @ and a name, such as @Claude (com-630-tags) or @review manager, is a tag: it means ' +
+    'In the user’s messages, @ and a name, such as @com-630-tags or @review manager, is a tag: it means ' +
       'that conversation or manager, as project_teams names it. A tag sends it nothing. In your replies, write each ' +
       'one you name as @ and its name, and not in code: the user clicks it to open that conversation.',
     ...(sources.length ? [`Sources:\n${sourceList(sources)}`] : []),

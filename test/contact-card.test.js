@@ -321,6 +321,16 @@ test('a contact with guests in its conversation says who it is with', async () =
   assert.equal(companyOf({}), '', 'a contact on its own says nothing');
 });
 
+test('a card says the service a contact is on and the model it answers with', async () => {
+  await loadCardLines();
+  const { serviceLine } = await import('../src/renderer/contacts/card.js');
+  assert.equal(serviceLine({ providerName: 'Codex' }, { model: 'GPT-6.1-Sol' }), 'Codex · GPT-6.1-Sol');
+  // Before git and the model are known, and for a model nothing names.
+  assert.equal(serviceLine({ providerName: 'Codex' }, null), 'Codex');
+  assert.equal(serviceLine({ providerName: 'Codex' }, { model: '' }), 'Codex');
+  assert.equal(serviceLine({}, null), '');
+});
+
 test('a branch with a pull request gets a line that is a link, under the branch', async () => {
   await loadCardLines();
   const { cardLines } = await import('../src/renderer/contacts/card.js');

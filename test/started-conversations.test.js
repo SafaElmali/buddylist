@@ -181,7 +181,7 @@ test(
     });
     const [worker] = app.children();
     assert.equal(worker.provider, 'codex');
-    assert.match(worker.name, /^Codex /);
+    assert.match(worker.name, /^chat-\d+$/, 'a worker goes by its title alone');
     assert.equal(worker.model, 'gpt-5.5');
     assert.equal(worker.effort, 'xhigh');
     assert.equal(worker.permissionMode, 'read-only');
@@ -189,7 +189,7 @@ test(
     assert.equal(path.dirname(worker.cwd), app.computerHome);
     assert.notEqual(worker.cwd, app.host.cwd);
     assert.deepEqual(app.sent, [{ id: worker.id, text: 'Review the bug' }]);
-    assert.match(answer, /^Codex /);
+    assert.ok(answer.startsWith(`${worker.name} has started`));
     assert.ok(answer.includes(`Conversation ID: ${worker.id}.`));
     assert.equal(app.store.getContact(app.host.id).paused, true);
   }
@@ -227,7 +227,7 @@ for (const hostProvider of ['claude', 'codex']) {
       [worker.provider, worker.model, worker.effort, worker.permissionMode],
       ['claude', 'opus', 'xhigh', 'default']
     );
-    assert.match(worker.name, /^Claude /);
+    assert.match(worker.name, /^chat-\d+$/, 'a worker goes by its title alone');
     assert.deepEqual(app.sent, [{ id: worker.id, text: 'Build the tags page' }]);
   });
 
@@ -241,7 +241,7 @@ for (const hostProvider of ['claude', 'codex']) {
       [worker.provider, worker.model, worker.effort, worker.permissionMode],
       ['codex', 'gpt-5.5', 'xhigh', 'ask']
     );
-    assert.match(worker.name, /^Codex /);
+    assert.match(worker.name, /^chat-\d+$/, 'a worker goes by its title alone');
     assert.deepEqual(app.efforts, [{ id: worker.id, effort: 'xhigh' }], 'set as Add a Contact sets one picked');
   });
 

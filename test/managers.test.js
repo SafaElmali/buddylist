@@ -290,7 +290,7 @@ test('a manager is told it hears each question a worker waits on, and answers on
 
 test('a manager is told that @ and a name tags a conversation, sends it nothing, and is how it names one', () => {
   const told = managerInstructions('shop', cleanManager());
-  assert.match(told, /In the user’s messages, @ and a conversation’s name, such as @Claude \(com-630-tags\), is a tag/);
+  assert.match(told, /In the user’s messages, @ and a conversation’s name, such as @com-630-tags, is a tag/);
   assert.match(told, /A tag sends that conversation nothing/);
   assert.match(told, /message_conversation only where one is needed/);
   assert.match(told, /In your replies, write each conversation you name as @ and its name/);

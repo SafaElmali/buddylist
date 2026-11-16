@@ -31,6 +31,14 @@ const ICONS = {
   activity: smallIcon.clock,
 };
 
+/**
+ * Which service a contact is on, and with which model: "Codex · GPT-6.1-Sol". A worker's name is its title alone,
+ * and its row says its service only where its manager is on another one.
+ * @param {{ providerName?: string }} contact
+ * @param {{ model?: string } | null} card
+ */
+export const serviceLine = ({ providerName = '' }, card) => [providerName, card?.model].filter(Boolean).join(' · ');
+
 /** The status next to the name. An archived contact is that, whatever its folder says. */
 const statusOf = (contact) => (contact.archived ? 'Archived' : STATUS[contact.status] || STATUS.online);
 
@@ -191,6 +199,7 @@ export class HoverCard {
   #paint(contact) {
     const lines = cardLines(this.#data);
     const company = companyOf(contact);
+    const service = serviceLine(contact, this.#data);
     // Who started its conversation, still on the list: under a project's manager its row is not under that one.
     const starter = contact.startedBy ? this.contactById(contact.startedBy) : null;
     // Only a card with something to click gets in the mouse's way.
@@ -207,6 +216,7 @@ export class HoverCard {
               <span class="cc-name-text">${contact.name}</span>
               <span class="cc-status">(${statusOf(contact)})</span>
             </div>
+            ${service && html`<div class="cc-service">${service}</div>`}
             <div class="cc-folder">${contact.location}</div>
             ${company && html`<div class="cc-company">${company}</div>`}
             ${starter && html`<div class="cc-started">Started by ${starter.name}</div>`}

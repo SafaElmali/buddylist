@@ -22,7 +22,7 @@ Starting it is sending its first message: its session starts, the conversation t
 **What it is.** A contact like one you add, with the service, model, effort level and permission mode of the agent that started it, in the parent conversation's project and group. If Codex takes over in a Claude conversation after a usage limit, workers it starts use Codex too. A guest passes on its permission mode in that conversation, even when its own contact has broader permissions elsewhere. One a project's [manager](project-managers.md) starts is as the manager's **New workers use** says instead: unless you choose otherwise, the service of the contact you added last yourself, with the model and effort level Settings > New contacts picks for it or else that contact's, in the mode New contacts picks or else the service's own, unless the manager's **Permission mode** says otherwise.
 
 - It works in a worktree of its own, on a new branch, and its project's setup script gets the worktree ready, as for any new contact.
-- The branch is named after what it is to do, and so is the contact: "Claude (update-promo-roster)".
+- The branch is named after what it is to do, and so is the contact: "Claude (update-promo-roster)". Under a [manager](project-managers.md), it is a worker, named by its title alone: "update-promo-roster".
 - The branch starts from the project's main line, or from the branch of the conversation that started it when that one asks. Only what is committed there comes along.
 - Its conversation starts with a line saying who started it, or drafted it for you. Its agent knows nothing else of that conversation: its first message says everything it needs.
 

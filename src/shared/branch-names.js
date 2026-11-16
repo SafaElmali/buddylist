@@ -72,44 +72,76 @@ export const withoutPrefix = (prefix, branch) =>
 
 /**
  * The nickname made up for a contact: its service, and what tells it from the user's other
- * contacts on that service, such as its branch. "Claude (shop-2)".
+ * contacts on that service, such as its branch. "Claude (shop-2)". A worker, one under a project's
+ * manager, goes by that alone, "shop-2": the room its row has is for its work, and its manager's team
+ * says who works there. With nothing else to go by, a worker too is its service.
  * @param {string} service  the service's name
  * @param {string} [detail]
+ * @param {{ worker?: boolean }} [shape]
  */
-export const madeUpNickname = (service, detail) => (detail ? `${service} (${detail})` : service);
+export const madeUpNickname = (service, detail, { worker = false } = {}) =>
+  detail ? (worker ? detail : `${service} (${detail})`) : service;
+
+/**
+ * Whether a nickname says its service, as one made up for any contact but a worker does: "Claude",
+ * "Claude (shop-2)".
+ * @param {string} nickname
+ * @param {string} service  the service's name
+ */
+export const namesService = (nickname, service) =>
+  nickname === service || (nickname.startsWith(`${service} (`) && nickname.endsWith(')'));
 
 /**
  * The nickname a contact gets as its branch is named after its work, when the one it has was
- * made up from the branch's first name: "Claude (shop-2)" becomes "Claude (fix-the-login-redirect)".
+ * made up from the branch's first name: "Claude (shop-2)" becomes "Claude (fix-the-login-redirect)",
+ * and a worker's "shop-2" becomes "fix-the-login-redirect".
  * @param {string} nickname  the one it has
  * @param {string} service  its service's name
  * @param {{ from: string, name: string, prefix?: string }} branch  the name made up for the branch,
  *   the one it has now, and the user's prefix as `branchPrefix` gives it
+ * @param {{ worker?: boolean }} [contact]  it is a worker, whose nickname may be the branch's name alone
  * @returns {string | null}  null for a nickname that says something else, which was typed or
  *   comes from an issue: that one is kept
  */
-export function followedNickname(nickname, service, { from, name, prefix = '' }) {
+export function followedNickname(nickname, service, { from, name, prefix = '' }, { worker = false } = {}) {
   // Whatever prefix the first name was made under, it is some of the folders in front of it.
   const folders = String(from ?? '').split('/');
-  const madeUp = folders.some((_, at) => nickname === madeUpNickname(service, folders.slice(at).join('/')));
-  if (!madeUp) return null;
-  const followed = madeUpNickname(service, withoutPrefix(prefix, name));
+  const tails = folders.map((_, at) => folders.slice(at).join('/'));
+  // A worker's may be the branch alone. One made before workers went by that has its service in front: it keeps it.
+  const alone = worker && tails.includes(nickname);
+  if (!alone && !tails.some((tail) => nickname === madeUpNickname(service, tail))) return null;
+  const followed = madeUpNickname(service, withoutPrefix(prefix, name), { worker: alone });
   return followed === nickname ? null : followed;
 }
 
 /**
  * The nickname a contact gets as an agent on another service answers as it, when the one it has was
- * made up from its service's name: "Codex (shop-2)" becomes "Claude (shop-2)".
+ * made up from its service's name: "Codex (shop-2)" becomes "Claude (shop-2)". A worker's that is its
+ * branch alone says no service, and is kept.
  * @param {string} nickname  the one it has
  * @param {string} from  the service it was on
  * @param {string} to  the one it is on now
  * @returns {string | null}  null for a nickname that says something else, which was typed: that one is kept
  */
 export function nicknameOnService(nickname, from, to) {
-  if (from === to) return null;
+  if (from === to || !namesService(nickname, from)) return null;
   if (nickname === from) return to;
-  const detail = nickname.startsWith(`${from} (`) && nickname.endsWith(')') && nickname.slice(from.length + 2, -1);
+  const detail = nickname.slice(from.length + 2, -1);
   return detail ? madeUpNickname(to, detail) : null;
+}
+
+/**
+ * A nickname nobody in `taken` goes by: `name`, or with the lowest number after it that is free, "shop-2 2",
+ * as a guest's name is kept apart from the others in its conversation. Managers, their tools and @ find a
+ * conversation by its name.
+ * @param {string} name
+ * @param {(name: string) => boolean} taken  whether someone goes by a name already
+ * @returns {string}
+ */
+export function freeNickname(name, taken) {
+  let free = name;
+  for (let number = 2; taken(free); number++) free = `${name} ${number}`;
+  return free;
 }
 
 /** A project's name as a branch can carry it. */

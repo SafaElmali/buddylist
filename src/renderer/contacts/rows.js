@@ -1,6 +1,7 @@
 // What the rows of the contact list say: a contact's row, and the row of a
 // conversation that a search found. Nothing in here touches the page, so all of
 // it is tested without a window.
+import { html } from '../lib/dom.js';
 import { listNames, plural } from '../lib/format.js';
 import { nextStepButtons } from '../../shared/new-branch.js';
 import {
@@ -189,6 +190,14 @@ export function contactRow(contact, { projectNote = false, team = 0, startedBy =
     buttons: tab ? [] : nextStepButtons(contact),
   };
 }
+
+/**
+ * The service a worker says beside its name, on another service than its manager's (see `serviceTag` in
+ * Conversations.view): on its row, its manager's Team tab and its conversation's To line. It is words, which a
+ * screen reader reads out with the name. Nothing for none.
+ * @param {string | null | undefined} service
+ */
+export const serviceTagHtml = (service) => (service ? html`<span class="service-tag">${service}</span>` : '');
 
 /** As long as a nickname can be, here and in the contact's dialog. */
 export const NICKNAME_MAX = 40;

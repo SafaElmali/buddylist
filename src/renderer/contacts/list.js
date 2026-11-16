@@ -29,6 +29,7 @@ import {
   liveHits,
   nobodyHere,
   foldLabel,
+  serviceTagHtml,
   startedTitle,
   typedName,
   unreadIn,
@@ -560,6 +561,7 @@ export class ContactList {
         }
         ${raw(buddy(icon, 16, { lead, label: iconLabel }))}
         <span class="name">${contact.pinned ? pinMark(contact.name) : ''}${contact.name}</span>
+        ${serviceTagHtml(contact.serviceTag)}
         ${unread ? html`<span class="unread-count" title="${unreadTitle(unread)}">${unread}</span>` : ''}
         ${
           note &&

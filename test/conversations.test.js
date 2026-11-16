@@ -519,6 +519,42 @@ test('a contact’s view says which manager oversees it, by id, as the managers 
   assert.equal(conversations.view(contact).overseenBy, 'boss');
 });
 
+test('a worker on another service than its manager’s says it in its view, where its name doesn’t', () => {
+  let manager = null;
+  const { conversations, contact, store } = setup(claude, {
+    managing: {
+      forAgent: () => null,
+      roundOver: () => {},
+      modelChanged: () => {},
+      oversees: () => false,
+      managerOf: (c) => (c.id === contact.id ? manager : null),
+    },
+  });
+  const view = () => conversations.view(store.getContact(contact.id));
+  store.updateContact(contact.id, { name: 'cart-total-rounding' });
+  assert.equal(view().serviceTag, null, 'under no manager');
+  manager = { id: 'boss', name: 'shop manager', provider: 'claude' };
+  assert.equal(view().serviceTag, null, 'on its manager’s service');
+  manager = { ...manager, provider: 'codex' };
+  assert.equal(view().serviceTag, 'Claude');
+  store.updateContact(contact.id, { name: 'Claude (cart-total-rounding)' });
+  assert.equal(view().serviceTag, null, 'its name says it already');
+  store.updateContact(contact.id, { name: 'Claude' });
+  assert.equal(view().serviceTag, null);
+});
+
+test('a contact’s model goes by the name its list gives it, and a list still on its way is not waited on', async () => {
+  const { conversations, contact, store } = setup(claude);
+  store.updateContact(contact.id, { model: 'opus-x' });
+  conversations.providers.models = () => Promise.resolve([{ id: 'opus-x', label: 'Opus X' }]);
+  assert.equal(await conversations.modelName(contact.id), 'Opus X');
+  conversations.providers.models = () => new Promise(() => {});
+  assert.equal(await conversations.modelName(contact.id), 'opus-x', 'the id picked meanwhile');
+  conversations.providers.models = () => Promise.reject(new Error('no CLI'));
+  assert.equal(await conversations.modelName(contact.id), 'opus-x');
+  assert.equal(await conversations.modelName('nobody'), '');
+});
+
 test('without managers, nobody oversees anything', () => {
   const { conversations, contact } = setup();
   assert.equal(conversations.view(contact).oversees, false);

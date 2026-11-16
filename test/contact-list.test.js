@@ -171,6 +171,17 @@ test('the classes on a row still say what it has, for the keyboard and the style
   assert.ok(!has('notes', 'in-company'), 'one line');
 });
 
+test('a worker on another service than its manager’s says which right after its name, in words', (t) => {
+  const codex = contact({ id: 'codex', name: 'coupon-expiry-message', overseenBy: 'boss', serviceTag: 'Codex' });
+  const claude = contact({ id: 'claude', name: 'cart-total-rounding', overseenBy: 'boss', serviceTag: null });
+  const rows = draw(t, {}, [manager, codex, claude]);
+  const tag = rows.codex.querySelector('.service-tag');
+  assert.equal(tag?.textContent, 'Codex', 'words a screen reader reads out with the name');
+  assert.equal(tag.previousElementSibling, rows.codex.querySelector('.name'));
+  assert.equal(rows.claude.querySelector('.service-tag'), null, 'on its manager’s service');
+  assert.equal(rows.boss.querySelector('.service-tag'), null);
+});
+
 test('next steps keep their glyphs, accessible names and tips when narrow rows hide their words', (t) => {
   const contacts = ['merged', 'closed'].map((state) =>
     contact({

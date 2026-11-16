@@ -4,6 +4,7 @@ import { $, $$, el, html, raw } from '../lib/dom.js';
 import { buddy, smallIcon, tagIcon, toolbarIcon } from '../lib/icons.js';
 import { pictureHtml } from '../lib/pictures.js';
 import { modelsOf } from '../contacts/models.js';
+import { serviceTagHtml } from '../contacts/rows.js';
 import { answeringBadge, effortName, effortTitle, fastModeBadge, modelName, modelsFor } from './models.js';
 import {
   buddyStatus,
@@ -148,6 +149,8 @@ const addressOf = (contact) =>
 
 function renderToLine(ctx) {
   const { contact, participants } = ctx;
+  // A worker on another service than its manager's says which, beside its name (see serviceTagHtml).
+  const serviceOf = (p) => (p.id === contact.id ? contact.serviceTag : null);
   // While idle the "personal message" is just the folder, already shown in <…>, unless
   // the contact has a pull request: that line is worth showing here too.
   const doing = contact.personalMessage !== contact.location ? contact.personalMessage : '';
@@ -164,12 +167,14 @@ function renderToLine(ctx) {
   line.replaceChildren(
     ...el(
       html`<div>
-        <span class="to-label">To:</span>${participants.map(
-          (p, i) =>
-            html`${raw(buddyOf(ctx, p))}<span class="to-name" data-id="${p.id}"
-                >${p.name}${i < participants.length - 1 ? ',' : ''}</span
-              >`
-        )}
+        <span class="to-label">To:</span>${participants.map((p, i) => {
+          const comma = i < participants.length - 1 ? ',' : '';
+          // Its service goes before the comma that goes on to the next one.
+          const service = serviceOf(p);
+          return html`${raw(buddyOf(ctx, p))}<span class="to-name" data-id="${p.id}"
+              >${p.name}${service ? '' : comma}</span
+            >${service ? html`<span class="to-service">${serviceTagHtml(service)}${comma}</span>` : ''}`;
+        })}
         <span class="to-addr">&lt;${addressOf(contact)}&gt;</span
         >${parts ? html`<span class="to-pr">${parts.which}:</span>` : ''}<span class="to-pm"
           >${parts ? parts.standing : doing}</span
@@ -177,7 +182,9 @@ function renderToLine(ctx) {
       </div>`
     ).childNodes
   );
-  line.title = `${participants.map((p) => p.name).join(', ')} <${contact.cwd}>${doing ? ` — ${doing}` : ''}`;
+  line.title = `${participants
+    .map((p) => (serviceOf(p) ? `${p.name} (${serviceOf(p)})` : p.name))
+    .join(', ')} <${contact.cwd}>${doing ? ` — ${doing}` : ''}`;
 }
 
 /**
