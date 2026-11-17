@@ -15,6 +15,7 @@ version into package.json and package-lock.json in the release prep PR.
 
 - **Workers go by their task alone** — A conversation a manager starts, or one you add under a manager, is now named by its task, such as **cart-total-rounding**, without **Claude (…)** in front, so its row has room for the work. A worker on another service than its manager’s says which in a small label beside its name, such as **Codex**, and every contact’s card says its service and model. Your other contacts, and the names you typed, stay as they are.
 - **Open a project’s folder from its menu** — Right-click a project in the contact list, or in the list beside a conversation, and choose **Open folder** to see its own folder in Finder, Explorer or your file manager: the main checkout, not a contact’s worktree. **Copy path** copies where it is, as a contact’s menu does. A folder that is gone now says so, a contact’s too, where **Open folder** did nothing before.
+- **Managers and reviewers can read your MCP tools** — A Claude manager, reviewer, **Read only** role or guest in a manager’s conversation now uses the tools of your MCP servers that only read, such as looking up a ticket, without handing it to a worker. buddylist goes by what the server marks a tool as, never by its name. Any other tool asks you first on a card, in every mode, **Never ask** included, and runs only if you **Accept**.
 
 ## v0.7.6 — 2026-11-15
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toMcpServer } from '../src/providers/claude/mcp.js';
+import { onlyReads, toMcpServer } from '../src/providers/claude/mcp.js';
 import { descriptor as claude } from '../src/providers/claude/descriptor.js';
 import { createProviders } from '../src/providers/index.js';
 import {
@@ -273,4 +273,51 @@ test('only Claude answers /mcp with a list, and offers the command before a sess
     ['claude']
   );
   assert.ok(claude.commonCommands.includes('mcp'));
+});
+
+test('a tool only reads where its server marks it read-only and not destructive, never by its name', () => {
+  const servers = [
+    server('notes', 'connected', {
+      tools: [
+        { name: 'get_note', annotations: { readOnly: true } },
+        { name: 'list_notes', annotations: { readOnly: true, destructive: true } },
+        { name: 'delete_note', annotations: { destructive: true } },
+        { name: 'read_notes', annotations: {} },
+        { name: 'search' },
+      ],
+    }),
+  ];
+  assert.deepEqual(
+    ['get_note', 'list_notes', 'delete_note', 'read_notes', 'search', 'gone'].map((tool) =>
+      onlyReads(servers, `mcp__notes__${tool}`, 'notes')
+    ),
+    [true, false, false, false, false, false]
+  );
+});
+
+test('a tool is looked up in the server Claude Code names, by its own name', () => {
+  const servers = [
+    // Claude Code writes such a name differently in its tools' names: only the tool's part is matched.
+    server('claude.ai Tracker ', 'connected', { tools: [{ name: 'issues.get', annotations: { readOnly: true } }] }),
+    server('files', 'connected', { tools: [{ name: 'issues.get', annotations: { destructive: true } }] }),
+  ];
+  assert.equal(onlyReads(servers, 'mcp__claude_ai_Tracker__issues_get', 'claude.ai Tracker '), true);
+  assert.equal(onlyReads(servers, 'mcp__files__issues_get', 'files'), false);
+  assert.equal(onlyReads(servers, 'mcp__claude_ai_Tracker__issues_get'), false, 'no server named, nothing known');
+  assert.equal(onlyReads([], 'mcp__claude_ai_Tracker__issues_get', 'claude.ai Tracker '), false);
+});
+
+test('a call that could be either of two tools is known to be neither, and a tool leaves the server a part', () => {
+  const servers = [
+    server('a', 'connected', {
+      tools: [
+        { name: 'get', annotations: { destructive: true } },
+        { name: 'x__get', annotations: { readOnly: true } },
+        { name: 'a__list', annotations: { destructive: true } },
+        { name: 'list', annotations: { readOnly: true } },
+      ],
+    }),
+  ];
+  assert.equal(onlyReads(servers, 'mcp__a__x__get', 'a'), false, 'x__get of a, or get of a server written a__x');
+  assert.equal(onlyReads(servers, 'mcp__a__list', 'a'), true, 'list, not a__list, which leaves the server no part');
 });

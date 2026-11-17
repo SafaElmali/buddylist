@@ -15,7 +15,7 @@ import { draftActivity, toActivity, toQuestions, toolResultPictures, toolResultT
 import { APP_TOOL_INSTRUCTIONS, appToolName, appToolServer } from './app-tools.js';
 import { Background } from './background.js';
 import { listedAs as listedModel } from './models.js';
-import { toMcpServer } from './mcp.js';
+import { onlyReads, toMcpServer } from './mcp.js';
 import { forkSession, getSessionMessages, query } from './sdk.js';
 import { TASK_TOOLS, Tasks } from './tasks.js';
 import { COMPACTED } from './transcript.js';
@@ -80,12 +80,12 @@ const READ_ONLY_DECLINED =
   'can’t tell that this command changes nothing. Only commands that run in its read-only sandbox, or that it sees ' +
   'as read-only, run here. For changes, start a worker with buddylist’s start_conversation tool.';
 
-// What Claude is told of a tool of an MCP server other than the app's that it called while it changes no files: no
-// sandbox holds what such a tool does, and in Never ask nothing would ask first (see #readOnlyTool).
-const READ_ONLY_MCP_DECLINED =
-  'buddylist declined this tool without asking: you work read-only in this conversation, and nothing keeps the ' +
-  'tools of MCP servers other than buddylist’s from changing files. For changes, start a worker with buddylist’s ' +
-  'start_conversation tool.';
+// Why the user is asked about a tool of an MCP server other than the app's that an agent kept from changing files
+// called: no sandbox holds what such a tool does, and only its server can say it reads (see #readOnlyTool).
+export const READ_ONLY_MCP_ASKED = 'Its server doesn’t mark this tool as read-only, so it can change things.';
+
+/** Whether a tool is one of an MCP server's other than the app's own. */
+const otherServersTool = (name) => String(name).startsWith('mcp__') && !String(name).startsWith(appToolName(''));
 
 // The modes in which Claude Code runs a command it can't see changes nothing without asking, where no sandbox holds it,
 // by the names the mode picker gives them: Accept edits runs one that writes in the folder, and Bypass permissions any.
@@ -1387,8 +1387,14 @@ export class ClaudeSession extends BaseSession {
     }
     const askedIn = this.contact.permissionMode;
     const kind = promptKind(toolName);
-    // "Always" is a rule in Claude Code's settings. What the app does for Claude is asked each time.
-    const canAlways = kind === 'tool' && !appTool && Boolean(suggestions?.length) && !suppressAlwaysAllowRule;
+    // "Always" is a rule in Claude Code's settings. What the app does for Claude is asked each time, and so is an MCP
+    // tool a read-only agent calls: the rule would be the folder's, for every agent, and this one asks anyway.
+    const canAlways =
+      kind === 'tool' &&
+      !appTool &&
+      !(this.contact.readOnly && otherServersTool(toolName)) &&
+      Boolean(suggestions?.length) &&
+      !suppressAlwaysAllowRule;
     const response = await this.requestPermission(
       {
         kind,
@@ -1416,18 +1422,21 @@ export class ClaudeSession extends BaseSession {
   }
 
   /**
-   * A read-only agent's call of a tool of an MCP server other than the app's is declined before Claude Code decides
-   * whether to ask, and Claude hears why. Any other call goes on as it would.
-   * @param {{ tool_name: string, tool_use_id?: string }} call
+   * A read-only agent's call of a tool of an MCP server other than the app's runs unasked where its server marks it
+   * read-only, as Claude Code lists the server's tools now. Any other one is asked about on a card, whatever the mode:
+   * Claude Code asks the app (see #canUseTool) even where its rules or Never ask would run it. Rules of the user's
+   * that ask about or deny a tool still do. Any other call goes on as it would.
+   * @param {{ tool_name: string, mcp_server?: { name: string } }} call
    */
-  #readOnlyTool({ tool_name: name, tool_use_id: toolUseID }) {
-    if (!String(name).startsWith('mcp__') || String(name).startsWith(appToolName(''))) return {};
-    if (toolUseID) this.declinedTools.add(toolUseID);
+  async #readOnlyTool({ tool_name: name, mcp_server: server }) {
+    if (!otherServersTool(name)) return {};
+    const servers = await this.q?.mcpServerStatus().catch(() => null);
+    const reads = onlyReads(servers ?? [], name, server?.name);
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
-        permissionDecision: 'deny',
-        permissionDecisionReason: READ_ONLY_MCP_DECLINED,
+        permissionDecision: reads ? 'allow' : 'ask',
+        ...(!reads && { permissionDecisionReason: READ_ONLY_MCP_ASKED }),
       },
     };
   }
