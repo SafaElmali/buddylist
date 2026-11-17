@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ClaudeSession } from '../src/providers/claude/session.js';
+import { ClaudeSession, READ_ONLY_MCP_ASKED } from '../src/providers/claude/session.js';
 import { sdkTool } from '../src/providers/claude/app-tools.js';
 import { OUTSIDE_SANDBOX, appTools } from '../src/main/app-tools.js';
 import { descriptor } from '../src/providers/claude/descriptor.js';
@@ -3481,8 +3481,11 @@ for (const permissionMode of ['default', 'acceptEdits', 'plan']) {
   });
 }
 
-/** A Claude Code that answers each message it is sent until it is closed, with each start of one kept. */
-function lastingQuery() {
+/**
+ * A Claude Code that answers each message it is sent until it is closed, with each start of one kept.
+ * @param {() => Promise<object[]>} [mcpServerStatus]  the MCP servers it lists, as the SDK's mcpServerStatus()
+ */
+function lastingQuery(mcpServerStatus = async () => []) {
   const starts = [];
   const queryFn = ({ prompt, options }) => {
     const started = { options, modes: [], prompts: 0, closed: false };
@@ -3500,6 +3503,7 @@ function lastingQuery() {
     gen.setModel = async () => {};
     gen.initializationResult = async () => ({});
     gen.applyFlagSettings = async () => {};
+    gen.mcpServerStatus = mcpServerStatus;
     gen.close = () => (started.closed = true);
     return gen;
   };
@@ -3628,38 +3632,175 @@ test('a read-only agent’s plan approved into a mode that runs commands unasked
   session.close();
 });
 
-test('a read-only agent goes without the tools that make or leave a worktree, and other MCP servers’ tools', async () => {
-  const { queryFn, starts } = lastingQuery();
+// An MCP server as Claude Code lists it (mcpServerStatus): a tool its server marks read-only, one it marks destructive,
+// and one it says nothing of.
+const NOTES = {
+  name: 'notes',
+  status: 'connected',
+  source: 'user',
+  tools: [
+    { name: 'list_notes', annotations: { readOnly: true } },
+    { name: 'delete_note', annotations: { destructive: true } },
+    { name: 'add_note', annotations: {} },
+  ],
+};
+
+/** What the PreToolUse hook of a session started with `options` says of a call of a tool, if it has one. */
+async function hookSays(options, tool, server = 'notes') {
+  if (!options.hooks.PreToolUse) return undefined;
+  const call = { hook_event_name: 'PreToolUse', tool_name: tool, tool_input: {}, tool_use_id: tool };
+  const said = await hook(
+    options,
+    'PreToolUse'
+  )({ ...call, ...(server && { mcp_server: { name: server, source: 'user' } }) });
+  return said.hookSpecificOutput;
+}
+
+/**
+ * Calls an MCP tool as Claude Code does in a session started with `options` (checked against the Claude Code of Agent
+ * SDK 0.3.326): its PreToolUse hook's "allow" runs it, and "ask" asks the app whatever the mode. With no word from a
+ * hook, Never ask runs it, and any other mode asks. Answers whether the tool ran.
+ */
+async function claudeCodeCalls(options, tool) {
+  const said = await hookSays(options, tool);
+  if (said?.permissionDecision === 'allow') return true;
+  if (!said && options.permissionMode === 'bypassPermissions') return true;
+  const answer = await options.canUseTool(
+    tool,
+    {},
+    {
+      signal: new AbortController().signal,
+      toolUseID: tool,
+      decisionReason: said?.permissionDecisionReason,
+      suggestions: [{ type: 'addRules', rules: [{ toolName: tool }], behavior: 'allow', destination: 'localSettings' }],
+    }
+  );
+  return answer.behavior === 'allow';
+}
+
+/**
+ * Calls an MCP tool that is asked about, answers its card with `decision`, and says what the card was and whether the
+ * tool ran. The session's events are cleared first, so the card is this call's.
+ */
+async function answeredCard({ session, events, options }, tool, decision) {
+  events.length = 0;
+  const ran = claudeCodeCalls(options, tool);
+  const card = await until(events, 'permission');
+  session.respond(card.requestId, { decision });
+  return { card, ran: await ran };
+}
+
+/** A session that has answered one message, in `mode`, with Claude Code listing `servers` as its MCP servers. */
+async function startedWith(mode, { readOnly = true, servers = async () => [NOTES] } = {}) {
+  const { queryFn, starts } = lastingQuery(servers);
   const session = new ClaudeSession({
-    contact: { ...contact(), permissionMode: 'bypassPermissions', readOnly: true },
+    contact: { ...contact(), permissionMode: mode, ...(readOnly && { readOnly }) },
     emit: () => {},
     queryFn,
   });
   const events = collect(session);
   session.send({ text: 'look' });
   await untilResults(events, 1);
-  const { options } = starts[0];
+  return { session, events, options: starts[0].options };
+}
+
+/** What the hook says of an MCP tool a read-only agent is to be asked about: Claude Code then asks, whatever the mode. */
+const ASKS = { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: READ_ONLY_MCP_ASKED };
+
+test('a read-only agent goes without the tools that make or leave a worktree, and is checked before every call', async () => {
+  const { session, options } = await startedWith('bypassPermissions');
   assert.ok(options.disallowedTools.includes('EnterWorktree'));
   assert.ok(options.disallowedTools.includes('ExitWorktree'));
   // Asked before every call, in Never ask too, where Claude Code asks nobody.
-  const [{ hooks }] = options.hooks.PreToolUse;
-  const before = (tool_name) =>
-    hooks[0]({ hook_event_name: 'PreToolUse', tool_name, tool_input: {}, tool_use_id: tool_name });
-  const declined = await before('mcp__files__write_file');
-  assert.equal(declined.hookSpecificOutput.permissionDecision, 'deny');
-  assert.match(declined.hookSpecificOutput.permissionDecisionReason, /declined.*read-only.*start_conversation/);
   for (const allowed of ['mcp__messenger__open_terminals', 'Read', 'Grep', 'Bash', 'ListMcpResourcesTool']) {
-    assert.deepEqual(await before(allowed), {}, `${allowed} goes on as it would`);
+    assert.equal(await hookSays(options, allowed), undefined, `${allowed} goes on as it would`);
   }
   session.close();
 
-  const plain = lastingQuery();
-  const other = new ClaudeSession({ contact: contact(), emit: () => {}, queryFn: plain.queryFn });
-  const told = collect(other);
-  other.send({ text: 'fix it' });
-  await untilResults(told, 1);
-  assert.equal(plain.starts[0].options.hooks.PreToolUse, undefined, 'one that may change files uses them as ever');
-  other.close();
+  const plain = await startedWith('default', { readOnly: false });
+  assert.equal(plain.options.hooks.PreToolUse, undefined, 'one that may change files uses them as ever');
+  plain.session.close();
+});
+
+test('a read-only agent runs an MCP tool its server marks read-only unasked, in every mode', async () => {
+  for (const mode of descriptor.permissionModes.map((one) => one.id)) {
+    const { session, events, options } = await startedWith(mode);
+    assert.deepEqual(
+      await hookSays(options, 'mcp__notes__list_notes'),
+      { hookEventName: 'PreToolUse', permissionDecision: 'allow' },
+      mode
+    );
+    assert.equal(await claudeCodeCalls(options, 'mcp__notes__list_notes'), true, mode);
+    assert.equal(
+      events.some((e) => e.type === 'permission'),
+      false,
+      `${mode}: no card`
+    );
+    session.close();
+  }
+});
+
+test('a read-only agent asks on a card before a destructive or unmarked MCP tool, in every mode, and runs it on Accept only', async () => {
+  for (const mode of descriptor.permissionModes.map((one) => one.id)) {
+    const started = await startedWith(mode);
+    for (const tool of ['delete_note', 'add_note']) {
+      for (const decision of ['allow', 'deny']) {
+        const where = `${mode}, ${tool}, ${decision}`;
+        const { card, ran } = await answeredCard(started, `mcp__notes__${tool}`, decision);
+        assert.deepEqual(card.activity, { kind: 'tool', label: tool, source: 'notes' }, where);
+        assert.equal(card.reason, READ_ONLY_MCP_ASKED, where);
+        assert.equal(card.canAlways, false, `${where}: no rule for the folder is offered`);
+        assert.equal(ran, decision === 'allow', where);
+      }
+    }
+    started.session.close();
+  }
+});
+
+test('a read-only agent asks about an MCP tool Claude Code can’t say its server marks read-only', async () => {
+  // What Claude Code lists changes from one call to the next, as servers reconnect.
+  let listing;
+  const { session, options } = await startedWith('bypassPermissions', { servers: () => listing() });
+  const reading = { ...NOTES, tools: [{ name: 'list_notes', annotations: { readOnly: true, destructive: true } }] };
+  for (const [why, listed, server = 'notes', tool = 'mcp__notes__list_notes'] of [
+    ['a tool marked read-only and destructive', async () => [reading]],
+    ['a server not listed', async () => []],
+    ['a listing Claude Code can’t give', async () => Promise.reject(new Error('gone'))],
+    ['a call that names no server', async () => [NOTES], null],
+    ['a server of another name', async () => [NOTES], 'files'],
+    ['a tool the server doesn’t list', async () => [NOTES], 'notes', 'mcp__notes__export_notes'],
+  ]) {
+    listing = listed;
+    assert.deepEqual(await hookSays(options, tool, server), ASKS, why);
+  }
+  listing = async () => [NOTES];
+  assert.equal(
+    (await hookSays(options, 'mcp__notes__list_notes')).permissionDecision,
+    'allow',
+    'listed again, it runs'
+  );
+  session.close();
+});
+
+test('an agent that may change files gets MCP tools as ever: unasked in Never ask, and with Always allow elsewhere', async () => {
+  const never = await startedWith('bypassPermissions', { readOnly: false });
+  for (const tool of ['list_notes', 'delete_note', 'add_note']) {
+    assert.equal(await claudeCodeCalls(never.options, `mcp__notes__${tool}`), true, tool);
+  }
+  assert.equal(
+    never.events.some((e) => e.type === 'permission'),
+    false
+  );
+  never.session.close();
+
+  const asks = await startedWith('default', { readOnly: false });
+  for (const tool of ['list_notes', 'delete_note', 'add_note']) {
+    const { card, ran } = await answeredCard(asks, `mcp__notes__${tool}`, 'allow');
+    assert.equal(card.canAlways, true, tool);
+    assert.equal(card.reason, null, tool);
+    assert.equal(ran, true, tool);
+  }
+  asks.session.close();
 });
 
 test('a read-only agent in Never ask is asked about a command for a terminal, on a card saying where it runs', async () => {
