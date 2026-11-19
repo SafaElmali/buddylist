@@ -165,6 +165,15 @@ export class Turns {
   }
 
   /**
+   * The message of the user's `turn` was given for, by its id: the one whose pictures it carries. Null for a turn
+   * nobody gave it for one of them, as a hand-over or a note.
+   * @param {Turn} turn
+   */
+  messageOf(turn) {
+    return this.#for.get(turn)?.id ?? null;
+  }
+
+  /**
    * The user said something. Whoever they @mention answers, in that order; without
    * a mention everyone who isn't paused does, in `order`, but for the ones that answer
    * after changes: they wait for the others (see `followUp`), unless there are no others. A

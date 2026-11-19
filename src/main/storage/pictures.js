@@ -36,18 +36,38 @@ export class Pictures {
     return `picture:${name}`;
   }
 
+  /** Where a saved picture is, and its type, by its reference alone: never a caller-supplied filesystem path. */
+  #find(reference) {
+    const match = PICTURE_REFERENCE.exec(reference);
+    return match && { file: path.join(this.dir, match[1]), mediaType: `image/${TYPES[match[2]]}` };
+  }
+
   /** Only an attachment reference can be read, never a caller-supplied filesystem path. */
   async read(reference) {
     const bytes = await this.bytes(reference);
-    return `data:image/${TYPES[PICTURE_REFERENCE.exec(reference)[2]]};base64,${bytes.toString('base64')}`;
+    return `data:${this.#find(reference).mediaType};base64,${bytes.toString('base64')}`;
+  }
+
+  /**
+   * An attachment as an agent is sent it, read at once: null where it is gone, or bigger than `max` bytes.
+   * @returns {{ mediaType: string, data: string } | null}
+   */
+  payload(reference, max) {
+    const found = this.#find(reference);
+    try {
+      if (!found || fs.statSync(found.file).size > max) return null;
+      return { mediaType: found.mediaType, data: fs.readFileSync(found.file).toString('base64') };
+    } catch {
+      return null;
+    }
   }
 
   /** An attachment's bytes, by its reference alone. */
   async bytes(reference) {
-    const match = PICTURE_REFERENCE.exec(reference);
-    if (!match) throw new Error('That is not a saved picture.');
+    const found = this.#find(reference);
+    if (!found) throw new Error('That is not a saved picture.');
     try {
-      return await fs.promises.readFile(path.join(this.dir, match[1]));
+      return await fs.promises.readFile(found.file);
     } catch {
       throw new Error('The original picture is no longer available.');
     }
