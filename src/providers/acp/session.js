@@ -6,7 +6,7 @@
 import { selectQueued } from '../queued-message.js';
 import { appToolBridge, APP_TOOL_INSTRUCTIONS } from '../app-tool-bridge.js';
 import { BaseSession, truncateOutput } from '../base-session.js';
-import { connectProcess } from '../json-rpc.js';
+import { closedEvent, connectProcess, reloadPathIfMissing } from '../json-rpc.js';
 import { noLooser } from '../../shared/limit-fallbacks.js';
 import { chooseOption, isShowable, mergeToolCall, toRequest, toResult, toTools } from './activity.js';
 
@@ -35,7 +35,7 @@ const CUT_SHORT = {
  * @property {import('../contract.js').ProviderDescriptor} descriptor  its permission modes use the agent's own mode ids
  * @property {string} command         the command-line program to run
  * @property {string[]} args          what makes it speak ACP, e.g. ["acp"]
- * @property {string} notInstalled    what to say when the program isn't there
+ * @property {import('../json-rpc.js').Program} program  what to say when the program isn't there
  * @property {string[]} [alwaysOptions]  the permission options to pick for "Always allow", when it offers several
  * @property {true} [alwaysOptionsOnly]  only `alwaysOptions` are "Always allow": its others allow a step for good, in
  *   every session from then on, so a card without one of them offers "Allow once" alone
@@ -78,12 +78,24 @@ export class AcpSession extends BaseSession {
    * @param {(event: import('../contract.js').SessionEvent) => void} opts.emit
    * @param {AcpAgent} opts.agent
    * @param {typeof connectProcess} [opts.connect]  starts the agent; replaceable in tests
+   * @param {() => Promise<void>} [opts.reloadPath]  asks the login shell for its PATH again, for an agent installed
+   *   since the app read it (see reloadPathIfMissing)
    * @param {number} [opts.settleMs]  how long an agent must be quiet for a loaded session's old messages to be over
    * @param {Record<string, string>} [opts.env]  as BaseSession takes them
    * @param {string} [opts.instructions]
    * @param {import('../../main/app-tools.js').AppTool[]} [opts.appTools]  session-scoped app tools over MCP
    */
-  constructor({ contact, emit, agent, connect = connectProcess, settleMs = 150, env, instructions, appTools = [] }) {
+  constructor({
+    contact,
+    emit,
+    agent,
+    connect = connectProcess,
+    reloadPath,
+    settleMs = 150,
+    env,
+    instructions,
+    appTools = [],
+  }) {
     super({
       contact,
       emit,
@@ -98,6 +110,7 @@ export class AcpSession extends BaseSession {
     this.agent = agent;
     this.name = agent.descriptor.name;
     this.connect = connect;
+    this.reloadPath = reloadPath;
     this.settleMs = settleMs;
     this.rpc = null;
     /** @type {Promise<boolean> | null} whether the session is ready for messages */
@@ -173,6 +186,8 @@ export class AcpSession extends BaseSession {
   async #connect() {
     this.setState('connecting');
     const generation = this.generation;
+    await reloadPathIfMissing(this.agent.command, this.env, this.reloadPath);
+    if (generation !== this.generation) throw new Error('Session closed.');
     if (this.appTools.length) {
       const bridge = await appToolBridge(this, this.appTools, () => this.appToolsUnasked());
       if (generation !== this.generation) {
@@ -183,17 +198,18 @@ export class AcpSession extends BaseSession {
     }
     const rpc = this.connect({
       command: this.agent.command,
+      askedAgain: Boolean(this.reloadPath),
       args: this.agent.args,
       cwd: this.contact.cwd,
       env: this.env,
       name: this.name,
-      notInstalled: this.agent.notInstalled,
+      program: this.agent.program,
       version: '2.0',
       onNotification: (method, params) => this.#onNotification(method, params),
       onNotificationError: (error) => this.emit({ type: 'error', message: error.message }),
       onRequest: (method, params) => this.#onRequest(method, params),
       onClose: (error) => {
-        this.emit({ type: 'error', message: error.message });
+        this.emit(closedEvent(error));
         this.#disconnected();
       },
     });

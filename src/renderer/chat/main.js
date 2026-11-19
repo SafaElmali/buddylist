@@ -2122,9 +2122,10 @@ function onSessionEvent(event) {
       conversation.addNotice(event.text, event);
       break;
     case 'error': {
-      // How to sign in depends on whose session could not.
+      // How to sign in depends on whose session could not. A program that isn't there has nothing to sign in with.
       const { loginHint } = speakerOf(ctx.participants, event).provider;
-      const hint = /log ?in|auth|api key|credential|401|403/i.test(event.message) ? loginHint : '';
+      const signIn = !event.notFound && /log ?in|auth|api key|credential|401|403/i.test(event.message);
+      const hint = signIn ? loginHint : '';
       conversation.addError(event.message, { hint, from: event });
       // A session that failed in the middle of a turn ends it without a result.
       todos.turnEnded(event);

@@ -97,10 +97,13 @@ const closed = (command) =>
       .catch(() => {});
   });
 
-test('a missing Codex CLI says how to install it', async () => {
+test('a missing Codex CLI says how to install it, and not to log in', async () => {
   const error = await closed('/nowhere/codex');
-  assert.match(error.message, /Couldn’t find the Codex CLI/);
+  assert.match(error.message, /^Couldn’t find the Codex CLI at \/nowhere\/codex\./);
   assert.match(error.message, /npm install -g @openai\/codex/);
+  assert.match(error.message, /Choose executable\.\.\. in Settings > Services/);
+  // Installed and logged in, the user was told to run "codex login" again, twice: here and in the chat's tip.
+  assert.doesNotMatch(error.message, /log ?in|auth/i);
 });
 
 test('a process that dies reports it, and fails what was waiting', async () => {

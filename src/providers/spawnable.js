@@ -48,6 +48,17 @@ export function pathFolders({ env = process.env, platform = process.platform } =
 export const loginShell = ({ env, platform }) => env.SHELL || (platform === 'darwin' ? '/bin/zsh' : '/bin/sh');
 
 /**
+ * The login shell's name, "zsh", as the user is told whose PATH a program was looked for on. '' on Windows, where the
+ * PATH is Windows' own.
+ * @param {{ env: Record<string, string | undefined>, platform: string }} opts
+ */
+export const shellName = ({ env, platform }) =>
+  platform === 'win32' ? '' : path.basename(loginShell({ env, platform }));
+
+/** Whether `command` is a path, which is only looked for there, rather than a name looked for on the PATH. */
+export const isPath = (command) => /[\\/:]/.test(command);
+
+/**
  * Where `command` is: where it points when it is a path, or else in the first folder of PATH
  * that has it. A name without one of the extensions is tried with each in PATHEXT in turn, so
  * the batch file npm puts next to a script for sh is found, and not the script.
@@ -59,7 +70,7 @@ function lookFor(command, env, exists) {
     .filter((extension) => RUNNABLE.test(extension))
     .map((extension) => extension.toLowerCase());
   const names = RUNNABLE.test(command) ? [command] : extensions.map((extension) => command + extension);
-  if (/[\\/:]/.test(command)) return names.find((name) => exists(name));
+  if (isPath(command)) return names.find((name) => exists(name));
   for (const folder of pathFolders({ env, platform: 'win32' })) {
     const found = names.map((name) => path.win32.join(folder, name)).find((file) => exists(file));
     if (found) return found;

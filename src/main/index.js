@@ -191,6 +191,8 @@ function startApp(errorReports, electronUpdater) {
     cliPath: (id) => store.settings.agents?.[id]?.path || '',
     // The login a session starts in: the user's own, or one they added in Settings.
     accounts: (id, accountId) => accounts.switchFor(id, accountId),
+    // A program installed since the login shell said where programs are is found when a session starts it.
+    reloadPath: loginPath.reload,
   });
   const store = openStore();
   if (!store) return;

@@ -4,12 +4,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
+import { fileURLToPath } from 'node:url';
 import { JsonRpcPeer } from '../src/providers/codex/rpc.js';
 import { CodexSession } from '../src/providers/codex/session.js';
 import { agentsInstructions, distrust } from '../src/providers/codex/worktree.js';
 import { createProviders } from '../src/providers/index.js';
 import { QUIET_AFTER_MS } from '../src/providers/codex/progress.js';
 import { allInstructions } from '../src/shared/project-settings.js';
+import { tempDir } from './fixtures/temp-dir.js';
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -1849,6 +1851,18 @@ test('a program the user points at is the one a service runs, from the next sess
   assert.equal(session('opencode').agent.command, process.env.BUDDYLIST_OPENCODE_CLI || 'opencode');
 });
 
+test('every service whose program is found on the PATH can have the login shell asked again as a session starts', () => {
+  const reloadPath = async () => {};
+  const providers = createProviders({ app: { isPackaged: false }, reloadPath });
+  for (const provider of ['codex', 'gemini', 'opencode', 'hermes', 'grok']) {
+    const session = providers.createSession(
+      { provider, cwd: '/tmp/project', model: '', permissionMode: 'ask', sessionId: null },
+      () => {}
+    );
+    assert.equal(session.reloadPath, reloadPath, provider);
+  }
+});
+
 test('Codex receives session-scoped app tools and keeps managers in a read-only sandbox', async (t) => {
   const { z } = await import('zod');
   const server = fakeServer();
@@ -2591,3 +2605,164 @@ for (const stop of [false, true]) {
     }
   });
 }
+
+// ---- signing in, and a Codex installed while the app is open ------------------------------------------
+
+test('a signed-out Codex’s 401 says how to sign in, told by its status code and not by its words', async () => {
+  const { server, of } = await started();
+  const hint = /\nOpen Terminal and run "codex login" \(or set OPENAI_API_KEY\)\. Then send your message again\.$/;
+  // What Codex 0.170 answers with no login: OpenAI's 401 to a request with no key, as a failed connection.
+  for (const codexErrorInfo of [
+    { httpConnectionFailed: { httpStatusCode: 401 } },
+    { responseStreamConnectionFailed: { httpStatusCode: 401 } },
+    { responseStreamDisconnected: { httpStatusCode: 401 } },
+    { responseTooManyFailedAttempts: { httpStatusCode: 401 } },
+    'unauthorized',
+  ]) {
+    const message = 'unexpected status 401 Unauthorized: Missing bearer or basic authentication in header';
+    server.endTurn({ status: 'failed', error: { message, codexErrorInfo } });
+    const { errorText, failureKind } = of('result').at(-1);
+    assert.match(errorText, hint, JSON.stringify(codexErrorInfo));
+    assert.ok(errorText.startsWith(message), 'Codex’s own words come first');
+    assert.equal(failureKind, undefined, 'no other service takes over for a sign-in');
+  }
+  // Words that look like it, with a status that isn't 401, are not a sign-in problem.
+  for (const [message, codexErrorInfo] of [
+    ['401 Unauthorized said by an MCP server', 'other'],
+    ['unexpected status 403 Forbidden', { httpConnectionFailed: { httpStatusCode: 403 } }],
+    ['unexpected status 400 Bad Request: invalid auth header format', 'badRequest'],
+  ]) {
+    server.endTurn({ status: 'failed', error: { message, codexErrorInfo } });
+    assert.equal(of('result').at(-1).errorText, message);
+  }
+});
+
+test('after a sign-in failure the next message goes to the same Codex, which has read the new login itself', async () => {
+  const { server, session, of } = await started();
+  server.endTurn({
+    status: 'failed',
+    error: {
+      message: 'unexpected status 401 Unauthorized',
+      codexErrorInfo: { httpConnectionFailed: { httpStatusCode: 401 } },
+    },
+  });
+  // `codex login` in Terminal meanwhile: the running app server picks it up (see docs/codex.md).
+  session.send({ text: 'logged in now' });
+  await tick();
+  assert.equal(server.connections, 1, 'no new app server');
+  assert.equal(server.closed, 0);
+  assert.equal(server.params('thread/resume').length, 0, 'the thread goes on as it is');
+  assert.equal(server.params('turn/start').at(-1).input[0].text, 'logged in now');
+  assert.equal(server.params('turn/start').length, 2, 'the failed turn isn’t sent again');
+  server.endTurn({ id: 'turn-2' });
+  assert.equal(of('result').at(-1).isError, false);
+
+  // Any other failure leaves the connection as it is too; only a stopped turn starts a fresh one (see #turnCompleted).
+  server.endTurn({ status: 'failed', error: { message: 'boom', codexErrorInfo: 'other' } });
+  session.send({ text: 'and again' });
+  await tick();
+  assert.equal(server.connections, 1);
+  server.endTurn({ status: 'interrupted' });
+  session.send({ text: 'after a stop' });
+  await tick();
+  assert.equal(server.connections, 2, 'a stopped turn’s Codex is replaced');
+  assert.equal(server.params('thread/resume').at(-1).threadId, 'th-1');
+});
+
+test('a Codex CLI that isn’t on the PATH has the login shell asked again before it is started', async () => {
+  const asked = [];
+  const run = (cliPath) => {
+    const server = fakeServer();
+    const events = [];
+    const session = new CodexSession({
+      contact: { cwd: '/tmp/project', model: '', permissionMode: 'ask', sessionId: null },
+      emit: (e) => events.push(e),
+      cliPath,
+      env: { PATH: '/nowhere' },
+      connect: (hooks) => {
+        asked.push(`started ${cliPath}`);
+        return server.connect(hooks);
+      },
+      reloadPath: async () => {
+        asked.push(`asked for ${cliPath}`);
+        await tick();
+      },
+    });
+    return { session, server, events };
+  };
+
+  const missing = run('codex-demo');
+  missing.session.send({ text: 'hi' });
+  await tick();
+  await tick();
+  assert.deepEqual(asked, ['asked for codex-demo', 'started codex-demo'], 'asked once, before it is started');
+  assert.equal(missing.session.state, 'working');
+
+  // Once a turn is going, a message is added to it: nothing is started, so nothing is asked.
+  asked.length = 0;
+  missing.session.send({ text: 'and this' });
+  await tick();
+  assert.deepEqual(asked, []);
+
+  // Closed while the shell is asked: nothing is started.
+  const closed = run('codex-demo');
+  closed.session.send({ text: 'hi' });
+  closed.session.close();
+  await tick();
+  await tick();
+  assert.deepEqual(asked, ['asked for codex-demo']);
+  assert.equal(closed.events.filter((e) => e.type === 'error').length, 0, 'a closed session says nothing');
+});
+
+test(
+  'a contact made before Codex was installed finds it on the next message, without Check again',
+  { skip: process.platform === 'win32' },
+  async (t) => {
+    const bin = tempDir('codex-installed-later-');
+    const fixture = fileURLToPath(new URL('./fixtures/fast-mode-codex.js', import.meta.url));
+    // What the login shell says PATH is: the folder Codex is installed in only shows up there once it is.
+    const env = { PATH: '/usr/bin:/bin' };
+    let installed = false;
+    let asked = 0;
+    const reloadPath = async () => {
+      asked += 1;
+      if (installed) env.PATH = `${bin}:/usr/bin:/bin`;
+    };
+    const events = [];
+    const session = new CodexSession({
+      contact: { cwd: bin, model: '', permissionMode: 'ask', sessionId: null },
+      emit: (e) => events.push(e),
+      cliPath: 'codex-demo',
+      env,
+      reloadPath,
+    });
+    t.after(() => session.close());
+    const until = async (check) => {
+      for (let i = 0; i < 500 && !check(); i++) await new Promise((resolve) => setTimeout(resolve, 10));
+      assert.ok(check(), 'it happened');
+    };
+
+    session.send({ text: 'Hi, are you there?' });
+    await until(() => events.some((e) => e.type === 'error'));
+    const [error] = events.filter((e) => e.type === 'error');
+    assert.match(error.message, /^Couldn’t find the Codex CLI on \S+’s PATH, even after asking \S+ again\. /);
+    assert.match(
+      error.message,
+      /Install it with "npm install -g @openai\/codex", or point buddylist to it with Choose executable\.\.\. in Settings > Services\./
+    );
+    assert.doesNotMatch(error.message, /log ?in|sign in|auth/i, 'not a word of signing in');
+    assert.equal(error.notFound, true, 'and the chat adds no sign-in tip to it');
+    assert.equal(asked, 1);
+    assert.equal(session.state, 'offline');
+
+    fs.writeFileSync(path.join(bin, 'codex-demo'), `#!/bin/sh\nexec "${process.execPath}" "${fixture}" "$@"\n`, {
+      mode: 0o755,
+    });
+    installed = true;
+    session.send({ text: 'Installed it. Are you there now?' });
+    await until(() => events.some((e) => e.type === 'text-end'));
+    assert.equal(asked, 2, 'asked once more, as it was started again');
+    assert.equal(events.filter((e) => e.type === 'error').length, 1, 'no second error');
+    assert.match(events.find((e) => e.type === 'text-end').text, /Synthetic reply/);
+  }
+);

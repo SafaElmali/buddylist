@@ -9,7 +9,8 @@ export { descriptor };
 
 const INSTALL_COMMAND = 'curl -fsSL https://x.ai/cli/install.sh | bash';
 const INSTALL = `Install it with "${INSTALL_COMMAND}"`;
-const NOT_INSTALLED = `Couldn’t find Grok Build. ${INSTALL}, run "grok login", then send your message again.`;
+/** @type {import('../json-rpc.js').Program} */
+const PROGRAM = { name: 'Grok Build', install: INSTALL };
 const NEVER_ASKS = 'yolo';
 
 /**
@@ -23,7 +24,7 @@ export const grokAgent = (command = 'grok', { readOnly = false } = {}) => ({
   descriptor,
   command,
   args: ['agent', 'stdio'],
-  notInstalled: NOT_INSTALLED,
+  program: PROGRAM,
   // Each session starts with always-approve as its mode says, and with auto mode off, whatever Grok's settings say:
   // either would have it run commands unasked, a read-only one's too.
   sessionMeta: (mode) => ({
@@ -50,9 +51,11 @@ export const grokAgent = (command = 'grok', { readOnly = false } = {}) => ({
  * @param {object} [opts]
  * @param {(conversation: string, speakerId: string, seat?: import('../../main/app-tools.js').Seat) => import('../../main/app-tools.js').AppTool[]} [opts.tools]
  * @param {() => string} [opts.cliPath]  the grok the user pointed the app at, if any: asked each time
+ * @param {() => Promise<void>} [opts.reloadPath]  asks the login shell for its PATH again, for a grok installed while
+ *   the app is open
  * @returns {import('../contract.js').Provider}
  */
-export function createGrokProvider({ cliPath = () => '', tools = () => [] } = {}) {
+export function createGrokProvider({ cliPath = () => '', tools = () => [], reloadPath } = {}) {
   // Grok Build isn't bundled: the app runs the `grok` you installed.
   // Settings, or BUDDYLIST_GROK_CLI, points it at a different one.
   const cli = () => cliPath() || process.env.BUDDYLIST_GROK_CLI || 'grok';
@@ -65,6 +68,7 @@ export function createGrokProvider({ cliPath = () => '', tools = () => [] } = {}
         contact,
         emit,
         agent: grokAgent(cli(), { readOnly: Boolean(contact.readOnly) }),
+        reloadPath,
         env: contact.readOnly ? { ...env, ...READ_ONLY_ENV } : env,
         instructions,
         appTools: conversation ? tools(conversation, contact.id, { readOnly: Boolean(contact.readOnly) }) : [],

@@ -243,8 +243,8 @@
  *   { type: 'background', tasks: BackgroundTask[] } |
  *   { type: 'waiting', count: number } |
  *   { type: 'notice', text: string } |
- *   { type: 'error', message: string }
- * )} SessionEvent
+ *   { type: 'error', message: string, notFound?: true }
+ * )} SessionEvent  an error's `notFound`: its program, or the folder it starts in, isn't there
  */
 
 /**

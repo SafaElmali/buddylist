@@ -11,6 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
+## v0.7.9
+
+- **An agent you install while buddylist is open answers your next message** — A Codex contact added before Codex was installed kept saying it couldn’t be found and to run `codex login`, even once you had installed Codex and logged in, until you quit buddylist. Now a message whose program isn’t on your PATH has buddylist read your PATH again first, so the next one you send finds it; the same goes for Gemini, OpenCode, Hermes and Grok. One that is still not found says where buddylist looked and points to **Choose executable...** in **Settings > Services**, and no longer tells you to log in. A Codex that isn’t signed in now says to run `codex login`, and your next message after that goes through.
+
 ## v0.7.8 — 2026-11-19
 
 - **Check again finds an agent you just installed** — Codex, Gemini, OpenCode, Hermes or Grok, installed while buddylist was open, stayed **Not installed** until you quit and opened buddylist again. **Check again**, in **Settings > Services** and in the welcome wizard, now reads your PATH again first, so it finds the new one, and conversations you start after that use it too. On a Mac or Linux, buddylist also no longer loses your PATH when your shell’s start-up files are slow or end with an error. One that is still not found says where buddylist looked, with its install command to **Copy**, and **Choose executable...** for one installed somewhere else.

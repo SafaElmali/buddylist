@@ -9,7 +9,9 @@ npm install -g @openai/codex
 codex login
 ```
 
-It isn't bundled, because its binary is over 300 MB. The app finds `codex` on your `PATH` (your login shell’s, on a Mac or Linux); set `BUDDYLIST_CODEX_CLI` to use a different one. Installed it while buddylist was open? **Check again** in **Settings > Services** finds it.
+Not signed in, Codex’s answer to your message ends with how to sign in. Once you have run `codex login`, send your message again: the Codex that is running reads the new login itself, so nothing needs a restart.
+
+It isn't bundled, because its binary is over 300 MB. The app finds `codex` on your `PATH` (your login shell’s, on a Mac or Linux); set `BUDDYLIST_CODEX_CLI` to use a different one. Installed it while buddylist was open? Your next message finds it: when the program isn’t on the `PATH`, buddylist reads your `PATH` again before it gives up, as **Check again** in **Settings > Services** does.
 
 **Outside conversations.** **History** over the contact list has **From Codex**, with your local terminal, desktop and editor threads grouped by folder. Search by title, first message, project or branch; a Codex contact’s own History also searches what was said in that folder’s threads. **Add a contact here** selects Codex and that folder. **Continue in a new contact there** forks the thread through Codex, so the original stays unchanged. Archived threads and buddylist’s own sessions and suggestions are excluded. Reading starts no conversation and runs no turn. If the CLI is missing or too old, History explains why; update it with `npm install -g @openai/codex`. See [Conversations from your terminal](conversations.md#conversations-from-your-terminal).
 

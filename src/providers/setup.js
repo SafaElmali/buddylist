@@ -3,9 +3,8 @@
 // found before the first message is. A CLI that signs in through the browser by itself
 // can be asked to do that as well.
 import { execFile } from 'node:child_process';
-import { basename } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
-import { executablePath, loginShell, pathFolders, spawnable } from './spawnable.js';
+import { executablePath, isPath, pathFolders, shellName, spawnable } from './spawnable.js';
 
 /** How long a CLI gets to say how it stands. */
 const PATIENCE_MS = 8000;
@@ -121,11 +120,11 @@ export async function cliSetup(
     note: install,
     ...(installCommand && { installCommand }),
     ...(command &&
-      !/[\\/:]/.test(command) && {
+      !isPath(command) && {
         looked: {
           program: command,
           folders: pathFolders({ env, platform }),
-          shell: platform === 'win32' ? '' : basename(loginShell({ env: env ?? process.env, platform })),
+          shell: shellName({ env: env ?? process.env, platform }),
         },
       }),
   });
