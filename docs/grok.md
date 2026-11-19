@@ -11,7 +11,7 @@ grok login                     # opens your browser
 
 To use an xAI API key instead, set `XAI_API_KEY`. Grok Build needs an xAI account that has it, or an API key.
 
-It isn't bundled. The app finds `grok` on your `PATH`; set `BUDDYLIST_GROK_CLI` to use a different one.
+It isn't bundled. The app finds `grok` on your `PATH` (your login shell’s, on a Mac or Linux); set `BUDDYLIST_GROK_CLI` to use a different one. Installed it while buddylist was open? **Check again** in **Settings > Services** finds it.
 
 **Add a contact.** Pick **Grok** as the **Service** in **Add a Contact**. **Add models...** in the Model list asks your Grok for its models, as `grok models` lists them.
 

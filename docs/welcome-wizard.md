@@ -37,7 +37,7 @@ The page lists every service, and the GitHub CLI, the way the contact list shows
 | ⚪ **Not installed**        | Its command-line program was not found. The line says how to install it. |
 | ⚪ **Could not be checked** | It did not answer within a few seconds.                                  |
 
-One agent that is ready is enough to start. **Check again** asks them all once more, after you installed one or signed in.
+One agent that is ready is enough to start. **Check again** asks them all once more, after you installed one or signed in. It reads your PATH again first, so an agent installed while the wizard is open is found without restarting buddylist.
 
 - **Claude** comes with the app, so it is only ever signed in or not, and it is [signed in from this page](#signing-in-to-claude). A sign-in from `claude` in a terminal counts too, and so does `ANTHROPIC_API_KEY`.
 - **Codex** is asked with `codex login status`.

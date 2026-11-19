@@ -52,7 +52,7 @@ import { Schedules } from './schedules.js';
 import { Voice } from './voice.js';
 import { Listening } from './listening.js';
 import { SENTRY_DSN, startErrorReports } from './error-reports.js';
-import { loadLoginShellPath } from './shell-env.js';
+import { createLoginPath } from './shell-env.js';
 import { AppTray } from './tray.js';
 import { QuickSend } from './quick-send.js';
 import { AppShortcuts } from './shortcuts.js';
@@ -175,8 +175,9 @@ function startApp(errorReports, electronUpdater) {
   if (IS_MAC) listWindowsInDock({ app, dock: app.dock, Menu, windows: () => BrowserWindow.getAllWindows() });
   // Asked in the background, so the contact list is not kept waiting for a shell to start.
   // Whatever starts a program waits for it: the looks at GitHub below, and the requests of
-  // the windows that do (see registerIpc).
-  const pathReady = loadLoginShellPath();
+  // the windows that do (see registerIpc). Check again asks the shell again.
+  const loginPath = createLoginPath();
+  const pathReady = loginPath.ready;
 
   const providers = createProviders({
     app: { isPackaged: app.isPackaged, resourcesPath: process.resourcesPath },
@@ -665,6 +666,7 @@ function startApp(errorReports, electronUpdater) {
     archiveContact,
     worktreesHome,
     pathReady,
+    reloadPath: loginPath.reload,
     oldWorktreesHome,
     computerHome,
     showOnboarding,

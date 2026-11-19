@@ -57,6 +57,25 @@ test('a rejected status request leaves checking, gives its reason and can be ret
   assert.equal(button(document, 'Check again').disabled, false);
 });
 
+test('only Check again asks the app to look for programs once more, the first check does not', async (t) => {
+  const asked = [];
+  status = async (...args) => {
+    asked.push(args);
+    return asked.length === 1 ? { state: 'missing', note: '' } : { state: 'ready', path: '/opt/homebrew/bin/hermes' };
+  };
+  const { document, head, summary } = draw(t);
+  await settle();
+  assert.equal(summary(), 'Not installed · Open for setup instructions');
+  head().click();
+  button(document, 'Check again').click();
+  await settle();
+  assert.deepEqual(asked, [
+    ['hermes', false],
+    ['hermes', true],
+  ]);
+  assert.equal(summary(), 'Ready · /opt/homebrew/bin/hermes');
+});
+
 test('the executable override is advanced, opens for a saved path, and cancelling its picker preserves it', async (t) => {
   status = async () => ({ state: 'ready' });
   const { document, ctx, head } = draw(t, '/saved/hermes');

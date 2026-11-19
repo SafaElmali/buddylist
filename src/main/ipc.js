@@ -136,6 +136,8 @@ const senderWindow = (event) => (event.remote ? null : BrowserWindow.fromWebCont
  * @param {(contactId: string) => unknown} deps.archiveContact  puts a contact away, and closes what it had open
  * @param {string} deps.worktreesHome  where a contact's own worktree goes
  * @param {Promise<void>} deps.pathReady  done once the login shell's PATH is in place (see shell-env.js)
+ * @param {() => Promise<void>} deps.reloadPath  asks the login shell for its PATH again, for a program installed
+ *   since; done once the PATH is what it said
  * @param {string | null} [deps.oldWorktreesHome]  where they went before the app was renamed, for the ones
  *   still there
  * @param {string} [deps.computerHome]  where the folders of the contacts on This computer go (see computer.js);
@@ -182,6 +184,7 @@ export function registerIpc({
   archiveContact,
   worktreesHome,
   pathReady,
+  reloadPath,
   oldWorktreesHome = null,
   computerHome = '',
   showOnboarding,
@@ -338,8 +341,12 @@ export function registerIpc({
     showOnboarding();
   });
 
-  // Which agents are on this computer and signed in, and GitHub's CLI. Only ever asks them.
-  handleWithPath(REQUESTS.onboardingSetup, () => setupCheck({ providers, demo }));
+  // Which agents are on this computer and signed in, and GitHub's CLI. Only ever asks them. Check again (`again`)
+  // first asks where programs are once more: one installed while the app is open is on a PATH only a new shell has.
+  handleWithPath(REQUESTS.onboardingSetup, async (_e, again) => {
+    if (again === true) await reloadPath();
+    return setupCheck({ providers, demo });
+  });
 
   // "Sign in..." on a line of that list: the service's own sign-in, in the browser. It waits there
   // for as long as the user takes, but not for longer than the window that asked is there.
@@ -459,8 +466,9 @@ export function registerIpc({
   }));
 
   // Whether a service's program is there and signed in, as the welcome wizard asks it, and whether
-  // it is one the user pointed the app at.
-  handleWithPath(REQUESTS.agentStatus, async (_e, id) => {
+  // it is one the user pointed the app at. Check again (`again`) asks where programs are first, as the wizard's does.
+  handleWithPath(REQUESTS.agentStatus, async (_e, id, again) => {
+    if (again === true) await reloadPath();
     const provider = providers.descriptor(id);
     const custom = Boolean(store.settings.agents?.[provider.id]?.path);
     const setup = await providers.setup(provider.id).catch((err) => ({

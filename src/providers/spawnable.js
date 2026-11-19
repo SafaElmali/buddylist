@@ -19,7 +19,7 @@ const CMD_SPECIAL = /[()[\]%!^"`<>&|;, *?]/g;
  * A variable of `env`, whatever its case: Windows has "Path" and "ComSpec", and a copy of
  * process.env keeps that. With two spellings, the program gets the first in sorting order.
  */
-const variable = (env, name) => {
+export const variable = (env, name) => {
   const [key] = Object.keys(env)
     .filter((key) => key.toUpperCase() === name)
     .sort();

@@ -9,7 +9,7 @@ npm install -g opencode-ai
 opencode auth login
 ```
 
-It isn't bundled. The app finds `opencode` on your `PATH`; set `BUDDYLIST_OPENCODE_CLI` to use a different one.
+It isn't bundled. The app finds `opencode` on your `PATH` (your login shell’s, on a Mac or Linux); set `BUDDYLIST_OPENCODE_CLI` to use a different one. Installed it while buddylist was open? **Check again** in **Settings > Services** finds it.
 
 **Add a contact.** Pick **OpenCode** as the **Service** in **Add a Contact**. Models are named `provider/model`; `opencode models` lists yours.
 

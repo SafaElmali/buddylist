@@ -316,7 +316,8 @@ function agents(ctx) {
     note.textContent = [setup?.path && `Executable: ${setup.path}`, setup?.note].filter(Boolean).join('\n');
     note.hidden = !note.textContent;
   };
-  const check = async (provider) => {
+  // `again`: Check again, which first has the app ask where programs are once more, for one installed since.
+  const check = async (provider, again = false) => {
     const token = {};
     checks.set(provider.id, token);
     setups.delete(provider.id);
@@ -325,7 +326,7 @@ function agents(ctx) {
     refreshes.get(provider.id)?.();
     let setup;
     try {
-      setup = await api.providers.status(provider.id);
+      setup = await api.providers.status(provider.id, again);
     } catch (err) {
       setup = { state: 'unknown', note: errorText(err) || 'The check failed. Try Check again.' };
     }
@@ -361,7 +362,7 @@ function agents(ctx) {
         onSave: (path) => use(path),
       });
       const reset = button('Use default', () => use(''));
-      const retry = button('Check again', () => check(provider));
+      const retry = button('Check again', () => check(provider, true));
       const paint = () => {
         reset.disabled = !pathOf(provider);
         retry.disabled = checks.has(provider.id);

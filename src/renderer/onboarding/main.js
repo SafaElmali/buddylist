@@ -65,11 +65,14 @@ async function addProject(way) {
   api.window.close();
 }
 
-/** Asks every CLI how it stands. The page says that it is asking, then what was found. */
-async function checkSetup() {
+/**
+ * Asks every CLI how it stands. The page says that it is asking, then what was found.
+ * @param {boolean} [again]  Check again: where programs are is asked once more first, for one installed since
+ */
+async function checkSetup(again = false) {
   state.setup = null;
   show();
-  state.setup = await api.onboarding.setup();
+  state.setup = await api.onboarding.setup(again);
   show();
 }
 
@@ -88,7 +91,7 @@ async function signIn(id, way) {
 /** "Sign in..." on a line of the check: which way, where its service has more than one. */
 function pickSignIn(id, button) {
   // GitHub's has a code to show, and a dialog for it. However that ends, every CLI is asked again.
-  if (id === GITHUB) return githubDialog().then(checkSetup);
+  if (id === GITHUB) return githubDialog().then(() => checkSetup());
   const ways = state.providers.find((provider) => provider.id === id)?.signIn ?? [];
   if (ways.length === 1) return signIn(id, ways[0].id);
   openMenu(
@@ -127,7 +130,7 @@ const context = () => ({
   feature: state.feature,
   showFeature,
   picture: (avatar) => pictureHtml({ avatar, size: 'tiny' }),
-  recheck: checkSetup,
+  recheck: () => checkSetup(true),
   signIn: pickSignIn,
   cancelSignIn: (id) => api.onboarding.cancelSignIn(id),
   addProject,
