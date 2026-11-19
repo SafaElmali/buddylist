@@ -11,7 +11,7 @@ gemini                              # choose "Sign in with Google"
 
 To use an API key instead, get one from [Google AI Studio](https://aistudio.google.com/app/apikey), set `GEMINI_API_KEY`, run `gemini` and choose **Use Gemini API key**.
 
-It isn't bundled. The app finds `gemini` on your `PATH`; set `BUDDYLIST_GEMINI_CLI` to use a different one.
+It isn't bundled. The app finds `gemini` on your `PATH` (your login shell’s, on a Mac or Linux); set `BUDDYLIST_GEMINI_CLI` to use a different one. Installed it while buddylist was open? **Check again** in **Settings > Services** finds it.
 
 **Add a contact.** Pick **Gemini** as the **Service** in **Add a Contact**.
 

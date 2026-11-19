@@ -1,10 +1,10 @@
 // The pages of the welcome wizard, in the order Next goes through them. Each draws
 // itself from what the window knows; what a click does is the window's to say.
-import { el, html, raw } from '../lib/dom.js';
-import { listNames } from '../lib/format.js';
+import { copyFrom, el, html, raw } from '../lib/dom.js';
+import { listNames, plural } from '../lib/format.js';
 import { buddy, smallIcon, toolbarIcon } from '../lib/icons.js';
 import { DEFAULT_LOOK, LOOKS, schemeOf, themeIn } from '../../shared/theme.js';
-import { readyAgents, setupLook, setupSummary, signInWays } from './setup.js';
+import { pathName, readyAgents, setupLook, setupSummary, signInWays } from './setup.js';
 
 /** @typedef {import('../../main/setup-check.js').SetupItem} SetupItem */
 
@@ -29,6 +29,7 @@ import { readyAgents, setupLook, setupSummary, signInWays } from './setup.js';
  * @property {(index: number) => void} showFeature  show another of them
  * @property {(avatar: string) => string} picture  a service's display picture, as markup
  * @property {() => void} recheck  ask the CLIs again
+ * @property {(id: string) => void} choose  Choose executable... for a service whose program was not found
  * @property {(id: string, button: HTMLElement) => void} signIn  sign a service in, starting at its button
  * @property {(id: string) => void} cancelSignIn  call a service's sign-in off
  * @property {(way: 'open' | 'clone' | 'create') => void} addProject  one of the ways to a project, then its contact
@@ -136,6 +137,27 @@ const signInLine = (item, { running = false, problem = '' } = {}) =>
       </span>`;
 
 /**
+ * Under a service whose program was not found where it was looked for by its name: how many folders that was, and
+ * the two ways forward Settings > Services offers too, installing it, with the command to copy, or choosing where it is.
+ * @param {SetupItem} item
+ */
+const missingLine = ({ id, note, installCommand, looked }) => {
+  const count = looked.folders.length;
+  return html`<span class="ob-agent-note"
+      >Not on ${pathName(looked)} (${count} ${plural(count, 'folder')} looked
+      in).${installCommand ? '' : html` ${note}`}</span
+    >
+    <span class="ob-agent-missing">
+      ${
+        installCommand &&
+        html`<code>${installCommand}</code>
+          <button class="btn" type="button" data-copy-install="${installCommand}">Copy</button>`
+      }
+      <button class="btn" type="button" data-choose="${id}">Choose executable...</button>
+    </span>`;
+};
+
+/**
  * A line of the setup check: who, how it stands, and what to do about it.
  * @param {SetupItem} item
  * @param {PageContext} ctx
@@ -149,7 +171,12 @@ const setupRow = (item, { picture, providers, signIns }) => {
         ><b>${item.name}</b>${item.optional ? html` <span class="ob-optional">(optional)</span>` : ''}</span
       >
       <span class="ob-agent-state">${raw(buddy(presence, 14))} ${label}</span>
-      ${item.note && html`<span class="ob-agent-note">${item.note}</span>`}
+      ${
+        // GitHub's CLI is nobody to talk to, and has no program to choose: it keeps its own words.
+        item.state === 'missing' && item.looked && !item.optional
+          ? missingLine(item)
+          : item.note && html`<span class="ob-agent-note">${item.note}</span>`
+      }
       ${signInWays(item, providers).length ? signInLine(item, signIns[item.id]) : ''}
     </span>
   </li>`;
@@ -157,7 +184,7 @@ const setupRow = (item, { picture, providers, signIns }) => {
 
 /** @param {PageContext} ctx */
 function agents(ctx) {
-  const { setup, recheck, signIn, cancelSignIn } = ctx;
+  const { setup, recheck, signIn, cancelSignIn, choose } = ctx;
   const page = el(
     html`<div>
       <p>
@@ -186,6 +213,12 @@ function agents(ctx) {
   }
   for (const button of /** @type {NodeListOf<HTMLElement>} */ (page.querySelectorAll('[data-cancel-sign-in]'))) {
     button.addEventListener('click', () => cancelSignIn(button.dataset.cancelSignIn));
+  }
+  for (const button of /** @type {NodeListOf<HTMLElement>} */ (page.querySelectorAll('[data-copy-install]'))) {
+    button.addEventListener('click', () => copyFrom(button, button.dataset.copyInstall));
+  }
+  for (const button of /** @type {NodeListOf<HTMLElement>} */ (page.querySelectorAll('[data-choose]'))) {
+    button.addEventListener('click', () => choose(button.dataset.choose));
   }
   return page;
 }

@@ -46,3 +46,15 @@ export const $$ = (selector, root = document) => /** @type {HTMLElement[]} */ ([
 /** Strip Electron's "Error invoking remote method" prefix from IPC errors. */
 export const errorText = (err) =>
   String(err?.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+
+/**
+ * A Copy button's click: `text` goes on the clipboard, and the button says Copied for a moment.
+ * @param {HTMLElement} button
+ * @param {string} text
+ */
+export async function copyFrom(button, text) {
+  await navigator.clipboard.writeText(text);
+  const label = button.textContent;
+  button.textContent = 'Copied';
+  setTimeout(() => (button.textContent = label), 1500);
+}

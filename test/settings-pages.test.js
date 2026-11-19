@@ -192,6 +192,9 @@ test('a service’s line identifies the detected executable, version and bundled
 
 test('a missing or failed service check gives a truthful state and the next step', () => {
   assert.equal(serviceLine({ state: 'missing' }, ''), 'Not installed · Open for setup instructions');
+  // Looked for by its name on the PATH: its line offers to install it, or to choose where it is.
+  const looked = { program: 'codex', folders: ['/usr/bin', '/bin'], shell: 'zsh' };
+  assert.equal(serviceLine({ state: 'missing', looked }, ''), 'Not installed · Install it, or choose where it is');
   assert.equal(serviceLine({ state: 'missing', custom: true }, '/missing/codex'), 'Not found · /missing/codex');
   assert.equal(
     serviceLine({ state: 'unknown', note: 'The check timed out after 8 seconds.' }, ''),

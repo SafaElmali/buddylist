@@ -42,11 +42,29 @@ test('a CLI that leaves with anything else is not signed in, and says how to', a
   assert.deepEqual(await cliSetup(cli, { run }), { state: 'signed-out', note: 'Sign in.' });
 });
 
-test('a CLI that is not there is missing, and says how to get it', async () => {
-  for (const code of ['ENOENT']) {
-    const { run } = leaving({ code });
-    assert.deepEqual(await cliSetup(cli, { run }), { state: 'missing', note: 'Install it.' }, code);
-  }
+test('a CLI that is not there is missing, says how to get it, and where it was looked for', async () => {
+  const { run } = leaving({ code: 'ENOENT' });
+  const mac = { PATH: '/opt/homebrew/bin::/usr/bin', SHELL: '/opt/homebrew/bin/fish' };
+  assert.deepEqual(await cliSetup({ ...cli, env: mac, installCommand: 'npm i -g it' }, { run, platform: 'darwin' }), {
+    state: 'missing',
+    note: 'Install it.',
+    installCommand: 'npm i -g it',
+    looked: { program: 'buddylist-setup-test-cli', folders: ['/opt/homebrew/bin', '/usr/bin'], shell: 'fish' },
+  });
+  // A Mac's login shell is zsh unless SHELL says otherwise, Linux's sh. Windows' PATH is its own, with no shell.
+  const lookedOn = async (env, platform) => (await cliSetup({ ...cli, env }, { run, platform })).looked;
+  assert.equal((await lookedOn({ PATH: '/usr/bin' }, 'darwin')).shell, 'zsh');
+  assert.equal((await lookedOn({ PATH: '/usr/bin' }, 'linux')).shell, 'sh');
+  assert.deepEqual(await lookedOn({ Path: 'C:\\Windows\\system32;"C:\\Program Files\\nodejs";' }, 'win32'), {
+    program: 'buddylist-setup-test-cli',
+    folders: ['C:\\Windows\\system32', 'C:\\Program Files\\nodejs'],
+    shell: '',
+  });
+  // One named by where it is was not looked for, and has no install command when it was given none.
+  assert.deepEqual(await cliSetup({ ...cli, command: '/opt/it/bin/cli', env: mac }, { run, platform: 'darwin' }), {
+    state: 'missing',
+    note: 'Install it.',
+  });
 });
 
 test('a timed out CLI explains why; a missing bundled executable explains how to restore it', async () => {

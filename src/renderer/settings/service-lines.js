@@ -12,7 +12,11 @@ import { currentModel, defaultNamed, effortLabel } from '../../shared/models.js'
 export function serviceLine(setup, path) {
   if (!setup) return 'Checking installation...';
   if (setup.state === 'unknown') return `Couldn’t check · ${setup.note || 'Try Check again.'}`;
-  if (setup.state === 'missing') return path ? `Not found · ${path}` : 'Not installed · Open for setup instructions';
+  if (setup.state === 'missing') {
+    if (path) return `Not found · ${path}`;
+    // Looked for by its name: the open line offers to install it, or to choose where it is (see service-missing.js).
+    return `Not installed · ${setup.looked ? 'Install it, or choose where it is' : 'Open for setup instructions'}`;
+  }
   const status = statusText({ ...setup, custom: false }).text;
   const found = setup.bundled
     ? `Claude Code${setup.version ? ` ${setup.version}` : ''} · Bundled`

@@ -8,7 +8,7 @@ Hermes contacts run the `hermes` installed on your computer, with the same provi
 hermes model
 ```
 
-It isn't bundled. The app finds `hermes` on your `PATH`; set `BUDDYLIST_HERMES_CLI` to use a different one. If Hermes says its ACP dependencies aren't installed, install them the way its message says.
+It isn't bundled. The app finds `hermes` on your `PATH` (your login shell’s, on a Mac or Linux); set `BUDDYLIST_HERMES_CLI` to use a different one. Installed it while buddylist was open? **Check again** in **Settings > Services** finds it. If Hermes says its ACP dependencies aren't installed, install them the way its message says.
 
 **Add a contact.** Pick **Hermes** as the **Service** in **Add a Contact**. Models are named `provider:model`. After your first message the model menu lists the ones from the providers you're signed in to.
 

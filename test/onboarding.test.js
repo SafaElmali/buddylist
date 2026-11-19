@@ -156,3 +156,52 @@ test('the wizard has no picture that none of its pages shows', () => {
   ]);
   for (const file of fs.readdirSync(PICTURES)) assert.ok(shown.has(file), file);
 });
+
+test('a service not found on the PATH offers its install command and Choose executable..., and says how many folders', async (t) => {
+  const { page } = await import('./fixtures/dom.js');
+  const document = page(t);
+  const chosen = [];
+  const copied = [];
+  const own = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', {
+    value: { clipboard: { writeText: async (text) => copied.push(text) } },
+    configurable: true,
+  });
+  t.after(() => (own ? Object.defineProperty(globalThis, 'navigator', own) : delete globalThis.navigator));
+  const looked = { program: 'codex', folders: ['/opt/homebrew/bin', '/usr/bin'], shell: 'zsh' };
+  const setup = [
+    item('codex', 'missing', { note: 'Install it.', installCommand: 'npm install -g @openai/codex', looked }),
+    item('hermes', 'missing', {
+      note: 'Install it from https://example.com.',
+      looked: { ...looked, program: 'hermes' },
+    }),
+    { ...github('missing'), note: 'Get "gh".', looked: { ...looked, program: 'gh' } },
+  ];
+  const drawn = PAGES.find(({ id }) => id === 'agents').draw({
+    setup,
+    providers: [{ id: 'codex' }, { id: 'hermes' }],
+    signIns: {},
+    picture: () => '',
+    recheck() {},
+    signIn() {},
+    cancelSignIn() {},
+    choose: (id) => chosen.push(id),
+  });
+  document.body.append(drawn);
+  const rows = drawn.querySelectorAll('.ob-agent');
+  const words = (row) => row.textContent.replace(/\s+/g, ' ');
+  assert.ok(words(rows[0]).includes('Not on zsh’s PATH (2 folders looked in).'), words(rows[0]));
+  assert.equal(rows[0].querySelector('.ob-agent-missing code').textContent, 'npm install -g @openai/codex');
+  // One with no single command to install it says how instead, and can still be pointed at.
+  assert.ok(words(rows[1]).includes('Install it from https://example.com.'), words(rows[1]));
+  assert.equal(rows[1].querySelector('[data-copy-install]'), null);
+  // GitHub’s CLI is nobody to talk to: it has no program to choose, and keeps its own words.
+  assert.equal(rows[2].querySelector('.ob-agent-missing'), null);
+  assert.ok(words(rows[2]).includes('Get "gh".'));
+
+  rows[0].querySelector('[data-copy-install]').click();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(copied, ['npm install -g @openai/codex']);
+  for (const row of [rows[0], rows[1]]) row.querySelector('[data-choose]').click();
+  assert.deepEqual(chosen, ['codex', 'hermes']);
+});

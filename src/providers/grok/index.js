@@ -7,7 +7,8 @@ import { cliSetup } from '../setup.js';
 
 export { descriptor };
 
-const INSTALL = 'Install it with "curl -fsSL https://x.ai/cli/install.sh | bash"';
+const INSTALL_COMMAND = 'curl -fsSL https://x.ai/cli/install.sh | bash';
+const INSTALL = `Install it with "${INSTALL_COMMAND}"`;
 const NOT_INSTALLED = `Couldn’t find Grok Build. ${INSTALL}, run "grok login", then send your message again.`;
 const NEVER_ASKS = 'yolo';
 
@@ -77,6 +78,7 @@ export function createGrokProvider({ cliPath = () => '', tools = () => [] } = {}
         signedOut: /^You are not authenticated\./m,
         version: true,
         install: `${INSTALL}, then run "grok login".`,
+        installCommand: INSTALL_COMMAND,
         signIn: 'Open Terminal and run "grok login" (or set XAI_API_KEY).',
       }),
   };

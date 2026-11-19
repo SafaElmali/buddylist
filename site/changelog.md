@@ -13,6 +13,7 @@ version into package.json and package-lock.json in the release prep PR.
 
 ## v0.7.8
 
+- **Check again finds a program you just installed** — Codex, Gemini, OpenCode, Hermes or Grok installed while buddylist was open stayed **Not installed** until you quit and opened it again. **Check again**, in **Settings > Services** and in the welcome wizard, now reads your PATH again first, and new conversations use it. buddylist also no longer misses your PATH when your shell’s start-up files are slow or end with an error. One that is still not found says where buddylist looked, with its install command to copy and **Choose executable...** for one installed somewhere else, in Settings and in the welcome wizard.
 - **No more empty projects named after a worker’s folder** — Deleting a worker whose worktree you removed, or whose repository is gone, left an empty project behind for each one, such as **shop-2 (0)** and **shop-3 (0)**. Its contact now stays on its own project, as the list showed it, and nothing new is kept. Projects you added yourself still stay when nobody is on them. Ones left over from before are gone the next time buddylist starts.
 
 ## v0.7.7 — 2026-11-19

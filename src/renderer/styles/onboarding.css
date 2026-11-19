@@ -198,6 +198,22 @@
   cursor: text;
 }
 
+/* A program not found: its install command to copy, and Choose executable... */
+.ob-agent-missing {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.ob-agent-missing code {
+  margin-right: 2px;
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+
 /* Signing in from here: the way in, or how that is going. */
 .ob-agent-signin {
   grid-column: 1 / -1;

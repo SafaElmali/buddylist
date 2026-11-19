@@ -8,6 +8,9 @@ import { cliSetup } from '../setup.js';
 
 export { descriptor };
 
+/** What installs it, for the user to copy. */
+const INSTALL_COMMAND = 'npm install -g @openai/codex';
+
 /**
  * @param {object} [opts]
  * @param {(conversation: string, speakerId: string, seat?: import('../../main/app-tools.js').Seat) => import('../../main/app-tools.js').AppTool[]} [opts.tools]
@@ -38,7 +41,8 @@ export function createCodexProvider({ cliPath = () => '', tools = () => [] } = {
         command: cli(),
         args: ['login', 'status'],
         version: true,
-        install: 'Install it with "npm install -g @openai/codex", then run "codex login".',
+        install: `Install it with "${INSTALL_COMMAND}", then run "codex login".`,
+        installCommand: INSTALL_COMMAND,
         signIn: 'Open Terminal and run "codex login" (or set OPENAI_API_KEY).',
       }),
   };

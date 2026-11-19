@@ -7,6 +7,8 @@ import { cliSetup } from '../setup.js';
 
 export { descriptor };
 
+/** What installs it, for the user to copy. */
+const INSTALL_COMMAND = 'npm install -g opencode-ai';
 const NOT_INSTALLED =
   'Couldn’t find opencode. Install it with "npm install -g opencode-ai", run "opencode auth login", then send your message again.';
 
@@ -55,7 +57,8 @@ export function createOpencodeProvider({ cliPath = () => '', tools = () => [] } 
       cliSetup({
         command: cli(),
         args: ['--version'],
-        install: 'Install it with "npm install -g opencode-ai", then run "opencode auth login".',
+        install: `Install it with "${INSTALL_COMMAND}", then run "opencode auth login".`,
+        installCommand: INSTALL_COMMAND,
         signIn: 'Open Terminal and run "opencode" to see what is wrong with it.',
         ready: 'Installed. Whether it is signed in shows with your first message.',
       }),

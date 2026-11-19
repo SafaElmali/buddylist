@@ -30,14 +30,16 @@ Each choice changes every window at once, the wizard too, and is kept. It is the
 
 The page lists every service, and the GitHub CLI, the way the contact list shows a contact:
 
-| It says                     | Meaning                                                                  |
-| --------------------------- | ------------------------------------------------------------------------ |
-| 🟢 **Ready**                | Installed and signed in.                                                 |
-| 🟠 **Not signed in**        | Installed, without a sign-in. The line says how to sign it in.           |
-| ⚪ **Not installed**        | Its command-line program was not found. The line says how to install it. |
-| ⚪ **Could not be checked** | It did not answer within a few seconds.                                  |
+| It says              | Meaning                                                                  |
+| -------------------- | ------------------------------------------------------------------------ |
+| 🟢 **Ready**         | Installed and signed in.                                                 |
+| 🟠 **Not signed in** | Installed, without a sign-in. The line says how to sign it in.           |
+| ⚪ **Not installed** | Its command-line program was not found. The line says how to install it. |
 
-One agent that is ready is enough to start. **Check again** asks them all once more, after you installed one or signed in.
+A service that is **Not installed** says how many folders of your PATH were looked in, and offers its install command with **Copy**, and **Choose executable...** for one installed somewhere else. The program you choose is kept as **Settings > Services** keeps one, under **Use a different installation**.
+| ⚪ **Could not be checked** | It did not answer within a few seconds. |
+
+One agent that is ready is enough to start. **Check again** asks them all once more, after you installed one or signed in. It reads your PATH again first, so an agent installed while the wizard is open is found without restarting buddylist.
 
 - **Claude** comes with the app, so it is only ever signed in or not, and it is [signed in from this page](#signing-in-to-claude). A sign-in from `claude` in a terminal counts too, and so does `ANTHROPIC_API_KEY`.
 - **Codex** is asked with `codex login status`.
