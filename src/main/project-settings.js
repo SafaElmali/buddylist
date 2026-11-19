@@ -14,7 +14,7 @@ import {
   projectSettings,
   takenFromFile,
 } from '../shared/project-settings.js';
-import { THIS_COMPUTER, onComputer } from '../shared/projects.js';
+import { THIS_COMPUTER, inWorktree, onComputer, projectName } from '../shared/projects.js';
 import { execToolSync } from './git-command.js';
 import { describeProject, describeProjectSync, projectOfKey, suggestScripts } from './run-command.js';
 
@@ -104,10 +104,14 @@ export class Projects {
    */
   #known = new Map();
 
+  /** Where contacts' worktrees go, and went before the app was renamed. @type {string[]} */
+  #homes;
+
   /**
    * @param {object} deps
    * @param {Pick<import('./storage/store.js').Store, 'settings' | 'contacts' | 'projects' | 'getProject' | 'updateProject'>} deps.store
    * @param {string} deps.worktreesHome  where contacts' worktrees go
+   * @param {string | null} [deps.oldWorktreesHome]  where they went before the app was renamed, for the ones still there
    * @param {string} [deps.computerHome]  where the folders of the contacts on This computer go (see main/computer.js):
    *   they all share one project, named This computer. Nobody is on This computer when left out
    * @param {typeof describeProject} [deps.describe]  stand-ins for tests: how a folder's project is found,
@@ -116,12 +120,14 @@ export class Projects {
   constructor({
     store,
     worktreesHome,
+    oldWorktreesHome = null,
     computerHome = '',
     describe = describeProject,
     describeNow = describeProjectSync,
   }) {
     this.store = store;
     this.worktreesHome = worktreesHome;
+    this.#homes = [worktreesHome, oldWorktreesHome].filter(Boolean);
     /**
      * The project of every contact on This computer: what they are told and started with is on one page of
      * Settings, not on one for each. Its key is where their folders go as it is written, so that it stays the
@@ -132,8 +138,24 @@ export class Projects {
       ? { key: `dir:${path.resolve(computerHome)}`, name: THIS_COMPUTER, root: path.resolve(computerHome) }
       : null;
     const computer = (cwd) => (this.computer && onComputer(cwd, computerHome, os.homedir()) ? this.computer : null);
-    this.describe = async (cwd) => computer(cwd) ?? describe(cwd);
-    this.describeNow = (cwd) => computer(cwd) ?? describeNow(cwd);
+    this.describe = async (cwd) => computer(cwd) ?? this.#copyOf(cwd, await describe(cwd));
+    this.describeNow = (cwd) => computer(cwd) ?? this.#copyOf(cwd, describeNow(cwd));
+  }
+
+  /**
+   * A worktree made here is a copy of its project, never a project of its own. Once git can't say which, its folder
+   * or its repository gone, it is the project its folder in the worktrees home is named after, as the contact list
+   * lists it: the repository of that name something is kept about, or a folder was found to be part of. Otherwise
+   * it stays the folder that git said, which is never kept (see keep).
+   * @param {string} cwd
+   * @param {Project} project  what git said of it
+   * @returns {Project}
+   */
+  #copyOf(cwd, project) {
+    if (!project.key.startsWith('dir:') || !inWorktree(cwd, ...this.#homes)) return project;
+    const name = projectName(cwd, ...this.#homes);
+    const known = [...Object.keys(this.store.projects).map(projectOfKey), ...this.#known.values()];
+    return known.find((one) => one.key.startsWith('git:') && one.name === name) ?? project;
   }
 
   /** The project a folder is part of, found without holding up the app, and kept. @param {string} cwd */
@@ -291,11 +313,13 @@ export class Projects {
 
   /**
    * Keeps a project in the contact list once its contacts are deleted: something is kept about it from then on, if
-   * nothing was, and only Remove project forgets it (see empty). This computer is listed without.
+   * nothing was, and only Remove project forgets it (see empty). This computer is listed without. So is a worktree's
+   * own folder, which is never a project the user added (see #copyOf).
    * @param {string} key
    */
   keep(key) {
     if (key === this.computer?.key || this.store.getProject(key)) return;
+    if (key.startsWith('dir:') && inWorktree(projectOfKey(key).root, ...this.#homes)) return;
     this.store.updateProject(key, {});
   }
 

@@ -11,6 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
+## v0.7.8
+
+- **No more empty projects named after a worker’s folder** — Deleting a worker whose worktree you removed, or whose repository is gone, left an empty project behind for each one, such as **shop-2 (0)** and **shop-3 (0)**. Its contact now stays on its own project, as the list showed it, and nothing new is kept. Projects you added yourself still stay when nobody is on them. To clear ones left over from before, right-click each and choose **Remove project...**.
+
 ## v0.7.7 — 2026-11-19
 
 - **Workers go by their task alone** — A conversation a manager starts, or one you add under a manager, is now named after its task, such as **cart-total-rounding**, without **Claude (…)** in front, so its row has room for the work. A worker on another service than its manager’s shows which in a small label beside its name, such as **Codex**, and every contact’s card says its service and model. Your other contacts, and names you typed yourself, stay as they are.
