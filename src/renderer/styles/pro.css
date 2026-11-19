@@ -1659,12 +1659,12 @@
     font-weight: 400;
   }
 
-  /* Under the name and lined up with it, on one line: Opus 5.5 · High · Fast · Never asks. A long
-     model name is the one cut short. */
+  /* Under the name and lined up with it, on one line: Opus 5.5 · High · Fast · Never asks. The model's name is never
+     the one cut short: the effort level and the mode after it give way. */
   & .roster-settings {
     grid-column: 2 / -1;
     display: grid;
-    grid-template-columns: minmax(0, max-content) repeat(3, max-content);
+    grid-template-columns: max-content repeat(3, minmax(0, max-content));
     justify-content: start;
     justify-items: start;
     gap: 2px 12px;
@@ -2858,9 +2858,32 @@
     line-height: 22px;
   }
 
-  /* Only a model's name is long enough to cut short; the dot before the others stays in sight. */
+  /* They are cut short inside, so the dot before each stays in sight. */
   & .roster-settings :is(.mode-badge, .effort-badge, .fast-badge) {
+    justify-self: stretch;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
     overflow: visible;
+  }
+
+  & .roster-settings :is(.mode-badge, .effort-badge, .fast-badge) > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  & .roster-settings .fast-badge svg {
+    flex: none;
+  }
+
+  /* While its session answers with another model than it was given: who switched it, and the way back. */
+  & .roster-switched {
+    grid-column: 2 / -1;
+    color: var(--text-faint);
+    font-size: 12px;
   }
 
   /* In a pane as narrow as it opens, "Fast" would leave the model's name a letter: the bolt says it. */
@@ -2885,7 +2908,7 @@
   /* At the pane's smallest widths, keep the model readable and give permissions their own line. */
   @container (max-width: 290px) {
     & .roster-settings {
-      grid-template-columns: minmax(0, max-content) repeat(2, max-content);
+      grid-template-columns: max-content repeat(2, minmax(0, max-content));
     }
 
     & .roster-settings > .mode-badge {

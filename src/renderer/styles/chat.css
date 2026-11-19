@@ -788,6 +788,23 @@
   text-overflow: ellipsis;
 }
 
+/* Under an agent's badges, while its session answers with another model than the one it was given: who switched it,
+   and the way back to that one. */
+.roster-switched {
+  grid-column: 1 / -1;
+  color: var(--text-faint, #808a99);
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+.link:is(.roster-back, .model-back) {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-style: normal;
+}
+
 /* Under the rows: how they reply, taking turns or all at once. It is about all of them. */
 .roster-turns {
   flex: none;
@@ -6859,8 +6876,18 @@ button.session-row:hover,
   white-space: nowrap;
 }
 
+/* Beside the model's badge, the mode is cut short before the model's name is. */
 .compose-tools .mode-badge {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: max-content;
+}
+
+.compose-tools .mode-badge > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* The badges of a contact on its own, at the end of the buttons' line: its model, with the
@@ -6909,8 +6936,8 @@ button.session-row:hover,
   }
 }
 
-/* A model typed in by hand can have a long name: it is the one that gives way, and the bolt
-   of fast mode after it stays. */
+/* The model's name is never the one cut short: the effort level after it gives way first, as the mode beside it
+   does, and the bolt of fast mode stays. Only a name typed in by hand that is longer than the line is cut. */
 #model-badge {
   flex: 0 1 auto;
   min-width: 0;
@@ -6919,7 +6946,17 @@ button.session-row:hover,
   gap: 3px;
 }
 
-#model-badge span {
+#model-badge .badge-model {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* It shrinks a thousand times as fast as the model's name: that is cut only once it is gone. */
+#model-badge .badge-effort {
+  flex: 0 1000 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }

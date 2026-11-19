@@ -5,7 +5,15 @@ import { buddy, smallIcon, tagIcon, toolbarIcon } from '../lib/icons.js';
 import { pictureHtml } from '../lib/pictures.js';
 import { modelsOf } from '../contacts/models.js';
 import { serviceTagHtml } from '../contacts/rows.js';
-import { answeringBadge, effortName, effortTitle, fastModeBadge, modelName, modelsFor } from './models.js';
+import {
+  answeringBadge,
+  effortName,
+  effortTitle,
+  fastModeBadge,
+  modelName,
+  modelsFor,
+  switchedFrom,
+} from './models.js';
 import {
   buddyStatus,
   cantRemove,
@@ -47,7 +55,8 @@ function drawOnce(node, key, draw) {
 function paintMode(badge, participant, title) {
   const mode = modeOf(participant);
   badge.className = `mode-badge ${mode.id}${mode.danger ? ' danger' : ''}`;
-  badge.textContent = mode.short;
+  // In a span, which is cut short before the model's name is (see the badges' styles).
+  badge.replaceChildren(textSpan(mode.short));
   badge.title =
     title(mode) +
     (participant.readOnly ? ' This agent remains read-only; its approval mode does not allow file changes.' : '');
@@ -80,7 +89,7 @@ function paintModel(model, effort, fast, who, folder, hidden = false) {
   model.textContent = name;
   model.title = `Model: ${name}`;
   effort.hidden = hidden || !level;
-  effort.textContent = level || '';
+  effort.replaceChildren(textSpan(level || ''));
   effort.title = effortTitle(who, level);
   paintFast(fast, fastModeBadge(who, catalog), hidden);
 }
@@ -95,14 +104,27 @@ function paintModel(model, effort, fast, who, folder, hidden = false) {
  * @param {boolean} service  it is a project's manager: the badge switches its service too
  */
 function paintAnswering(badge, who, folder, hidden, service) {
-  const { label, bolt, held, title } = answeringBadge(who, knownModels(who, folder).catalog, { service });
+  const { label, model, effort, bolt, held, title } = answeringBadge(who, knownModels(who, folder).catalog, {
+    service,
+  });
   badge.hidden = hidden;
   badge.title = title;
   badge.classList.toggle('held', held);
+  // The model's name and the effort level apart: the level is the one cut short (see the badges' styles).
   drawOnce(badge, `${label}\n${bolt}`, () => {
-    badge.replaceChildren(...el(html`<div><span>${label}</span>${raw(bolt ? smallIcon.bolt() : '')}</div>`).childNodes);
+    badge.replaceChildren(
+      ...el(
+        html`<div>
+          <span class="badge-model">${model}</span
+          >${effort ? html`<span class="badge-effort"> · ${effort}</span>` : ''}${raw(bolt ? smallIcon.bolt() : '')}
+        </div>`
+      ).childNodes
+    );
   });
 }
+
+/** Text a badge can cut short on its own, with an ellipsis, while what is beside it stays whole. */
+const textSpan = (text) => Object.assign(document.createElement('span'), { textContent: text });
 
 /**
  * The fast mode badge, for a model that has fast mode: a bolt and "Fast", that turn it on and off.
@@ -293,8 +315,27 @@ function rosterRow(p, { group, ...leaving }) {
         <button class="mode-badge" type="button" data-id="${p.id}"></button>
         <span class="roster-paused">Paused</span>
       </div>
+      <div class="roster-switched" hidden>
+        <span class="roster-switched-note"></span> ·
+        <button class="link roster-back" type="button" data-id="${p.id}"></button>
+      </div>
     </div>`
   );
+}
+
+/**
+ * Under someone's badges in the Agents tab, while its session answers with another model than the one it was given:
+ * who switched it, from which, and the way back, "Claude Code switched from Opus 5.5 · Use Opus 5.5 again".
+ * @param {HTMLElement} line
+ * @param {Participant} who
+ * @param {string} folder  the conversation's
+ */
+function paintSwitched(line, who, folder) {
+  const switched = who.switched && switchedFrom(who, knownModels(who, folder).catalog);
+  line.hidden = !switched;
+  if (!switched) return;
+  $('.roster-switched-note', line).textContent = switched.note;
+  $('.roster-back', line).textContent = switched.back;
 }
 
 /** Under the rows of several agents: how they reply, both ways to choose from, and what the chosen one does. */
@@ -363,6 +404,7 @@ export function renderParticipants(ctx) {
       note.hidden = !role.text;
       paintMode($('.mode-badge', row), p, (mode) => `${p.name}: ${mode.label}`);
       paintModel($('.model-badge', row), $('.effort-badge', row), $('.fast-badge', row), p, ctx.contact.cwd);
+      paintSwitched($('.roster-switched', row), p, ctx.contact.cwd);
     }
     if (group) {
       const choices = turnTakingChoices(ctx.contact.atOnce);

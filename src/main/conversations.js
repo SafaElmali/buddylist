@@ -357,6 +357,12 @@ export class Conversations {
   /** hostId -> speakerId -> { used, size }: each session's own context window in this conversation */
   #context = new Map();
   /**
+   * hostId -> speakerId -> the model a session switched itself to, and who did, as Claude Code does after a
+   * refusal: it answers with it instead of the one it was given, until it is given one again (see Participant.switched)
+   * @type {Map<string, Map<string, { model: string, by: string }>>}
+   */
+  #switched = new Map();
+  /**
    * hostId -> what its window was last told of the user's messages that wait, with their ids (see `#tellWaiting`)
    * @type {Map<string, { count: number, inLine: boolean, ids: string[] }>}
    */
@@ -961,6 +967,9 @@ export class Conversations {
         provider,
         permissionMode,
         ...this.#answersWith(contact),
+        ...(this.#switched.get(contactId)?.has(contact.id) && {
+          switched: this.#switched.get(contactId).get(contact.id),
+        }),
         // A level an agent here picked for it comes before its own, in this conversation.
         ...(effort && { effort, effortPicked: true }),
         state: states?.get(contact.id)?.state || 'offline',
@@ -989,6 +998,33 @@ export class Conversations {
     // On its own, a contact answers whatever you say: there is nobody else to. A pause left from before says nothing.
     const own = { permissionMode: host.permissionMode, paused: Boolean(host.paused) && guests.length > 0 };
     return [participant(host, own), ...guests.map(({ contact, entry }) => participant(contact, entry))];
+  }
+
+  /**
+   * What a conversation says of a session that switched itself to another model: in the words of whoever switched it,
+   * where it gave any, else that it did, naming both models as the service's own list does.
+   * @param {Extract<import('../providers/contract.js').SessionEvent, { type: 'model-switch' }>} event
+   * @param {Contact} who
+   */
+  #switchedText({ text, model, from, by, session }, who) {
+    if (text) return text;
+    const named = (id) => this.modelLabel(who.provider, id);
+    return (
+      `${by || 'Its service'} switched to ${named(model)}${from ? ` from ${named(from)}` : ''}, ` +
+      (session ? 'and goes on with it in this session.' : 'for this reply.')
+    );
+  }
+
+  /**
+   * A model's name as its service's list gives it, as far as the app knows it at once: "Sonnet 5.5". The id it was
+   * given where the list doesn't have it, and '' for none.
+   * @param {string} providerId
+   * @param {string} model  by its id; '' for the service's default
+   */
+  modelLabel(providerId, model) {
+    if (!model) return '';
+    const catalog = modelCatalog(this.providers.descriptor(providerId), this.providers.knownModels?.(providerId));
+    return currentModel({ model, defaultModel: null }, catalog)?.label || model;
   }
 
   /**
@@ -1624,6 +1660,7 @@ export class Conversations {
     this.#checkIns.get(hostId)?.delete(guestId);
     this.#background.get(hostId)?.delete(guestId);
     this.#context.get(hostId)?.delete(guestId);
+    this.#switched.get(hostId)?.delete(guestId);
     this.#lastReply.get(hostId)?.delete(guestId);
     // One made for this conversation alone is on no contact list to go back to: it is deleted.
     if (guestOf) {
@@ -3661,6 +3698,10 @@ export class Conversations {
     const contact = this.store.getContact(contactId);
     if (!contact?.manages) throw new Error('Only a manager can switch services here.');
     if (contact.provider === provider.id && !fallback) return;
+    // Named by its model where it stays with its service, as a fallback of Claude's own does: "now uses Sonnet 5.5".
+    const label = this.modelLabel(provider.id, model);
+    const uses =
+      contact.provider === provider.id ? label || provider.name : `${provider.name}${label ? ` (${label})` : ''}`;
     const permissionMode =
       fallback?.permissionMode ??
       pickedMode ??
@@ -3689,7 +3730,7 @@ export class Conversations {
     this.#rejoinAsAnotherAgent(contactId, provider);
     this.#notice(
       contactId,
-      `${contact.name} now uses ${provider.name}. The conversation, brief, sources and assigned conversations are kept.`,
+      `${contact.name} now uses ${uses}. The conversation, brief, sources and assigned conversations are kept.`,
       { sessionReset: true }
     );
     this.onHistoryChanged(contactId);
@@ -3900,6 +3941,7 @@ export class Conversations {
       this.#commands,
       this.#outputStyles,
       this.#context,
+      this.#switched,
       this.#waitingTold,
       this.#unread,
       this.#notes,
@@ -5238,6 +5280,12 @@ export class Conversations {
           stopped: event.stopped,
           errorText: event.errorText,
           ...(event.usageLimited && { usageLimited: true }),
+          // A model's own limit: which, when it resets, and another model that still answers.
+          ...(event.limitModel && {
+            limitModel: event.limitModel,
+            ...(event.otherModel && { otherModel: event.otherModel }),
+            ...(event.limitResetsAt && { limitResetsAt: event.limitResetsAt }),
+          }),
           // Stopped at the plan's limit: its window offers to let it use usage credits, or switch account.
           ...(event.planLimit && { planLimit: event.planLimit }),
           durationMs: event.durationMs,
@@ -5267,6 +5315,26 @@ export class Conversations {
       case 'notice':
         this.history.append(hostId, { kind: 'notice', text: event.text, ...by });
         break;
+      case 'model-switch': {
+        // It answers with another model than the one it was given, until it is given one again: whoever looks at
+        // what it answers with sees that one.
+        if (event.session) {
+          if (event.model) inner(this.#switched, hostId).set(speaker, { model: event.model, by: event.by || '' });
+          else this.#switched.get(hostId)?.delete(speaker);
+          this.#tellParticipants(hostId);
+        }
+        // And the conversation says so where it happened, in the words of whoever switched it where it gave any.
+        if (!event.model) break;
+        const modelSwitch = { model: event.model, from: who.model, session: event.session, ...by };
+        saved = this.history.append(hostId, {
+          kind: 'notice',
+          text: this.#switchedText(event, who),
+          modelSwitch,
+          ...by,
+        });
+        this.chats.send(hostId, { type: 'notice', text: saved.text, modelSwitch, entryId: saved.id, speaker });
+        break;
+      }
       case 'error':
         this.history.append(hostId, { kind: 'error', text: event.message, ...by });
         this.#notify(host, {
@@ -5282,7 +5350,7 @@ export class Conversations {
     }
     // A window follows each participant by `speaker`, and the conversation as a whole by `overall`.
     // How many messages wait it is told for the conversation as one, below, and the limits each window on the login, above.
-    if (event.type !== 'waiting' && event.type !== 'limits') {
+    if (event.type !== 'waiting' && event.type !== 'limits' && event.type !== 'model-switch') {
       this.chats.send(hostId, {
         ...event,
         ...(event.type === 'state' && { overall: this.#state(hostId) }),

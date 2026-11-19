@@ -22,6 +22,7 @@ import { actionRow, copyAction } from './message-actions.js';
 import { QueueTray } from './queue-tray.js';
 import { handoffCard, paintHandoffCard } from './handoff-card.js';
 import { limitSuggestion } from './limit-suggestion.js';
+import { resetText } from '../../shared/usage.js';
 import { planLimitChoices } from './plan-limit.js';
 import { byline, sentMarks, speakerOf } from './participants.js';
 import { addWorked, forkAction } from './reply-actions.js';
@@ -194,6 +195,8 @@ export class Conversation {
    * @param {{ copy?: (text: string) => Promise<void>, rewind?: (message: Sent) => void, edit?: (message: Sent) => void,
    *   fork?: (id: string) => Promise<void>, sendNow?: (id: string) => Promise<void>, cancel?: (message: Sent) => Promise<void>,
    *   invite?: () => Promise<void>, openTag?: (id: string) => void,
+   *   switchedBack?: (speaker: string) => ({ back: string, go: () => void } | null),
+   *   modelOf?: (speaker: string, model: string) => { label: string, use: () => unknown },
    *   handoffs?: import('./handoff-card.js').HandoffActions,
    *   tray?: { root: HTMLElement, said: HTMLElement, away: () => void } }} [opts]
    *   `handoffs`: what the card that lets a manager send more does (see handoff-card.js). Without it, as in the message
@@ -202,6 +205,10 @@ export class Conversation {
    *   message-actions.js), and `fork` what Fork chat from here under a reply does, with the reply's id. Without
    *   them, as in the message history, messages have no row under them.
    *   `sendNow` and `cancel`: what Send now and Cancel on one that waits do, and `edit` what its Edit does.
+   *   `switchedBack`: the way back to the model a participant was given, by its id, while its session answers with
+   *   another it switched to itself (see #addSwitch). Without it, as in the message history, there is none.
+   *   `modelOf`: a model of a participant's service, by its id: its name, and the way to have it answer with it, as a
+   *   limit of one model's own offers another (see limitSuggestion)
    *   `tray`: where what waits is shown, over the message box (see queue-tray.js), with what reads its changes out,
    *   and where the focus goes once it has gone. Without it, as in the message history, nothing is shown waiting
    *   `openTag`: what a click on a conversation a message tags does, with that conversation's id. Without it,
@@ -210,7 +217,22 @@ export class Conversation {
   constructor(
     root,
     ctx,
-    { copy, rewind, edit, fork, sendNow, cancel, invite, switchManager, planLimit, handoffs, openTag, tray } = {}
+    {
+      copy,
+      rewind,
+      edit,
+      fork,
+      sendNow,
+      cancel,
+      invite,
+      switchManager,
+      switchedBack,
+      modelOf,
+      planLimit,
+      handoffs,
+      openTag,
+      tray,
+    } = {}
   ) {
     this.root = root;
     this.ctx = ctx;
@@ -222,6 +244,8 @@ export class Conversation {
     this.fork = fork;
     this.invite = invite;
     this.switchManager = switchManager;
+    this.switchedBack = switchedBack;
+    this.modelOf = modelOf;
     this.planLimit = planLimit;
     this.handoffs = handoffs;
     this.openTag = openTag;
@@ -1035,6 +1059,7 @@ export class Conversation {
     // In the message history, which can't, it is the line it is kept as.
     const id = entry.id ?? entry.entryId;
     if (entry.handoffs && id && this.handoffs) return this.append(handoffCard(id, entry.handoffs, this.handoffs));
+    if (entry.modelSwitch) return this.#addSwitch(text, entry);
     const node = this.line('notice', '', text);
     if (entry.managerNote) {
       node.classList.add('manager-note');
@@ -1056,6 +1081,39 @@ export class Conversation {
       if (entryId && node.dataset.entry !== entryId) continue;
       const shown = card ?? JSON.parse(node.dataset.card);
       paintHandoffCard(node, shown, this.handoffs.contact(shown.to));
+    }
+  }
+
+  /**
+   * A session answers with another model than the one it was given, which it switched to itself: said where it
+   * happened, under the name of whoever it is in a conversation with several, with the way back to the one it was
+   * given while it still answers with the other (see refreshSwitches).
+   * @param {string} text
+   * @param {{ modelSwitch: { session: boolean }, speaker?: string, speakerName?: string }} entry
+   */
+  #addSwitch(text, entry) {
+    const node = this.line('notice', '', `${byline(this.ctx.participants, entry)}${text}`);
+    if (!entry.modelSwitch.session || !this.switchedBack) return node;
+    const back = el(html`<button class="link model-back" type="button" hidden></button>`);
+    back.dataset.speaker = entry.speaker || this.ctx.contactId;
+    back.addEventListener('click', () => this.switchedBack(back.dataset.speaker)?.go());
+    this.keepPinned(() => node.querySelector('.line > span').append(' ', back));
+    this.refreshSwitches();
+    return node;
+  }
+
+  /**
+   * The way back to the model each agent was given, on the newest line that says its session switched to another,
+   * while it still answers with that one.
+   */
+  refreshSwitches() {
+    const seen = new Set();
+    for (const back of [...this.root.querySelectorAll('.model-back')].reverse()) {
+      const { speaker } = back.dataset;
+      const switched = !seen.has(speaker) && this.switchedBack?.(speaker);
+      seen.add(speaker);
+      back.hidden = !switched;
+      if (switched) back.textContent = switched.back;
     }
   }
 
@@ -1132,7 +1190,14 @@ export class Conversation {
       if (old.closest('.event')?.dataset.speaker === speaker) old.remove();
     if (stopped) return this.line('result', '', `${who}Stopped.`);
     if (result.usageLimited) {
-      const node = this.line('result error', smallIcon.warn(), `${who}${errorText || 'Usage limit reached.'}`);
+      // A model's own limit says which model, and when it resets: another model of the service's still answers.
+      const limited = result.limitModel && this.modelOf?.(speaker, result.limitModel);
+      const other = limited && result.otherModel ? this.modelOf(speaker, result.otherModel) : null;
+      const resets = result.limitResetsAt ? resetText(result.limitResetsAt) : '';
+      const said = limited
+        ? `${limited.label}’s ${result.limitKind === 'weekly' ? 'weekly ' : ''}limit is reached.${resets ? ` ${resets}.` : ''}`
+        : errorText || 'Usage limit reached.';
+      const node = this.line('result error', smallIcon.warn(), `${who}${said}`);
       if (result.planLimit && this.planLimit) {
         node.dataset.speaker = speaker;
         this.keepPinned(() =>
@@ -1148,7 +1213,7 @@ export class Conversation {
         this.keepPinned(() =>
           node
             .querySelector('.line > span')
-            .append(limitSuggestion(this.invite, this.ctx.contact?.manages ? this.switchManager : null))
+            .append(limitSuggestion(this.invite, this.ctx.contact?.manages ? this.switchManager : null, other))
         );
       return node;
     }
