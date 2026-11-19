@@ -301,6 +301,8 @@ a:hover,
   background: var(--menu-bg, #fff);
   box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.32);
   animation: popup-in 0.1s ease-out;
+  /* A menu opened up to the top of the window covers the title bar: pressed there, it doesn't move the window. */
+  -webkit-app-region: no-drag;
 }
 
 @keyframes popup-in {
@@ -411,6 +413,8 @@ a:hover,
   padding: 0 3px 3px;
   box-shadow: 3px 4px 14px rgba(0, 20, 60, 0.45);
   animation: dialog-in 0.14s ease-out;
+  /* As a menu: a dialog as tall as its window covers the title bar. */
+  -webkit-app-region: no-drag;
 }
 
 @keyframes dialog-in {

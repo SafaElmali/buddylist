@@ -41,6 +41,13 @@ body {
 }
 
 /* ---- title bar ------------------------------------------------------------------------- */
+/* Only a box a rule names says whether the window moves from it. app-region is passed down, and each box with one
+   counts whole, scrolled out of sight or not: rows scrolled up out of a list would lay no-drag over the title bar.
+   `initial`, as Electron's Chromium reads `none` as no-drag. */
+* {
+  -webkit-app-region: initial;
+}
+
 .titlebar {
   -webkit-app-region: drag;
   flex: none;

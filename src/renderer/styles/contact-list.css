@@ -810,6 +810,8 @@
 /* Unless it has a link to click, such as the branch's pull request. Then the mouse can move onto it. */
 .contact-card.has-link {
   pointer-events: auto;
+  /* And, over the title bar, takes the click rather than moving the window. */
+  -webkit-app-region: no-drag;
 }
 
 .cc-box {
