@@ -165,6 +165,10 @@ export class Relay {
   #toldLater = new Map();
   /** The agents who know who else is here. */
   #introduced = new Set();
+  /** agent id -> the user's messages with pictures it was told of, whose pictures are still to go with a turn of its */
+  #owed = new Map();
+  /** agent id -> the user's messages whose pictures it was sent, by id: it is never sent them again */
+  #had = new Map();
 
   /** Someone joined, left, changed name or was paused or resumed: everyone is told again who is here. */
   rosterChanged() {
@@ -193,6 +197,36 @@ export class Relay {
     this.#told.delete(id);
     this.#toldLater.delete(id);
     this.#introduced.delete(id);
+    this.#owed.delete(id);
+    this.#had.delete(id);
+  }
+
+  /**
+   * `id` was sent the pictures of these messages of the user's, with what it was asked: it is not sent them again.
+   * @param {string} id
+   * @param {string[]} said  the messages, by id
+   */
+  had(id, said) {
+    if (!said.length) return;
+    if (!this.#had.has(id)) this.#had.set(id, new Set());
+    for (const one of said) this.#had.get(id).add(one);
+  }
+
+  /**
+   * The user's messages with pictures that `id` was told of, and hasn't been sent the pictures of: whoever answers
+   * after a message gets its pictures, also when it wasn't asked it. They go with its turn now, so it has had them.
+   * @param {string} id
+   * @returns {HistoryEntry[]}  in the order they were said
+   */
+  pictures(id) {
+    const had = this.#had.get(id);
+    const owed = (this.#owed.get(id) ?? []).filter((entry) => !had?.has(entry.id));
+    this.#owed.delete(id);
+    this.had(
+      id,
+      owed.map((entry) => entry.id)
+    );
+    return owed;
   }
 
   /**
@@ -251,11 +285,14 @@ export class Relay {
     const news = all.filter(told);
     // What the user asked the manager alone here is no message to answer here.
     const asked = entries.findLast((entry) => fromUser(entry) && told(entry) && !entry.onlyManager)?.text ?? '';
+    const yours = news.filter((entry) => fromUser(entry) && !entry.onlyManager);
+    // Their pictures are owed to it (see `pictures`).
+    const pictured = yours.filter((entry) => entry.pictures?.length);
+    if (pictured.length) this.#owed.set(to.id, [...(this.#owed.get(to.id) ?? []), ...pictured]);
     if (alone) {
       this.caughtUp(to.id, entries, unread);
       // That, and the manager's answer, a contact on its own is told apart (see Conversations#exchange).
-      const yours = news.filter((entry) => fromUser(entry) && !entry.onlyManager).map((entry) => entry.text);
-      return { text: yours.join('\n\n'), asked };
+      return { text: yours.map((entry) => entry.text).join('\n\n'), asked };
     }
     const earlier = entries.slice(0, start).filter((entry) => isMessage(entry) && told(entry));
     const before = newcomer ? recap(transcript(earlier, name, me)) : [];

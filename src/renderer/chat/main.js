@@ -33,7 +33,7 @@ import { linkedFile } from '../../shared/links.js';
 import { appearanceItems } from '../../shared/theme.js';
 import { contactsPane as contactsPaneIn, paneMenu as contactMenu } from '../../shared/contacts-pane.js';
 import { pinning, unpinning } from '../../shared/list-view.js';
-import { addsManager, managersFor, switchedTo, teamChoices } from '../../shared/managers.js';
+import { addsManager, managerSettingsOf, managersFor, switchedTo, teamChoices } from '../../shared/managers.js';
 import { matchesShortcut, shortcutKeys, shortcutLabel, systemOf } from '../../shared/shortcuts.js';
 import { NEXT_TAB_SHORTCUT, PREVIOUS_TAB_SHORTCUT, steppedTab } from '../../shared/chat-tabs.js';
 import { inAnswerOrder } from '../../shared/answer-order.js';
@@ -3084,10 +3084,11 @@ async function main() {
   api.on.windowState(({ alwaysOnTop }) => {
     ctx.alwaysOnTop = alwaysOnTop;
   });
-  // The brief a manager keeps changes as it saves it, and so may its settings, here or in Settings.
+  // The brief a manager keeps changes as it saves it, and so may its settings, here or in Settings: its own, where
+  // the project has several managers, which Turn off manager turns off.
   api.on.project(({ key, settings }) => {
     if (!managed || key !== managed.key) return;
-    managed = { ...managed, settings: settings.manager };
+    managed = { ...managed, settings: managerSettingsOf(settings, ctx.contactId) };
     brief.set(managed);
   });
   api.on.sound((name) => sounds.play(name));

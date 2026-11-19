@@ -53,6 +53,7 @@ import {
   managerMessage,
   managerName,
   managerNoteOf,
+  managerSettingsOf,
   managerSwitchMode,
   questionNote,
   managersAtWork,
@@ -4012,6 +4013,63 @@ test('a tag the user types in a worker goes to its manager alone, with the worke
   );
 });
 
+const SHOT = {
+  mediaType: 'image/png',
+  data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+};
+
+test('a picture sent with a tag goes to the manager with its note, at once or once it is free', async (t) => {
+  const { ask, boss } = tagging(t);
+  ask(TAGGED, { images: [SHOT] });
+  await settled();
+  assert.match(boss.sent.at(-1).text, /----- Alex wrote -----/);
+  assert.deepEqual(boss.sent.at(-1).images, [SHOT], 'read at once');
+  roundOf(boss, 'On the subtotal.');
+  await settled();
+
+  boss.emit({ type: 'state', state: 'working' });
+  const before = boss.sent.length;
+  ask(TAGGED, { images: [SHOT] });
+  await settled();
+  assert.equal(boss.sent.length, before, 'it waits while the manager is at work');
+  roundOf(boss, 'Done with that.');
+  await settled();
+  assert.match(boss.sent.at(-1).text, /tagged you/);
+  assert.deepEqual(boss.sent.at(-1).images, [SHOT], 'read once it is free');
+});
+
+test('a tag’s picture goes with its note when you press Send now on it in a stopped manager', async (t) => {
+  const { app, ask, boss, conversations, manager, worker } = tagging(t);
+  await conversations.interrupt(manager.id);
+  const before = boss.sent.length;
+  ask(TAGGED, { images: [SHOT] });
+  await settled();
+  assert.equal(boss.sent.length, before, 'it waits for you');
+  const line = app.history.read(manager.id).findLast((entry) => entry.from === worker.id);
+  await conversations.sendNow(manager.id, line.id);
+  await settled();
+  assert.match(boss.sent.at(-1).text, /tagged you/);
+  assert.deepEqual(boss.sent.at(-1).images, [SHOT]);
+});
+
+test('a manager with a guest reads a tag’s picture on its turn, and the guest isn’t sent it', async (t) => {
+  const { app, ask, conversations, manager, sessions } = tagging(t);
+  const codex = app.store.addContact({
+    provider: 'codex',
+    name: 'Codex',
+    cwd: manager.cwd,
+    model: '',
+    permissionMode: 'read-only',
+  });
+  conversations.invite(manager.id, codex.id);
+  ask(TAGGED, { images: [SHOT] });
+  await settled();
+  const session = sessions.findLast((one) => one.contact.id === manager.id && !one.closed);
+  assert.match(session.sent.at(-1).text, /tagged you/);
+  assert.deepEqual(session.sent.at(-1).images, [SHOT]);
+  assert.ok(!sessions.some((one) => one.contact.id === codex.id && one.sent?.length), 'its guest has no turn on it');
+});
+
 test('the manager’s answer comes back under its name and starts nothing; the worker hears it on its next turn', async (t) => {
   const { app, worker, ask, sessionOf, boss, shown, manager, conversations } = tagging(t);
   const asked = ask(TAGGED);
@@ -4266,4 +4324,15 @@ test('a tag of the manager alone starts no drafted worker: its first message sti
   assert.equal(app.store.getContact(worker.id).draft, 'Round the cart total before tax.', 'still a draft');
   assert.equal(sessionOf(worker.id), undefined);
   await settled();
+});
+
+test('a manager’s settings are its own among the others, or else the first’s', () => {
+  const first = cleanManager({ id: 'm-shop', model: 'sonnet' });
+  const release = cleanManager({ id: 'm-release', model: 'opus' });
+  const settings = { manager: first, managers: [release] };
+  assert.equal(managerSettingsOf(settings, 'm-release'), release);
+  assert.equal(managerSettingsOf(settings, 'm-shop'), first, 'the first is none of the others');
+  assert.equal(managerSettingsOf(settings, 'gone'), first, 'one that is no manager of the project any more');
+  assert.equal(managerSettingsOf(settings, null), first);
+  assert.equal(managerSettingsOf(settings), first);
 });

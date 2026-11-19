@@ -10,7 +10,7 @@ import os from 'node:os';
 import { activityStatus, activityRequest, helpersAtWork } from '../shared/activity-text.js';
 import { inAnswerOrder } from '../shared/answer-order.js';
 import { freeNickname, namesService, nicknameOnService } from '../shared/branch-names.js';
-import { sentPictures } from '../shared/pictures.js';
+import { MAX_PICTURE_BYTES, PICTURE_DATA, sentPictures } from '../shared/pictures.js';
 import { MOST_AT_ONCE, reportNote } from '../shared/app-tools.js';
 import { backgroundStatus } from '../shared/background.js';
 import { hasReply } from '../shared/reply-text.js';
@@ -168,6 +168,11 @@ const keptSuggestion = (entries) => {
 const PICTURE = /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/]+=*$/;
 /** The map kept under `key`, started when there is none yet. */
 const inner = (map, key) => map.get(key) || map.set(key, new Map()).get(key);
+/** A picture as an agent is sent it, from a data: URL: null for none, or one bigger than an agent takes. */
+const payloadOf = (url) => {
+  const [, type, data] = PICTURE_DATA.exec(url ?? '') ?? [];
+  return data && Buffer.byteLength(data, 'base64') <= MAX_PICTURE_BYTES ? { mediaType: `image/${type}`, data } : null;
+};
 /** What a conversation is listed with, besides what was said in it: its first message, and its contact, project and branch. */
 const listedAs = (row, name) => [row.preview, name, row.project, row.branch];
 /**
@@ -236,6 +241,7 @@ export function promptView(prompt) {
  * @property {string} line  what the window shows
  * @property {string} from  the contact it is from
  * @property {string} [said]  the words its sender wrote, which the user may take to edit
+ * @property {{ mediaType: string, data: string }[]} [images]  pictures of the user's that go with it (see pass)
  * @property {AgentSession} [session]  the provider's queue it is in, once Send now handed it over
  * @property {boolean} [sending]
  */
@@ -305,7 +311,10 @@ export class Conversations {
   #fallbackReady = new Map();
   #turnChecks = new Map();
   #failures = new Map();
-  /** The images and command flag of each agent's latest input, kept only while this conversation is open. */
+  /**
+   * The images and command flag of each agent's latest input, and the user's messages, by id, whose pictures went with
+   * it (`said`), kept only while this conversation is open.
+   */
   #sent = new Map();
   /** hostId -> Map(participant id -> { state, doing }): its session's state, and what it is doing there */
   #status = new Map();
@@ -373,7 +382,8 @@ export class Conversations {
   #unread = new Map();
   /**
    * hostId -> Map(key -> note): what other conversations have for its agent, waiting for it to be free (see `pass`):
-   * the ones it started, and its project's manager
+   * the ones it started, and its project's manager. Each with the pictures of the user's that go with it
+   * @type {Map<string, Map<string, { text: string, images: { mediaType: string, data: string }[] }>>}
    */
   #notes = new Map();
   /**
@@ -2001,7 +2011,7 @@ export class Conversations {
       ...(tag?.asked && { toManager: { id: tag.manager.id, name: tag.manager.name } }),
       ...(onlyManager && { onlyManager: true }),
     });
-    if (tag) this.#askManager(contact, tag, entry);
+    if (tag) this.#askManager(contact, tag, entry, images);
     if (onlyManager) {
       this.#tellWaiting(contactId);
       return entry;
@@ -2009,13 +2019,15 @@ export class Conversations {
     if (session) {
       inner(this.#sent, contactId).set(contactId, { images, command });
       // By the id it is kept under, to go back to it or take it out of a local queue.
-      this.#guardFallback(contactId, contactId, () =>
+      this.#guardFallback(contactId, contactId, () => {
+        // Told what it missed, it is sent the pictures of what you said in it too. Yours now come with this anyway.
+        const missed = catchUp ? this.#caughtUp(contactId) : null;
         this.#session(contactId).send({
-          text: [this.#exchange(contactId), catchUp ? this.#caughtUp(contactId) : text].filter(Boolean).join('\n\n'),
-          images,
+          text: [this.#exchange(contactId), missed ? missed.text : text].filter(Boolean).join('\n\n'),
+          images: [...this.#picturesOf(missed?.said.filter((said) => said.id !== entry.id) ?? []), ...images],
           id: entry.id,
-        })
-      );
+        });
+      });
       this.#tellWaiting(contactId);
       return entry;
     }
@@ -2052,22 +2064,42 @@ export class Conversations {
   /**
    * What an agent on its own is sent when it missed what others here said or did (see #missedOthers): who
    * said what since it last spoke, as in a conversation with guests. One without a session here yet is also
-   * told what was said before it joined.
+   * told what was said before it joined. The pictures of your messages it is told of go with that.
    * @param {string} contactId
+   * @returns {{ text: string, said: HistoryEntry[] }}  `said`: those messages of yours that came with pictures
    */
   #caughtUp(contactId) {
     const contact = this.store.getContact(contactId);
     const me = { id: contact.id, name: contact.name };
     const entries = this.history.read(contactId).filter(notExchanged);
     this.#toldAlone.set(contactId, entries.at(-1)?.id);
-    return new Relay().compose({
+    const relay = new Relay();
+    const { text } = relay.compose({
       entries: this.providers.upgradeHistory(contact.provider, entries),
       to: me,
       agents: [me],
       me: this.store.profile.name,
       cwd: contact.cwd,
       newcomer: !contact.sessionId,
-    }).text;
+    });
+    return { text, said: relay.pictures(me.id) };
+  }
+
+  /**
+   * The pictures of messages of yours, for an agent that was told of them but not sent them with what it was asked:
+   * each as it was kept, where an agent takes one that big, else the preview the conversation shows.
+   * @param {HistoryEntry[]} said
+   * @returns {{ mediaType: string, data: string }[]}
+   */
+  #picturesOf(said) {
+    return said.flatMap((entry) =>
+      (entry.pictures ?? []).flatMap((preview, at) => {
+        const original = entry.originals?.[at];
+        const picture =
+          payloadOf(original) ?? this.history.pictures?.payload(original, MAX_PICTURE_BYTES) ?? payloadOf(preview);
+        return picture ? [picture] : [];
+      })
+    );
   }
 
   /**
@@ -2093,8 +2125,9 @@ export class Conversations {
    * @param {Contact} contact
    * @param {{ manager: Contact, asked: boolean, why: string | null }} tag  as #tagged has it
    * @param {HistoryEntry} entry
+   * @param {{ mediaType: string, data: string }[]} images  the pictures sent with it, which go to the manager too
    */
-  #askManager(contact, tag, entry) {
+  #askManager(contact, tag, entry, images) {
     if (!tag.asked) {
       const to = contact.guests?.length ? 'this conversation' : contact.name;
       this.#notice(
@@ -2103,7 +2136,7 @@ export class Conversations {
       );
       return;
     }
-    Promise.resolve(this.managing.ask?.(contact.id, { text: entry.text, entryId: entry.id })).catch((err) =>
+    Promise.resolve(this.managing.ask?.(contact.id, { text: entry.text, entryId: entry.id, images })).catch((err) =>
       this.#notice(contact.id, `${tag.manager.name} couldn’t be asked: ${err?.message ?? err}`)
     );
   }
@@ -2359,8 +2392,8 @@ export class Conversations {
     const note = this.#notesAside.get(contactId)?.get(entryId);
     if (!note) return false;
     this.#notesAside.get(contactId).delete(entryId);
-    const { key, line, text, from, said } = note;
-    if (!this.pass(contactId, { key, line, note: text, from, said })) return false;
+    const { key, line, text, from, said, images } = note;
+    if (!this.pass(contactId, { key, line, note: text, from, said, images })) return false;
     this.managing.notePutBack?.(contactId, note);
     return true;
   }
@@ -2615,15 +2648,25 @@ export class Conversations {
       // an effort check or a slash command must leave the notes for a turn that can act on them, and so must a
       // turn for what a manager asked of a guest it invited: they are for the conversation's own agent. While your
       // Stop holds them, a turn reads none but the one you sent now: not a hand-off or a follow-up on its round.
-      if (!turn.check && !turn.command && !turn.brief && (turn.note || !group.turns.held)) {
-        message.text = [message.text, this.#takeNotes(hostId, turn.id, turn.note)].filter(Boolean).join('\n\n');
-      }
+      // The pictures of the message it is asked, and of any other message of yours it is told of now and wasn't sent
+      // them with: whoever answers after a message gets its pictures, each once (see Relay#pictures). An effort check
+      // or a slash command answers none of it: they wait for its next turn.
+      const own = turn.images.length ? [group.turns.messageOf(turn)].filter(Boolean) : [];
+      group.relay.had(turn.id, own);
+      const told = turn.check || turn.command ? [] : group.relay.pictures(turn.id);
+      const images = [...this.#picturesOf(told), ...turn.images];
       inner(this.#sent, hostId).set(turn.id, {
-        images: turn.images,
+        images,
+        said: [...told.map((entry) => entry.id), ...own],
         command: Boolean(turn.command),
         fallback: Boolean(turn.continuation),
       });
-      this.#session(hostId, turn.id).send({ ...message, images: turn.images });
+      if (!turn.check && !turn.command && !turn.brief && (turn.note || !group.turns.held)) {
+        const notes = this.#takeNotes(hostId, turn.id, turn.note);
+        message.text = [message.text, notes.text].filter(Boolean).join('\n\n');
+        images.push(...notes.images);
+      }
+      this.#session(hostId, turn.id).send({ ...message, images });
     };
     /** The turn is over before anything was sent, and the next in line gets theirs. */
     const pass = () => {
@@ -3067,12 +3110,15 @@ export class Conversations {
         });
         // A running guest finishes its existing turn. Its account is pinned when the continuation starts.
         const todos = lastTodos(this.history.read(host.id), who.id === host.id ? undefined : who.id);
-        const queued = this.#group(host.id)?.turns.continueWith(
+        const group = this.#group(host.id);
+        const queued = group?.turns.continueWith(
           next.id,
           limitContinuation({ from: who.name, to: next.name, todos }),
           sent.images
         );
         if (queued) {
+          // It takes over with the pictures the turn it continues had: those messages' are never sent it again.
+          group.relay.had(next.id, sent.said ?? []);
           inner(this.#fallbackReady, host.id).set(next.id, { entry: JSON.stringify(entry), approved });
           this.#notice(
             host.id,
@@ -4669,16 +4715,18 @@ export class Conversations {
    *   take them to edit and send as theirs while it waits (see takeNote)
    * @param {boolean} [what.quiet]  news that is nothing to act on, such as what the user did with a message it sent:
    *   it starts nobody, and is read with the next note that does
+   * @param {{ mediaType: string, data: string }[]} [what.images]  pictures the user sent with what the note passes on,
+   *   such as a message that tagged a manager: they go with the note
    * @returns {boolean}  whether it was passed on: nothing is, to a contact that is gone or archived
    */
-  pass(contactId, { key, line, note, from, said, quiet = false }) {
+  pass(contactId, { key, line, note, from, said, quiet = false, images = [] }) {
     const contact = this.store.getContact(contactId);
     if (!contact || contact.archived) return false;
     const entry =
       line || from
         ? this.#notice(contactId, line, from ? { from, managerNote: true, ...(said && { words: true }) } : {})
         : null;
-    inner(this.#notes, contactId).set(key, note);
+    inner(this.#notes, contactId).set(key, { text: note, images });
     if (quiet) {
       if (!this.#quietNotes.has(contactId)) this.#quietNotes.set(contactId, new Set());
       this.#quietNotes.get(contactId).add(key);
@@ -4695,7 +4743,14 @@ export class Conversations {
       replaced = true;
     }
     if (from)
-      inner(this.#waitingNotes, contactId).set(entry.id, { key, text: note, line, from, ...(said && { said }) });
+      inner(this.#waitingNotes, contactId).set(entry.id, {
+        key,
+        text: note,
+        line,
+        from,
+        ...(said && { said }),
+        ...(images.length && { images }),
+      });
     if (['idle', 'offline'].includes(this.#state(contactId))) this.#readNotes(contactId);
     if (from || replaced) this.#tellWaitingNotes(contactId);
     return true;
@@ -4828,9 +4883,10 @@ export class Conversations {
       this.#notes.get(hostId)?.delete(note.key);
       note.session = session;
       note.sending = true;
-      inner(this.#sent, hostId).set(hostId, { images: [], command: false });
+      const images = note.images ?? [];
+      inner(this.#sent, hostId).set(hostId, { images, command: false });
       try {
-        session.send({ text: note.text, id: entryId });
+        session.send({ text: note.text, images, id: entryId });
       } finally {
         note.sending = false;
       }
@@ -4868,20 +4924,25 @@ export class Conversations {
       return;
     }
     this.#guardFallback(hostId, hostId, () => {
-      const missed = this.#missedOthers(hostId) ? this.#caughtUp(hostId) : '';
-      const text = [missed, this.#exchange(hostId), this.#takeNotes(hostId)].filter(Boolean).join('\n\n');
-      inner(this.#sent, hostId).set(hostId, { images: [], command: false });
-      this.#session(hostId)?.send({ text });
+      const missed = this.#missedOthers(hostId) ? this.#caughtUp(hostId) : null;
+      const notes = this.#takeNotes(hostId);
+      const text = [missed?.text, this.#exchange(hostId), notes.text].filter(Boolean).join('\n\n');
+      const images = [...this.#picturesOf(missed?.said ?? []), ...notes.images];
+      inner(this.#sent, hostId).set(hostId, { images, command: false });
+      this.#session(hostId)?.send({ text, ...(images.length && { images }) });
     });
   }
 
-  /** Take notes only when an agent is about to read them, and attribute its eventual answer to those keys. */
+  /**
+   * Take notes only when an agent is about to read them, and attribute its eventual answer to those keys.
+   * @returns {{ text: string, images: { mediaType: string, data: string }[] }}  the notes, and the pictures of the
+   *   user's that came with them (see `pass`)
+   */
   #takeNotes(hostId, speaker = hostId, selected) {
-    const notes = this.#notes.get(hostId);
-    if (!notes?.size) return '';
+    const notes = this.#notes.get(hostId) ?? new Map();
     const key = selected && this.#waitingNotes.get(hostId)?.get(selected)?.key;
     const taken = selected ? new Map(key && notes.has(key) ? [[key, notes.get(key)]] : []) : new Map(notes);
-    if (!taken.size) return '';
+    if (!taken.size) return { text: '', images: [] };
     for (const key of taken.keys()) {
       notes.delete(key);
       this.#quietNotes.get(hostId)?.delete(key);
@@ -4892,7 +4953,10 @@ export class Conversations {
     this.#tellWaitingNotes(hostId);
     if (speaker === hostId) this.#noted.add(hostId);
     this.#read.set(hostId, [...(this.#read.get(hostId) ?? []), ...taken.keys()]);
-    return [...taken.values()].join('\n\n');
+    return {
+      text: [...taken.values()].map((note) => note.text).join('\n\n'),
+      images: [...taken.values()].flatMap((note) => note.images),
+    };
   }
 
   /**
