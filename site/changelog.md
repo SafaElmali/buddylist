@@ -14,6 +14,7 @@ version into package.json and package-lock.json in the release prep PR.
 ## v0.7.9
 
 - **An agent you install while buddylist is open answers your next message** — A Codex contact added before Codex was installed kept saying it couldn’t be found and to run `codex login`, even once you had installed Codex and logged in, until you quit buddylist. Now a message whose program isn’t on your PATH has buddylist read your PATH again first, so the next one you send finds it; the same goes for Gemini, OpenCode, Hermes and Grok. One that is still not found says where buddylist looked and points to **Choose executable...** in **Settings > Services**, and no longer tells you to log in. A Codex that isn’t signed in now says to run `codex login`, and your next message after that goes through.
+- **Every agent that answers gets your pictures** — In a conversation with several agents, a screenshot you sent went only to the agents you named. One handed the turn by another agent, one following up after changes, or a manager reading its notes answered without it, and could say the screenshot never reached it; so could a manager you tagged from a worker’s conversation. Now every agent that answers after your message gets its pictures, each once, managers and agents working read-only included.
 
 ## v0.7.8 — 2026-11-19
 
