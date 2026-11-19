@@ -4,6 +4,7 @@ import { selectQueued } from '../queued-message.js';
 import { appToolBridge, appToolInstructions } from '../app-tool-bridge.js';
 import { BaseSession, CHAT_INSTRUCTIONS, truncateOutput } from '../base-session.js';
 import { offlineText } from '../offline.js';
+import { closedEvent, reloadPathIfMissing } from '../json-rpc.js';
 import { CLIENT_INFO, connectAppServer } from './rpc.js';
 import { commandRequest, patchRequest, permissionsRequest, planActivity, toResult, toTools } from './activity.js';
 import { descriptor } from './descriptor.js';
@@ -66,6 +67,8 @@ export class CodexSession extends BaseSession {
    * @param {(event: import('../contract.js').SessionEvent) => void} opts.emit
    * @param {string} [opts.cliPath]  the Codex CLI to run
    * @param {typeof connectAppServer} [opts.connect]  starts the app server; replaceable in tests
+   * @param {() => Promise<void>} [opts.reloadPath]  asks the login shell for its PATH again, for a CLI installed since
+   *   the app read it (see reloadPathIfMissing)
    * @param {Record<string, string>} [opts.env]  as BaseSession takes them
    * @param {string} [opts.instructions]
    * @param {import('../../main/app-tools.js').AppTool[]} [opts.appTools]  session-scoped app tools over MCP
@@ -78,6 +81,7 @@ export class CodexSession extends BaseSession {
     emit,
     cliPath = 'codex',
     connect = connectAppServer,
+    reloadPath,
     env,
     instructions,
     mainFolder,
@@ -94,6 +98,7 @@ export class CodexSession extends BaseSession {
     this.generation = 0;
     this.cliPath = cliPath;
     this.connect = connect;
+    this.reloadPath = reloadPath;
     this.inWorktree = Boolean(mainFolder);
     /** What Codex is told of the project's AGENTS.md, where it doesn't read them itself. */
     this.agentsInstructions = '';
@@ -170,6 +175,8 @@ export class CodexSession extends BaseSession {
   async #connect() {
     this.setState('connecting');
     const generation = this.generation;
+    await reloadPathIfMissing(this.cliPath, this.env, this.reloadPath);
+    if (generation !== this.generation) throw new Error('Session closed.');
     if (this.appTools.length) {
       const bridge = await appToolBridge(this, this.appTools, () => this.#neverAsks());
       if (generation !== this.generation) {
@@ -183,6 +190,7 @@ export class CodexSession extends BaseSession {
     this.agentsInstructions = folders ? agentsInstructions(folders) : '';
     const rpc = this.connect({
       command: this.cliPath,
+      askedAgain: Boolean(this.reloadPath),
       env: { ...this.env, ...this.bridge?.codexEnv },
       config: [...(folders ? [distrust(folders)] : []), ...(this.bridge?.codex ?? [])],
       onNotification: (method, params) => {
@@ -199,7 +207,7 @@ export class CodexSession extends BaseSession {
       },
       onClose: (error) => {
         if (generation !== this.generation) return;
-        this.emit({ type: 'error', message: error.message });
+        this.emit(closedEvent(error));
         this.#disconnected();
       },
     });
@@ -554,13 +562,15 @@ export class CodexSession extends BaseSession {
     // call: a nested app tool may already have completed its side effect.
     if (stopped) this.#resetConnection()?.close();
     const info = turn.error?.codexErrorInfo;
-    const signedOut = info === 'unauthorized';
     const connection =
       info?.httpConnectionFailed ??
       info?.responseStreamConnectionFailed ??
       info?.responseStreamDisconnected ??
       info?.responseTooManyFailedAttempts;
     const status = connection?.httpStatusCode;
+    // A Codex with no login sends no key, and OpenAI answers 401: Codex calls that a failed connection, not
+    // 'unauthorized'. Codex reads a login made in Terminal meanwhile by itself, so the next message goes through.
+    const signedOut = info === 'unauthorized' || status === 401;
     const unavailable = ['internalServerError', 'serverOverloaded'].includes(info) || (status >= 500 && status <= 599);
     // A connection that never got an HTTP answer: this computer couldn't reach OpenAI (see ../offline.js).
     const offline = Boolean(connection) && status == null;

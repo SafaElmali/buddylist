@@ -7,8 +7,8 @@ export { descriptor };
 
 /** What installs it, for the user to copy. */
 const INSTALL_COMMAND = 'npm install -g @google/gemini-cli';
-const NOT_INSTALLED =
-  'Couldn’t find Gemini CLI. Install it with "npm install -g @google/gemini-cli", run "gemini" once to sign in, then send your message again.';
+/** @type {import('../json-rpc.js').Program} */
+const PROGRAM = { name: 'Gemini CLI', install: `Install it with "${INSTALL_COMMAND}"` };
 
 // Gemini CLI tells its front end about a change of mode in a line of reply text.
 const MODE_UPDATE = /^\[MODE_UPDATE\] (\w+)$/;
@@ -22,7 +22,7 @@ export const geminiAgent = (command = 'gemini') => ({
   descriptor,
   command,
   args: ['--acp'],
-  notInstalled: NOT_INSTALLED,
+  program: PROGRAM,
   // "Always allow" lasts until the session ends, and for a tool from an MCP
   // server it covers that tool, not everything the server has.
   alwaysOptions: ['proceed_always', 'proceed_always_tool'],
@@ -36,9 +36,11 @@ export const geminiAgent = (command = 'gemini') => ({
  * @param {object} [opts]
  * @param {(conversation: string, speakerId: string, seat?: import('../../main/app-tools.js').Seat) => import('../../main/app-tools.js').AppTool[]} [opts.tools]
  * @param {() => string} [opts.cliPath]  the Gemini CLI the user pointed the app at, if any: asked each time
+ * @param {() => Promise<void>} [opts.reloadPath]  asks the login shell for its PATH again, for a Gemini CLI installed while
+ *   the app is open
  * @returns {import('../contract.js').Provider}
  */
-export function createGeminiProvider({ cliPath = () => '', tools = () => [] } = {}) {
+export function createGeminiProvider({ cliPath = () => '', tools = () => [], reloadPath } = {}) {
   // Gemini CLI isn't bundled: the app runs the `gemini` you installed.
   // Settings, or BUDDYLIST_GEMINI_CLI, points it at a different one.
   const cli = () => cliPath() || process.env.BUDDYLIST_GEMINI_CLI || 'gemini';
@@ -51,6 +53,7 @@ export function createGeminiProvider({ cliPath = () => '', tools = () => [] } = 
         contact,
         emit,
         agent: geminiAgent(cli()),
+        reloadPath,
         env,
         instructions,
         appTools: conversation ? tools(conversation, contact.id, { readOnly: Boolean(contact.readOnly) }) : [],
@@ -60,7 +63,7 @@ export function createGeminiProvider({ cliPath = () => '', tools = () => [] } = 
       cliSetup({
         command: cli(),
         args: ['--version'],
-        install: `Install it with "${INSTALL_COMMAND}", then run "gemini" once to sign in.`,
+        install: `${PROGRAM.install}, then run "gemini" once to sign in.`,
         installCommand: INSTALL_COMMAND,
         signIn: 'Open Terminal and run "gemini" to see what is wrong with it.',
         ready: 'Installed. Whether it is signed in shows with your first message.',

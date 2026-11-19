@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
-import { JsonRpcPeer, connectProcess } from '../src/providers/json-rpc.js';
+import {
+  JsonRpcPeer,
+  closedEvent,
+  connectProcess,
+  notFoundText,
+  reloadPathIfMissing,
+} from '../src/providers/json-rpc.js';
 import { batchAndCmd, NOT_ON_WINDOWS } from './fixtures/windows.js';
 
 // The basics of the peer are covered by codex-rpc.test.js, through Codex's
@@ -187,12 +193,17 @@ test('with nobody to tell, a notification the handler fails on is only skipped',
   assert.deepEqual(seen, ['after']);
 });
 
+/** A made-up agent's program, and what it says when it isn't at `where`. */
+const AGENT = { name: 'Agent', install: 'Install it with "npm install -g agent-demo"' };
+const missing = (where) =>
+  `Couldn’t find Agent ${where}. Install it with "npm install -g agent-demo", or point buddylist to it with Choose executable... in Settings > Services. Then send your message again.`;
+
 const closed = (opts) =>
   new Promise((resolve) => {
     connectProcess({
       args: [],
       name: 'Agent',
-      notInstalled: 'Couldn’t find Agent.',
+      program: AGENT,
       onNotification: () => {},
       onRequest: async () => ({}),
       onClose: resolve,
@@ -203,7 +214,14 @@ const closed = (opts) =>
   });
 
 test('a program that isn’t there, and one that stops, are reported by name', async () => {
-  assert.equal((await closed({ command: '/nowhere/agent' })).message, 'Couldn’t find Agent.');
+  const gone = await closed({ command: '/nowhere/agent' });
+  assert.equal(gone.message, missing('at /nowhere/agent'));
+  assert.equal(gone.code, 'ENOENT');
+  assert.deepEqual(closedEvent(gone), { type: 'error', message: gone.message, notFound: true });
+  assert.deepEqual(closedEvent(new Error('Agent stopped unexpectedly (exit code 1).')), {
+    type: 'error',
+    message: 'Agent stopped unexpectedly (exit code 1).',
+  });
   // `false` ignores its arguments and exits with code 1.
   assert.equal(
     (await closed({ command: 'false', args: ['acp'] })).message,
@@ -214,7 +232,7 @@ test('a program that isn’t there, and one that stops, are reported by name', a
 test('a folder that isn’t there is told apart from a missing program', async () => {
   const error = await closed({ command: process.execPath, cwd: '/nowhere/project' });
   assert.equal(error.message, 'The folder /nowhere/project isn’t there any more.');
-  assert.equal((await closed({ command: '/nowhere/agent', cwd: process.cwd() })).message, 'Couldn’t find Agent.');
+  assert.equal((await closed({ command: '/nowhere/agent', cwd: process.cwd() })).message, missing('at /nowhere/agent'));
 });
 
 test('the program is started in the folder it is given, with its arguments', async () => {
@@ -225,7 +243,7 @@ test('the program is started in the folder it is given, with its arguments', asy
       args: ['-e', 'console.log(JSON.stringify({ method: "hello", params: { cwd: process.cwd() } }))'],
       cwd: '/',
       name: 'Agent',
-      notInstalled: 'Couldn’t find Agent.',
+      program: AGENT,
       onNotification: (method, params) => {
         lines.push([method, params]);
         rpc.close();
@@ -249,7 +267,7 @@ test('a program gets the variables it is given on top of the app’s own', async
       ],
       env: { API_URL: 'http://localhost:3000' },
       name: 'Agent',
-      notInstalled: 'Couldn’t find Agent.',
+      program: AGENT,
       onNotification: (method, params) => {
         lines.push([method, params]);
         rpc.close();
@@ -271,7 +289,7 @@ test('on Windows a batch file is started by the cmd.exe the program’s own vari
       env: { ComSpec: cmd },
       platform: 'win32',
       name: 'Agent',
-      notInstalled: 'Couldn’t find Agent.',
+      program: AGENT,
       onNotification: (method, params) => {
         rpc.close();
         resolve(params.args);
@@ -284,7 +302,7 @@ test('on Windows a batch file is started by the cmd.exe the program’s own vari
 });
 
 test('on Windows a program that isn’t there is still reported by name', async () => {
-  assert.equal((await closed({ command: '/nowhere/agent', platform: 'win32' })).message, 'Couldn’t find Agent.');
+  assert.equal((await closed({ command: '/nowhere/agent', platform: 'win32' })).message, missing('at /nowhere/agent'));
 });
 
 test('a program’s notification the handler fails on is passed on too', async () => {
@@ -294,7 +312,7 @@ test('a program’s notification the handler fails on is passed on too', async (
       // It stays a while, so the notification is read before the program is gone.
       args: ['-e', 'console.log(JSON.stringify({ method: "item/started", params: {} })); setTimeout(() => {}, 5000)'],
       name: 'Agent',
-      notInstalled: 'Couldn’t find Agent.',
+      program: AGENT,
       onNotification: (method, params) => params.item.type,
       onNotificationError: (err) => {
         rpc.close();
@@ -305,4 +323,39 @@ test('a program’s notification the handler fails on is passed on too', async (
     });
   });
   assert.match(error.message, /couldn’t make sense of the agent’s "item\/started" message/);
+});
+
+test('a program looked for by its name says whose PATH it was looked on, and whether that was asked again', () => {
+  const mac = { env: { SHELL: '/bin/zsh' }, platform: 'darwin' };
+  const again = { ...mac, askedAgain: true };
+  assert.equal(notFoundText(AGENT, 'agent-demo', again), missing('on zsh’s PATH, even after asking zsh again'));
+  assert.equal(notFoundText(AGENT, 'agent-demo', mac), missing('on zsh’s PATH'), 'one started without asking says so');
+  assert.equal(
+    notFoundText(AGENT, 'agent-demo', { env: {}, platform: 'linux', askedAgain: true }),
+    missing('on sh’s PATH, even after asking sh again')
+  );
+  assert.equal(
+    notFoundText(AGENT, 'agent-demo', { ...again, platform: 'win32' }),
+    missing('on your PATH, even after reading it again')
+  );
+  // One the user pointed the app at is looked for there alone.
+  assert.equal(notFoundText(AGENT, '/Users/example/bin/agent', again), missing('at /Users/example/bin/agent'));
+  assert.equal(notFoundText(AGENT, 'C:\\Tools\\agent.cmd', again), missing('at C:\\Tools\\agent.cmd'));
+});
+
+test('a program that isn’t on the PATH has the PATH asked for again before it is started, and only then', async () => {
+  let asked = 0;
+  const reloadPath = async () => {
+    asked += 1;
+  };
+  const here = path.dirname(process.execPath);
+  const node = path.basename(process.execPath);
+  await reloadPathIfMissing(node, { PATH: here }, reloadPath);
+  assert.equal(asked, 0, 'one that is there is started at once');
+  await reloadPathIfMissing('agent-demo-nowhere', { PATH: here }, reloadPath);
+  assert.equal(asked, 1, 'one that isn’t there asks once');
+  await reloadPathIfMissing('/nowhere/agent', { PATH: here }, reloadPath);
+  assert.equal(asked, 1, 'a path the user named is looked for nowhere else');
+  await reloadPathIfMissing('agent-demo-nowhere', { PATH: here });
+  assert.equal(asked, 1, 'without a way to ask, it is started as it is');
 });

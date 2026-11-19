@@ -30,6 +30,8 @@ export const DEFAULT_PROVIDER = 'claude';
  *   in Settings: asked whenever one is started, so a change holds from the next session. '' for the app's own choice
  * @param {(id: string, accountId?: string) => import('./contract.js').AccountSwitch | null} [opts.accounts]  the logins a provider's
  *   sessions start in, as the app keeps them: only a provider with `accounts` asks. Null for the user's own alone
+ * @param {() => Promise<void>} [opts.reloadPath]  asks the login shell for its PATH again: a session whose program
+ *   isn't on the PATH asks it before it starts the program, for one installed while the app is open
  */
 export function createProviders({
   app,
@@ -38,16 +40,17 @@ export function createProviders({
   tools = () => [],
   cliPath = () => '',
   accounts = () => null,
+  reloadPath,
 }) {
   /** @type {Map<string, Provider>} */
   const providers = new Map();
   const all = [
     createClaudeProvider(app, { tools, cliPath: () => cliPath('claude'), accounts: (id) => accounts('claude', id) }),
-    createCodexProvider({ tools, cliPath: () => cliPath('codex') }),
-    createGeminiProvider({ tools, cliPath: () => cliPath('gemini') }),
-    createOpencodeProvider({ tools, cliPath: () => cliPath('opencode') }),
-    createHermesProvider({ tools, cliPath: () => cliPath('hermes') }),
-    createGrokProvider({ tools, cliPath: () => cliPath('grok') }),
+    createCodexProvider({ tools, cliPath: () => cliPath('codex'), reloadPath }),
+    createGeminiProvider({ tools, cliPath: () => cliPath('gemini'), reloadPath }),
+    createOpencodeProvider({ tools, cliPath: () => cliPath('opencode'), reloadPath }),
+    createHermesProvider({ tools, cliPath: () => cliPath('hermes'), reloadPath }),
+    createGrokProvider({ tools, cliPath: () => cliPath('grok'), reloadPath }),
   ];
   for (const provider of all) {
     const { descriptor } = provider;

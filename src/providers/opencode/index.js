@@ -9,8 +9,8 @@ export { descriptor };
 
 /** What installs it, for the user to copy. */
 const INSTALL_COMMAND = 'npm install -g opencode-ai';
-const NOT_INSTALLED =
-  'Couldn’t find opencode. Install it with "npm install -g opencode-ai", run "opencode auth login", then send your message again.';
+/** @type {import('../json-rpc.js').Program} */
+const PROGRAM = { name: 'opencode', install: `Install it with "${INSTALL_COMMAND}"` };
 
 /**
  * How opencode is run, and where it has ways of its own.
@@ -21,7 +21,7 @@ export const opencodeAgent = (command = 'opencode') => ({
   descriptor,
   command,
   args: ['acp'],
-  notInstalled: NOT_INSTALLED,
+  program: PROGRAM,
   requests: {
     // opencode sends an editor a copy of every edit it has been allowed to
     // make, whether or not the editor said it takes them. It writes the file
@@ -34,9 +34,11 @@ export const opencodeAgent = (command = 'opencode') => ({
  * @param {object} [opts]
  * @param {(conversation: string, speakerId: string, seat?: import('../../main/app-tools.js').Seat) => import('../../main/app-tools.js').AppTool[]} [opts.tools]
  * @param {() => string} [opts.cliPath]  the opencode the user pointed the app at, if any: asked each time
+ * @param {() => Promise<void>} [opts.reloadPath]  asks the login shell for its PATH again, for a opencode installed while
+ *   the app is open
  * @returns {import('../contract.js').Provider}
  */
-export function createOpencodeProvider({ cliPath = () => '', tools = () => [] } = {}) {
+export function createOpencodeProvider({ cliPath = () => '', tools = () => [], reloadPath } = {}) {
   // opencode isn't bundled: the app runs the `opencode` you installed.
   // Settings, or BUDDYLIST_OPENCODE_CLI, points it at a different one.
   const cli = () => cliPath() || process.env.BUDDYLIST_OPENCODE_CLI || 'opencode';
@@ -47,6 +49,7 @@ export function createOpencodeProvider({ cliPath = () => '', tools = () => [] } 
         contact,
         emit,
         agent: opencodeAgent(cli()),
+        reloadPath,
         env: mainFolder ? { ...env, ...worktreeEnv(contact.cwd, mainFolder, { ...process.env, ...env }) } : env,
         instructions,
         appTools: conversation ? tools(conversation, contact.id, { readOnly: Boolean(contact.readOnly) }) : [],
@@ -57,7 +60,7 @@ export function createOpencodeProvider({ cliPath = () => '', tools = () => [] } 
       cliSetup({
         command: cli(),
         args: ['--version'],
-        install: `Install it with "${INSTALL_COMMAND}", then run "opencode auth login".`,
+        install: `${PROGRAM.install}, then run "opencode auth login".`,
         installCommand: INSTALL_COMMAND,
         signIn: 'Open Terminal and run "opencode" to see what is wrong with it.',
         ready: 'Installed. Whether it is signed in shows with your first message.',

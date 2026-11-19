@@ -7,7 +7,8 @@ export { descriptor };
 
 // Hermes's installer is a different one-liner on each system, so the user is sent to its site for it.
 const INSTALL = 'Install it from https://hermes-agent.nousresearch.com';
-const NOT_INSTALLED = `Couldn’t find Hermes. ${INSTALL}, run "hermes model" to choose a provider, then send your message again.`;
+/** @type {import('../json-rpc.js').Program} */
+const PROGRAM = { name: 'Hermes', install: INSTALL };
 
 /**
  * How Hermes is run, and where it has ways of its own.
@@ -18,7 +19,7 @@ export const hermesAgent = (command = 'hermes') => ({
   descriptor,
   command,
   args: ['acp'],
-  notInstalled: NOT_INSTALLED,
+  program: PROGRAM,
   // "Always allow" lasts until the session ends. Hermes's other one adds the command
   // to its settings, for every session in every folder from then on.
   alwaysOptions: ['allow_session'],
@@ -30,9 +31,11 @@ export const hermesAgent = (command = 'hermes') => ({
  * @param {object} [opts]
  * @param {(conversation: string, speakerId: string, seat?: import('../../main/app-tools.js').Seat) => import('../../main/app-tools.js').AppTool[]} [opts.tools]
  * @param {() => string} [opts.cliPath]  the hermes the user pointed the app at, if any: asked each time
+ * @param {() => Promise<void>} [opts.reloadPath]  asks the login shell for its PATH again, for a hermes installed while
+ *   the app is open
  * @returns {import('../contract.js').Provider}
  */
-export function createHermesProvider({ cliPath = () => '', tools = () => [] } = {}) {
+export function createHermesProvider({ cliPath = () => '', tools = () => [], reloadPath } = {}) {
   // Hermes isn't bundled: the app runs the `hermes` you installed.
   // Settings, or BUDDYLIST_HERMES_CLI, points it at a different one.
   const cli = () => cliPath() || process.env.BUDDYLIST_HERMES_CLI || 'hermes';
@@ -45,6 +48,7 @@ export function createHermesProvider({ cliPath = () => '', tools = () => [] } = 
         contact,
         emit,
         agent: hermesAgent(cli()),
+        reloadPath,
         env: mainFolder ? { ...env, HERMES_ENABLE_PROJECT_PLUGINS: '0' } : env,
         instructions,
         appTools: conversation ? tools(conversation, contact.id, { readOnly: Boolean(contact.readOnly) }) : [],

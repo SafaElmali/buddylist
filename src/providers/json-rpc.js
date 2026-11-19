@@ -4,7 +4,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { StringDecoder } from 'node:string_decoder';
-import { spawnable } from './spawnable.js';
+import { executablePath, isPath, shellName, spawnable } from './spawnable.js';
 
 const stripColors = (text) => text.replace(/\x1b\[[0-9;]*m/g, ''); // eslint-disable-line no-control-regex
 
@@ -155,12 +155,65 @@ export class JsonRpcPeer {
 }
 
 /**
+ * An agent's program, as the app tells the user to get it.
+ * @typedef {Object} Program
+ * @property {string} name     "the Codex CLI"
+ * @property {string} install  what installs it, as a sentence starts: 'Install it with "npm install -g @openai/codex"'
+ */
+
+/**
+ * Before an agent's program is started: one that isn't on the PATH has the app ask where programs are again (see
+ * main/shell-env.js), as Check again in Settings does, so a program installed while the app is open is found when a
+ * message is sent. Once each time the program is started, never in the middle of a turn: a session asks as it opens.
+ * A path the user named is only looked for there.
+ * @param {string} command
+ * @param {Record<string, string>} [env]  the session's own variables, on top of the app's
+ * @param {() => Promise<void>} [reloadPath]  asks the login shell for its PATH again; never rejects
+ */
+export async function reloadPathIfMissing(command, env, reloadPath) {
+  if (!reloadPath || isPath(command) || executablePath(command, { env: { ...process.env, ...env } })) return;
+  await reloadPath();
+}
+
+/**
+ * What a session says when its program isn't there: where it was looked for, how to install it, and where to point the
+ * app at one it has. Nothing of signing in: the program says that itself once it runs.
+ * @param {Program} program
+ * @param {string} command
+ * @param {{ env?: Record<string, string | undefined>, platform?: string, askedAgain?: boolean }} [opts]  `askedAgain`:
+ *   the PATH was asked for again before this start (see reloadPathIfMissing)
+ */
+export function notFoundText(
+  { name, install },
+  command,
+  { env = process.env, platform = process.platform, askedAgain = false } = {}
+) {
+  const shell = shellName({ env, platform });
+  const again = askedAgain ? (shell ? `, even after asking ${shell} again` : ', even after reading it again') : '';
+  const where = isPath(command) ? `at ${command}` : `on ${shell ? `${shell}’s` : 'your'} PATH${again}`;
+  return `Couldn’t find ${name} ${where}. ${install}, or point buddylist to it with Choose executable... in Settings > Services. Then send your message again.`;
+}
+
+/**
+ * What a session says when its program ended or never started: one that isn't there, or whose folder isn't, is
+ * marked `notFound`, so the chat window adds no sign-in tip to it, whatever its paths are called.
+ * @param {Error & { code?: string }} error  what connectProcess's `onClose` was called with
+ * @returns {import('./contract.js').SessionEvent}
+ */
+export const closedEvent = (error) => ({
+  type: 'error',
+  message: error.message,
+  ...(error.code === 'ENOENT' && { notFound: true }),
+});
+
+/**
  * Start a command-line program and connect to it.
  * @param {object} opts
  * @param {string} opts.command
  * @param {string[]} opts.args
  * @param {string} opts.name          what to call the program when it stops: "Codex"
- * @param {string} opts.notInstalled  what to say when `command` isn't there
+ * @param {Program} opts.program      what to say when `command` isn't there
+ * @param {boolean} [opts.askedAgain]  the PATH was asked for again before this start, as a session's is
  * @param {string} [opts.cwd]         the folder to start it in
  * @param {Record<string, string>} [opts.env]  variables for it on top of the app's own
  * @param {string} [opts.version]     see {@link JsonRpcPeer}
@@ -175,7 +228,8 @@ export function connectProcess({
   command,
   args,
   name,
-  notInstalled,
+  program,
+  askedAgain,
   cwd,
   env,
   version,
@@ -211,9 +265,16 @@ export function connectProcess({
     peer.close(error);
     onClose(error);
   };
-  // Starting in a folder that is gone fails the same way as a missing program.
+  // Starting in a folder that is gone fails the same way as a missing program. Either is told apart by its code.
   const notFound = () =>
-    new Error(cwd && !fs.existsSync(cwd) ? `The folder ${cwd} isn’t there any more.` : notInstalled);
+    Object.assign(
+      new Error(
+        cwd && !fs.existsSync(cwd)
+          ? `The folder ${cwd} isn’t there any more.`
+          : notFoundText(program, command, { env: childEnv, platform, askedAgain })
+      ),
+      { code: 'ENOENT' }
+    );
   child.stderr.on('data', (data) => {
     stderrTail = (stderrTail + data).slice(-3000);
   });
