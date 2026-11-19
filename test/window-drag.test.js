@@ -38,9 +38,15 @@ test('no box moves the window, or keeps it still, unless a rule says so', () => 
 
 test('every window with a title bar has that rule', () => {
   const pages = fs.readdirSync(RENDERER).filter((file) => file.endsWith('.html'));
-  const framed = pages.filter((page) => read(new URL(page, RENDERER)).includes('class="titlebar"'));
+  const framed = pages.filter((page) => /class="[^"]*\btitlebar\b/.test(read(new URL(page, RENDERER))));
   assert.ok(framed.includes('contacts.html') && framed.includes('chat.html'), framed.join(', '));
   for (const page of framed) {
     assert.match(read(new URL(page, RENDERER)), /href="styles\/frame\.css"/, page);
   }
+});
+
+test('menus, dialogs and a card with a link take a click where they cover the title bar', () => {
+  // They float over the window from outside it, so nothing else keeps them from moving it.
+  const noDrag = regions.filter(({ value }) => value === 'no-drag').map(({ selector }) => selector);
+  for (const layer of ['.popup', '.dialog', '.contact-card.has-link']) assert.ok(noDrag.includes(layer), layer);
 });

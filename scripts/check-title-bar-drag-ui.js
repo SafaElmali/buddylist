@@ -59,7 +59,8 @@ function mapTitleBar({ draw }) {
   };
   collect(document.documentElement);
   const within = (r, x, y) => x >= r.left && x < r.right && y >= r.top && y < r.bottom;
-  const CONTROL = 'button, a[href], input, select, textarea, [role="button"]';
+  // What is pressed: a control, or anything in a menu, popover or dialog floating over the window.
+  const CONTROL = 'button, a[href], input, select, textarea, [role="button"], .popup, .dialog';
   const name = (node) =>
     `${node.tagName.toLowerCase()}${node.id ? `#${node.id}` : ''}.${[...node.classList].join('.')}`;
 
@@ -69,7 +70,7 @@ function mapTitleBar({ draw }) {
     ? document.querySelector('.window > .window-body').getBoundingClientRect().top
     : document.querySelector('.titlebar').getBoundingClientRect().bottom;
   const points = [];
-  const counts = { moves: 0, button: 0, neither: 0, movingButton: 0 };
+  const counts = { moves: 0, button: 0, covered: 0, neither: 0, movingButton: 0 };
   const neitherUnder = new Set();
   const movingButtons = new Set();
   for (let y = Math.ceil(frame.top) + 1.5; y < bottom - 1; y += 2) {
@@ -81,7 +82,10 @@ function mapTitleBar({ draw }) {
       const control = under?.closest(CONTROL) ?? (behind?.parentElement === under ? behind : null);
       // A button counts where its whole pixels are: not the quarter pixel at its edge.
       const onControl = control && within(whole(control), x, y);
-      const kind = last?.drag ? (onControl ? 'movingButton' : 'moves') : control ? 'button' : 'neither';
+      let kind = control ? 'button' : 'neither';
+      if (last?.drag) kind = onControl ? 'movingButton' : 'moves';
+      // Under a dialog's backdrop the whole title bar is out of reach, its buttons too: the dialog is in the way.
+      else if (!control && under?.matches('.modal')) kind = 'covered';
       counts[kind]++;
       if (kind === 'neither') neitherUnder.add(name(under));
       if (kind === 'movingButton') movingButtons.add(name(control));
@@ -100,6 +104,7 @@ function mapTitleBar({ draw }) {
     const COLOURS = {
       moves: 'rgba(30,170,80,0.45)',
       button: 'rgba(40,110,230,0.35)',
+      covered: 'rgba(120,120,120,0.35)',
       neither: 'rgba(230,30,30,0.7)',
       movingButton: 'rgba(255,150,0,0.8)',
     };
@@ -109,7 +114,7 @@ function mapTitleBar({ draw }) {
     }
     document.documentElement.append(canvas);
   }
-  return { counts, neitherUnder: [...neitherUnder], movingButtons: [...movingButtons] };
+  return { bottom, counts, neitherUnder: [...neitherUnder], movingButtons: [...movingButtons] };
 }
 
 const failures = [];
@@ -160,11 +165,12 @@ try {
       fs.writeFileSync(path.join(output, `${look}-${name}.png`), Buffer.from(png, 'base64'));
       await page.evaluate(() => document.getElementById('drag-map').remove());
       results.push({ look, name, ...result });
-      const { moves, button, neither, movingButton } = result.counts;
-      const summary = `${look} ${name}: ${moves} move, ${button} button, ${neither} neither, ${movingButton} button that moves`;
+      const { moves, button, covered, neither, movingButton } = result.counts;
+      const summary = `${look} ${name}: ${moves} move, ${button} button, ${covered} under a dialog, ${neither} neither, ${movingButton} button that moves`;
       console.log(summary);
       if (!moves || neither || movingButton)
         failures.push(`${summary} (neither under ${result.neitherUnder}; moving ${result.movingButtons})`);
+      return result;
     };
     /** Scrolls every list in the page to its end, and says how far the furthest went. */
     const scrollAll = (page, selector) =>
@@ -185,12 +191,32 @@ try {
       await page.evaluate(() => document.querySelector('.st-back').click());
       await page.locator('.window:not(.st-open)').waitFor();
     };
+    /** A menu or a dialog opened so far up that it covers part of the title bar: pressed there, not dragged. */
+    const over = async (page, name, open, layer) => {
+      await open();
+      await page.locator(layer).waitFor();
+      await wait(400);
+      const { bottom } = await check(page, name);
+      const top = await page.locator(layer).evaluate((node) => node.getBoundingClientRect().top);
+      assert.ok(top < bottom, `${look} ${name}: it reaches the title bar (${top} < ${bottom})`);
+      await page.keyboard.press('Escape');
+      await page.locator(layer).waitFor({ state: 'detached' });
+    };
 
     // The contact list, its list scrolled to the end, and Settings over it.
     await contacts.emulateMedia({ colorScheme: 'light' });
     assert.ok((await scrollAll(contacts, '#contact-list')) > 0, `${look}: the contact list scrolls`);
     await check(contacts, 'contact-list');
     await settings(contacts, 'contact-list-settings');
+    // A contact's menu, from the last one in a short list: too long to fit under it, it opens over the title bar.
+    await (await app.browserWindow(contacts)).evaluate((win) => win.setSize(300, 420));
+    await wait(800);
+    await over(
+      contacts,
+      'contact-list-menu',
+      () => contacts.locator('.contact .name').last().click({ button: 'right' }),
+      '.popup'
+    );
 
     // A conversation at its newest message, as it opens, and Settings over it.
     const opened = app.waitForEvent('window', (page) => page.url().includes(`contactId=${contact.id}`));
@@ -207,6 +233,10 @@ try {
     assert.ok((await scrollAll(chat, '#conversation')) > 0, `${look}: the conversation scrolls`);
     await check(chat, 'conversation');
     await settings(chat, 'conversation-settings');
+    // Short enough for the Invite dialog to reach the title bar.
+    await (await app.browserWindow(chat)).evaluate((win) => win.setSize(1200, 420));
+    await wait(800);
+    await over(chat, 'conversation-dialog', () => chat.locator('#tb-invite').click(), '.modal .dialog');
 
     await app.evaluate(({ app: electronApp }) => electronApp.exit(0));
     app = null;
