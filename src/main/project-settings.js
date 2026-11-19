@@ -17,6 +17,7 @@ import {
 import { THIS_COMPUTER, inWorktree, onComputer, projectName } from '../shared/projects.js';
 import { execToolSync } from './git-command.js';
 import { describeProject, describeProjectSync, projectOfKey, suggestScripts } from './run-command.js';
+import { isInside } from './worktrees.js';
 
 /** @typedef {import('./run-command.js').Project} Project */
 /** @typedef {import('../shared/project-settings.js').ProjectSettings} ProjectSettings */
@@ -145,8 +146,9 @@ export class Projects {
   /**
    * A worktree made here is a copy of its project, never a project of its own. Once git can't say which, its folder
    * or its repository gone, it is the project its folder in the worktrees home is named after, as the contact list
-   * lists it: the repository of that name something is kept about, or a folder was found to be part of. Otherwise
-   * it stays the folder that git said, which is never kept (see keep).
+   * lists it: the repository of that name something is kept about, or a folder was found to be part of. Two
+   * repositories of the same name share that folder, and which one it was can't be told then, nor when none is
+   * known: it stays the folder that git said, which is never kept (see keep).
    * @param {string} cwd
    * @param {Project} project  what git said of it
    * @returns {Project}
@@ -154,8 +156,17 @@ export class Projects {
   #copyOf(cwd, project) {
     if (!project.key.startsWith('dir:') || !inWorktree(cwd, ...this.#homes)) return project;
     const name = projectName(cwd, ...this.#homes);
-    const known = [...Object.keys(this.store.projects).map(projectOfKey), ...this.#known.values()];
-    return known.find((one) => one.key.startsWith('git:') && one.name === name) ?? project;
+    const named = new Map(
+      [...Object.keys(this.store.projects).map(projectOfKey), ...this.#known.values()]
+        .filter((one) => one.key.startsWith('git:') && one.name === name)
+        .map((one) => [one.key, one])
+    );
+    return named.size === 1 ? [...named.values()][0] : project;
+  }
+
+  /** Whether a project's key is a worktree's own folder, which is never a project the user added (see #copyOf). */
+  #worktreeFolder(key) {
+    return key.startsWith('dir:') && inWorktree(projectOfKey(key).root, ...this.#homes);
   }
 
   /** The project a folder is part of, found without holding up the app, and kept. @param {string} cwd */
@@ -318,9 +329,21 @@ export class Projects {
    * @param {string} key
    */
   keep(key) {
-    if (key === this.computer?.key || this.store.getProject(key)) return;
-    if (key.startsWith('dir:') && inWorktree(projectOfKey(key).root, ...this.#homes)) return;
+    if (key === this.computer?.key || this.store.getProject(key) || this.#worktreeFolder(key)) return;
     this.store.updateProject(key, {});
+  }
+
+  /**
+   * Forgets the worktrees' own folders kept as projects before keep knew better: deleting a contact whose worktree or
+   * repository was gone kept one, which the contact list listed with nobody on it, such as shop-2 (0). One a contact
+   * still works in stays, with what was set up for it there. Done once, as the app starts.
+   */
+  forgetWorktreeFolders() {
+    const working = this.store.contacts.map(({ cwd }) => cwd);
+    for (const key of Object.keys(this.store.projects).filter((one) => this.#worktreeFolder(one))) {
+      const { root } = projectOfKey(key);
+      if (!working.some((cwd) => isInside(root, cwd))) this.store.removeProject(key);
+    }
   }
 
   /**

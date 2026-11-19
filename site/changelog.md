@@ -13,7 +13,7 @@ version into package.json and package-lock.json in the release prep PR.
 
 ## v0.7.8
 
-- **No more empty projects named after a worker’s folder** — Deleting a worker whose worktree you removed, or whose repository is gone, left an empty project behind for each one, such as **shop-2 (0)** and **shop-3 (0)**. Its contact now stays on its own project, as the list showed it, and nothing new is kept. Projects you added yourself still stay when nobody is on them. To clear ones left over from before, right-click each and choose **Remove project...**.
+- **No more empty projects named after a worker’s folder** — Deleting a worker whose worktree you removed, or whose repository is gone, left an empty project behind for each one, such as **shop-2 (0)** and **shop-3 (0)**. Its contact now stays on its own project, as the list showed it, and nothing new is kept. Projects you added yourself still stay when nobody is on them. Ones left over from before are gone the next time buddylist starts.
 
 ## v0.7.7 — 2026-11-19
 

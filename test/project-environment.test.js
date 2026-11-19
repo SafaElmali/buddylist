@@ -592,6 +592,49 @@ test('a worker whose folder is gone, on a project nothing is known of, leaves no
   assert.deepEqual(store.projects, {});
 });
 
+test(
+  'a worker whose folder is gone, when two known repositories share its project’s name, keeps nothing',
+  git,
+  async () => {
+    const { store, worktreesHome } = setup();
+    const shop = repository('shop');
+    // Another repository called shop, somewhere else: its worktrees go in the same folder.
+    const other = repository('shop');
+    const keys = [shop, other].map((dir) => `git:${path.join(dir, '.git')}`);
+    for (const key of keys) store.updateProject(key, { instructions: { general: 'Be brief.' } });
+    const worker = store.addContact({ ...someone, cwd: workerOf(shop, worktreesHome, 'shop-2') });
+    fs.rmSync(worker.cwd, { recursive: true, force: true });
+    const projects = new Projects({ store, worktreesHome });
+    assert.equal((await projects.known(worker.cwd)).key, `dir:${worker.cwd}`, 'which shop it was is not guessed');
+    await deleteContact(store, projects, worker);
+    assert.deepEqual(Object.keys(store.projects).sort(), keys.sort());
+  }
+);
+
+test('worktrees’ own folders kept as projects before are forgotten as the app starts, unless a contact works there', () => {
+  const store = new Store(tmp(), STORE_DEFAULTS);
+  const [worktreesHome, oldWorktreesHome] = [tmp(), tmp()];
+  const working = path.join(worktreesHome, 'shop', 'shop-4');
+  store.addContact({ ...someone, cwd: working });
+  const kept = [
+    `dir:${working}`,
+    // The user's own: a folder outside the worktrees, one whose folder is gone too, and a repository.
+    folder('notes').key,
+    `dir:${path.join(tmp(), 'old-site')}`,
+    'git:/code/shop/.git',
+  ];
+  const forgotten = [
+    `dir:${path.join(worktreesHome, 'shop', 'shop-2')}`,
+    `dir:${path.join(oldWorktreesHome, 'shop', 'shop-3')}`,
+  ];
+  for (const key of [...kept, ...forgotten]) store.updateProject(key, {});
+  store.updateProject(kept[0], { instructions: { general: 'Be brief.' } });
+
+  new Projects({ store, worktreesHome, oldWorktreesHome }).forgetWorktreeFolders();
+  assert.deepEqual(Object.keys(store.projects).sort(), kept.sort());
+  assert.equal(store.getProject(kept[0]).instructions.general, 'Be brief.', 'what was set up there stays');
+});
+
 test('a contact on This computer whose folder became a repository leaves no project behind', git, async () => {
   const store = new Store(tmp(), STORE_DEFAULTS);
   const computerHome = path.join(tmp(), 'this-computer');

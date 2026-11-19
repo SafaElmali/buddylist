@@ -424,6 +424,8 @@ function startApp(errorReports, electronUpdater) {
   }, CONTACTS_EVERY_MS);
   // What each project is set up with: its scripts, its variables, where its worktrees start.
   const projects = new Projects({ store, worktreesHome, oldWorktreesHome, computerHome });
+  // A worktree's folder an older version kept as a project of its own is listed no more.
+  projects.forgetWorktreeFolders();
   // A folder made for a contact on This computer that went is there again, empty: Open in and its terminals need
   // it before its next session would make it.
   for (const { cwd } of store.contacts) {
