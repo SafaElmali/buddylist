@@ -41,6 +41,7 @@ import {
   managerInstructions,
   managerMessage,
   managerName,
+  managerSettingsOf,
   managerSwitchMode,
   notePutBackNote,
   noteTakenNote,
@@ -278,7 +279,7 @@ export class Managers {
    * @returns {ManagerSettings}
    */
   settingsOf(key, id) {
-    return (id && this.#others(key).find((one) => one.id === id)) || this.#first(key);
+    return managerSettingsOf(this.projects.settings(key), id);
   }
 
   /**
@@ -681,10 +682,11 @@ export class Managers {
    * once it is free, and its answer goes in the worker's conversation (see #answeredTags). Where it can't read it at
    * once, the worker's conversation says so: it is at work, the user stopped it, or it is at its plan's limit.
    * @param {string} workerId
-   * @param {{ text: string, entryId: string }} asked
+   * @param {{ text: string, entryId: string, images?: { mediaType: string, data: string }[] }} asked  `images`: the
+   *   pictures the user sent with it, which go to the manager with the note
    * @returns {Promise<string | null>}  the note's key; null where its manager can't be asked
    */
-  async ask(workerId, { text, entryId }) {
+  async ask(workerId, { text, entryId, images = [] }) {
     const worker = this.store.getContact(workerId);
     const target = this.tagTarget(worker);
     if (!worker || !target || target.why) return null;
@@ -705,6 +707,7 @@ export class Managers {
       line: `${me} asked you in ${worker.name}’s conversation: ${oneLine(text, SAID_MAX)}`,
       note: taggedNote(me, report, text),
       from: worker.id,
+      images,
     });
     if (!passed) {
       this.conversations.notice(worker.id, `${manager.name} couldn’t be asked: it is put away.`);

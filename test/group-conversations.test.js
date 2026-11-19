@@ -1549,7 +1549,7 @@ test('the host’s reply to a slash command can hand over like any other', () =>
   assert.deepEqual(turns, ['Claude', 'Codex']);
 });
 
-test('your pictures go to every agent the message is for', () => {
+test('your pictures go to every agent that answers after the message, once each', () => {
   const app = setup();
   const { claude, codex, opus } = app;
   app.invite(codex, opus);
@@ -1559,8 +1559,12 @@ test('your pictures go to every agent the message is for', () => {
   app.answer(claude, 'The button is off. @Opus can you move it?');
   assert.deepEqual(app.sentTo(codex).images, [PICTURE]);
   app.answer(codex, 'Agreed.');
-  assert.deepEqual(app.sentTo(opus).images, [], 'not to one who was only handed the turn');
-  assert.match(app.sentTo(opus).text, /\(with a picture\)/, 'which still hears there was one');
+  assert.deepEqual(app.sentTo(opus).images, [PICTURE], 'also to one that was only handed the turn');
+  assert.match(app.sentTo(opus).text, /\(with a picture\)/, 'which hears which message it came with');
+  app.answer(opus, 'Moved it. @Claude @Codex have a look.');
+  assert.deepEqual(app.sentTo(claude).images, [], 'nobody is sent it again');
+  app.answer(claude, 'Looks right.');
+  assert.deepEqual(app.sentTo(codex).images, []);
 });
 
 test('a message sent while a round is running waits for the round, and then has one of its own', () => {
