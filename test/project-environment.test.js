@@ -616,8 +616,9 @@ test('worktrees’ own folders kept as projects before are forgotten as the app 
   const [worktreesHome, oldWorktreesHome] = [tmp(), tmp()];
   const working = path.join(worktreesHome, 'shop', 'shop-4');
   store.addContact({ ...someone, cwd: working });
+  const worked = `dir:${working}`;
   const kept = [
-    `dir:${working}`,
+    worked,
     // The user's own: a folder outside the worktrees, one whose folder is gone too, and a repository.
     folder('notes').key,
     `dir:${path.join(tmp(), 'old-site')}`,
@@ -628,11 +629,11 @@ test('worktrees’ own folders kept as projects before are forgotten as the app 
     `dir:${path.join(oldWorktreesHome, 'shop', 'shop-3')}`,
   ];
   for (const key of [...kept, ...forgotten]) store.updateProject(key, {});
-  store.updateProject(kept[0], { instructions: { general: 'Be brief.' } });
+  store.updateProject(worked, { instructions: { general: 'Be brief.' } });
 
   new Projects({ store, worktreesHome, oldWorktreesHome }).forgetWorktreeFolders();
-  assert.deepEqual(Object.keys(store.projects).sort(), kept.sort());
-  assert.equal(store.getProject(kept[0]).instructions.general, 'Be brief.', 'what was set up there stays');
+  assert.deepEqual(Object.keys(store.projects).sort(), [...kept].sort());
+  assert.equal(store.getProject(worked).instructions.general, 'Be brief.', 'what was set up there stays');
 });
 
 test('a contact on This computer whose folder became a repository leaves no project behind', git, async () => {
