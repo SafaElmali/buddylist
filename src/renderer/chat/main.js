@@ -242,6 +242,18 @@ const conversation = new Conversation($('#conversation'), ctx, {
         ctx.participants.find((one) => one.id === (speaker || ctx.contactId))?.provider ?? ctx.provider
       ),
   },
+  // A conversation had all of this manager's messages it is sent: Allow on its card lets it send as many again, and the
+  // card's name and Open show that conversation here, as a row of the Team tab does.
+  handoffs: {
+    contact: (id) => ctx.contacts.find((one) => one.id === id),
+    allow: (entryId) => api.chat.allowHandoffs(ctx.contactId, entryId),
+    open: (id) => api.chat.switch(id),
+    // Settings, where the preview has none.
+    get settings() {
+      return ctx.web ? null : () => api.settings.open({ section: 'teams' });
+    },
+    error: (text) => conversation.addError(text),
+  },
   // In a project's manager's conversation, a conversation it oversees that a message tags shows here, as a row
   // of its Team tab does.
   openTag: (id) => api.chat.switch(id),
@@ -2121,6 +2133,9 @@ function onSessionEvent(event) {
     case 'notice':
       conversation.addNotice(event.text, event);
       break;
+    case 'handoffs':
+      conversation.refreshHandoffs(event.entryId, event.handoffs);
+      break;
     case 'error': {
       // How to sign in depends on whose session could not. A program that isn't there has nothing to sign in with.
       const { loginHint } = speakerOf(ctx.participants, event).provider;
@@ -3015,6 +3030,7 @@ async function main() {
     ctx.contact = { ...ctx.contact, ...next };
     draftBar.show(ctx.contact, all);
     activities.refreshDrafts();
+    conversation.refreshHandoffs();
     if (archiveChanged) {
       voice?.cancel();
       closeMenu();

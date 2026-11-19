@@ -34,6 +34,9 @@ export const WRITE_EVERY_MS = 250;
  * @property {string} [joined]       on the notice that a guest was added: its contact id
  * @property {string} [from]         on a notice of what another conversation passed on: that one's contact id
  *   (see Conversations.pass)
+ * @property {import('../../shared/handoffs.js').HandoffCard} [handoffs]  on a notice in a manager's conversation: a
+ *   conversation had all of its messages, and the card where the user lets it send more
+ * @property {string} [allows]       on a notice: the user let that sender send more here, which starts its count again
  * @property {string} [plan]         on the answer to a plan: the plan itself, as Markdown
  * @property {string[]} [questions]  on the answer to questions: what they asked, in order
  * @property {Record<string, string>} [answers]  and what you answered each, by what it asked

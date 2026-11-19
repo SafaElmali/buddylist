@@ -29,6 +29,8 @@ export const FORWARDED = new Set([
   // A turn stopped at its plan's limit: let it use usage credits this once, or go on in the next account.
   REQUESTS.chatUseCredits,
   REQUESTS.chatSwitchAccount,
+  // A manager that had sent a conversation all it may: Allow 6 more on its card lets it send more.
+  REQUESTS.chatAllowHandoffs,
   // A conversation an agent drafted, deleted with its worktree: Start is the message it waits with, sent.
   REQUESTS.chatDeleteDraft,
   // A conversation the phone shows is read, as one in a window you look at is.
@@ -105,8 +107,9 @@ export const READS = new Set([
 export const ANSWERS = new Set([REQUESTS.chatRespond, REQUESTS.chatInterrupt]);
 /**
  * What says something to an agent: a message, one that waits sent at once, taken back, taken to edit or put back; or lets a turn
- * stopped at its plan's limit go on, in usage credits or another account. And Delete on a conversation an agent
- * drafted, which its first message starts. Only with full access.
+ * stopped at its plan's limit go on, in usage credits or another account, or a manager send more than the user's
+ * message allowed. And Delete on a conversation an agent drafted, which its first message starts. Only with full
+ * access.
  */
 export const SENDS = new Set([
   REQUESTS.chatSend,
@@ -116,6 +119,7 @@ export const SENDS = new Set([
   REQUESTS.chatPutBackNote,
   REQUESTS.chatUseCredits,
   REQUESTS.chatSwitchAccount,
+  REQUESTS.chatAllowHandoffs,
   REQUESTS.chatDeleteDraft,
 ]);
 

@@ -1355,6 +1355,108 @@ test('a worker is sent as many messages as the hand-offs allow until the user wr
   await app.managers.say(manager.id, 'Claude (tags)', 'Fix 4');
 });
 
+test('a worker that had all of its manager’s messages: one card in the manager’s conversation, and Allow lets it send as many again', async (t) => {
+  const app = setup(t);
+  app.store.updateSettings({ turnLimit: 2 });
+  const { managers, sessions, shown, manager } = inTheApp(app);
+  const worker = app.worker('Claude (tags)');
+  await managers.say(manager.id, worker.name, 'One.');
+  await managers.say(manager.id, worker.name, 'Two.');
+  await assert.rejects(
+    managers.say(manager.id, worker.name, 'Three.'),
+    /^Error: Claude \(tags\) was sent 2 messages of yours since the user last wrote to it or allowed more, which is as many as it is sent\. Tell the user what is left: your conversation shows them Allow 2 more for it/
+  );
+  await assert.rejects(managers.say(manager.id, worker.name, 'Three, again.'), /Allow 2 more/);
+  const cards = () => app.history.read(manager.id).filter((entry) => entry.handoffs);
+  assert.equal(cards().length, 1, 'one card, however often it tries');
+  const [card] = cards();
+  assert.deepEqual(card.handoffs, { to: worker.id, name: 'Claude (tags)', by: 'shop manager', limit: 2 });
+  assert.equal(
+    card.text,
+    'shop manager has sent Claude (tags) all 2 messages it may send until you write there or allow more.'
+  );
+  assert.ok(
+    shown.some(
+      ([id, event]) => id === manager.id && event.type === 'notice' && event.entryId === card.id && event.handoffs
+    ),
+    'its window draws it as a card'
+  );
+
+  const workerSaid = () => sessions.filter((one) => one.contact.id === worker.id).flatMap((one) => one.sent);
+  const managerSaid = () =>
+    JSON.stringify(sessions.filter((one) => one.contact.id === manager.id).flatMap((one) => one.sent));
+  const heard = workerSaid().length;
+  assert.equal(managers.allowMore(manager.id, card.id), 2);
+  assert.equal(workerSaid().length, heard, 'nothing goes to the worker for it');
+  const line = app.history.read(worker.id).at(-1);
+  assert.deepEqual(
+    [line.kind, line.text, line.allows],
+    ['notice', 'You let shop manager send 2 more messages here.', manager.id]
+  );
+  assert.equal(cards()[0].handoffs.allowed, 2, 'the card says it was allowed, kept');
+  assert.ok(
+    shown.some(([id, event]) => id === manager.id && event.type === 'handoffs' && event.handoffs.allowed === 2),
+    'and in its windows'
+  );
+  assert.match(managerSaid(), /The user allowed you 2 more messages to Claude \(tags\)\. Send what you couldn’t/);
+  assert.equal(
+    app.history.read(manager.id).findLast((entry) => entry.kind === 'notice').id,
+    card.id,
+    'the card says so: no other line'
+  );
+
+  assert.equal(managers.allowMore(manager.id, card.id), 0, 'a card allowed already allows nothing more');
+  assert.equal(app.history.read(worker.id).filter((entry) => entry.allows).length, 1);
+  await managers.say(manager.id, worker.name, 'Three.');
+  await managers.say(manager.id, worker.name, 'Four.');
+  await assert.rejects(managers.say(manager.id, worker.name, 'Five.'), /Allow 2 more/);
+  assert.equal(cards().length, 2, 'then a card of its own');
+});
+
+test('only a card allows more: not any other line, nor one in another conversation', (t) => {
+  const app = setup(t);
+  const { managers, manager } = inTheApp(app);
+  const worker = app.worker('Claude (tags)');
+  const line = app.history.append(manager.id, { kind: 'notice', text: 'Hello.' });
+  assert.equal(managers.allowMore(manager.id, line.id), 0);
+  assert.equal(managers.allowMore(manager.id, 'nothing'), 0);
+  const card = app.history.append(worker.id, {
+    kind: 'notice',
+    text: 'x',
+    handoffs: { to: manager.id, name: 'shop manager', by: 'Claude (tags)', limit: 6 },
+  });
+  assert.equal(managers.allowMore(manager.id, card.id), 0, 'by its id in the conversation it is in');
+  assert.equal(app.history.read(worker.id).filter((entry) => entry.allows).length, 0);
+});
+
+test('a message that can’t go isn’t put to the user first, and stays refused if more are allowed before it runs', async (t) => {
+  const app = setup(t);
+  app.store.updateSettings({ turnLimit: 1 });
+  const { managers, manager } = inTheApp(app);
+  const worker = app.worker('Claude (tags)');
+  assert.equal(managers.refuses(manager.id, 'Claude (tags)'), false);
+  await managers.say(manager.id, worker.name, 'One.');
+  assert.equal(managers.refuses(manager.id, 'Claude (tags)'), true, 'no approval card: it can’t go');
+  assert.equal(
+    managers.refuses(manager.id, 'Nobody'),
+    false,
+    'one to nobody is asked about as any, and refused as it runs'
+  );
+  assert.equal(managers.refuses(worker.id, 'Claude (tags)'), false, 'nor is it any of a worker’s');
+  await assert.rejects(managers.say(manager.id, worker.name, 'Two.'), /Allow 1 more/);
+  const card = app.history.read(manager.id).find((entry) => entry.handoffs);
+
+  // The manager tries again, unasked as it can't go, and the user allows more before it runs: nobody approved it.
+  assert.equal(managers.refuses(manager.id, 'Claude (tags)'), true);
+  managers.allowMore(manager.id, card.id);
+  await assert.rejects(
+    managers.say(manager.id, worker.name, 'Two.'),
+    /^Error: Nothing was sent: the user allowed more/
+  );
+  assert.equal(managers.refuses(manager.id, 'Claude (tags)'), false, 'asked about again');
+  assert.match(await managers.say(manager.id, worker.name, 'Two.'), /has your message/);
+});
+
 test('a manager looks at all its workers at once, or at one with its diff', async (t) => {
   const app = setup(t);
   app.set({ on: true });

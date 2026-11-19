@@ -112,6 +112,7 @@ export const REQUESTS = Object.freeze({
   chatInterrupt: 'chat:interrupt',
   chatUseCredits: 'chat:use-credits',
   chatSwitchAccount: 'chat:switch-account',
+  chatAllowHandoffs: 'chat:allow-handoffs',
   chatSendNow: 'chat:send-now',
   chatStartDraft: 'chat:start-draft',
   chatDeleteDraft: 'chat:delete-draft',

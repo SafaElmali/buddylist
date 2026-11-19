@@ -2456,6 +2456,91 @@
   flex: none;
 }
 
+/* A conversation had all of a manager's messages it is sent (see handoff-card.js): its buddy and name, which open it,
+   what happened, and Allow, which lets the manager send as many again. A plain card, as a drafted conversation's is. */
+.handoff-card {
+  max-width: 520px;
+  margin: 4px 0 8px 30px;
+  padding: 6px 6px 6px 9px;
+  border: 1px solid var(--pane-border-soft);
+  border-radius: 4px;
+  color: var(--text);
+}
+
+.handoff-card-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.handoff-card-buddy {
+  display: flex;
+  flex: none;
+}
+
+.handoff-card-name {
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: bold;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.handoff-card-name:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.handoff-card-name:disabled {
+  cursor: default;
+}
+
+.handoff-card-says,
+.handoff-card-do,
+.handoff-card-hint {
+  margin-left: 23px;
+}
+
+.handoff-card-says {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.handoff-card-do {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.handoff-card-allowed:empty {
+  display: none;
+}
+
+.handoff-card-allowed {
+  font-weight: bold;
+}
+
+.handoff-card-hint {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.handoff-card-hint .link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+}
+
 /* Under a manager's answer to what you tagged it with here (see manager-tag.js): it came from its own conversation,
    which the link shows in this window. */
 .answered-from {

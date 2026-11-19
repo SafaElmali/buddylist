@@ -520,7 +520,7 @@ function linkPullRequest(hostId, links, readOnly = false) {
   };
 }
 
-/** @typedef {Pick<import('./managers.js').Managers, 'oversees' | 'say' | 'answer' | 'questionsOf' | 'invite' | 'look' | 'brief' | 'sources' | 'leads' | 'leadOf' | 'teams' | 'tellManager' | 'report' | 'startsAtOnce'>} Managing */
+/** @typedef {Pick<import('./managers.js').Managers, 'oversees' | 'say' | 'refuses' | 'answer' | 'questionsOf' | 'invite' | 'look' | 'brief' | 'sources' | 'leads' | 'leadOf' | 'teams' | 'tellManager' | 'report' | 'startsAtOnce'>} Managing */
 
 /**
  * A manager invites another agent into one of its workers' conversations: a guest there, as the user's Invite has
@@ -677,7 +677,7 @@ function managerTools(hostId, managers, leadName, invites = null) {
         'it continues: stop, do not push or merge, or wrong direction. Urgent uses the worker’s Send now behaviour, ' +
         'which may interrupt its current turn and running tool. It cannot undo completed work. ' +
         'Its answer is sent back to you. A conversation is sent a ' +
-        'few at most for each message of the user’s to it.',
+        'few at most for each message of the user’s to it, until the user allows more.',
       input: {
         to: z.string().min(1).describe('The conversation, by its name as the notes and project_conversations give it.'),
         text: z.string().min(1).max(MESSAGE_MAX).describe('The message.'),
@@ -687,8 +687,9 @@ function managerTools(hostId, managers, leadName, invites = null) {
           .default(false)
           .describe('Use Send now for a time-sensitive correction. Defaults to false.'),
       },
-      // Another agent acts on it: the user says whether it goes, unless they let this one act unasked.
-      ask: () => true,
+      // Another agent acts on it: the user says whether it goes, unless they let this one act unasked. Not one that
+      // can't go, to a conversation that had all of this manager's messages it is sent: their way out is a card.
+      ask: (input) => !managers.refuses(hostId, input?.to),
       run: ({ to, text, urgent = false }) => managers.say(hostId, to, text, urgent),
     },
     answerQuestion(hostId, managers),
@@ -868,6 +869,7 @@ export function appTools({
   const fallbacks = {
     oversees: () => false,
     say: async () => '',
+    refuses: () => false,
     answer: async () => '',
     questionsOf: () => [],
     invite: async () => '',

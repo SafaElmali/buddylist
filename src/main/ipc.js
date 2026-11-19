@@ -115,7 +115,7 @@ const senderWindow = (event) => (event.remote ? null : BrowserWindow.fromWebCont
  * @param {import('./pack.js').Pack} deps.pack
  * @param {import('./runs.js').Runs} deps.runs
  * @param {import('./project-settings.js').Projects} deps.projects
- * @param {Pick<import('./managers.js').Managers, 'settingsChanged' | 'forgotten' | 'managerIdOf' | 'managerFor' | 'managersIn' | 'settingsOf' | 'set' | 'add' | 'assign' | 'newWorkers'>} deps.managers
+ * @param {Pick<import('./managers.js').Managers, 'settingsChanged' | 'forgotten' | 'managerIdOf' | 'managerFor' | 'managersIn' | 'settingsOf' | 'set' | 'add' | 'assign' | 'newWorkers' | 'allowMore'>} deps.managers
  * @param {Pick<import('./schedules.js').Schedules, 'list' | 'add' | 'update' | 'remove' | 'setOn' | 'runNow'>} deps.schedules
  * @param {import('./terminals.js').Terminals} deps.terminals
  * @param {import('./browser.js').Browsers} deps.browsers
@@ -1678,6 +1678,12 @@ export function registerIpc({
   );
   handle(REQUESTS.chatSwitchAccount, (_e, contactId, participantId) =>
     conversations.switchAccount(contactId, participantId || contactId)
+  );
+
+  // Allow 6 more, on the card in a manager's conversation that says a conversation had all of its messages it is sent:
+  // as many again, as if the user had written there (see Managers#allowMore). By the card's id: no agent asks this.
+  handle(REQUESTS.chatAllowHandoffs, (_e, contactId, entryId) =>
+    managers.allowMore(String(contactId ?? ''), String(entryId ?? ''))
   );
 
   handle(REQUESTS.chatRespond, (_e, contactId, requestId, response) =>

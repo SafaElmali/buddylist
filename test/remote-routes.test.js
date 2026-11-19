@@ -173,6 +173,7 @@ test('the channels a page may ask on are exactly these: nothing that runs an age
       REQUESTS.chatPutBackNote,
       REQUESTS.chatUseCredits,
       REQUESTS.chatSwitchAccount,
+      REQUESTS.chatAllowHandoffs,
       REQUESTS.chatDeleteDraft,
       REQUESTS.contactSetUnread,
       REQUESTS.providerModels,
@@ -282,7 +283,8 @@ test('a page asks for the entries before one it has, as the app answers them', a
 const MAY = {
   full: [...FORWARDED],
   // Answering what an agent asks, and Stop: no message, nothing that waits sent at once, taken back, taken to edit or put back, no turn
-  // stopped at its plan's limit let go on, in usage credits or another account, and no drafted conversation deleted.
+  // stopped at its plan's limit let go on, in usage credits or another account, no manager let send more, and no drafted
+  // conversation deleted.
   answer: [...FORWARDED].filter(
     (channel) =>
       ![
@@ -293,6 +295,7 @@ const MAY = {
         REQUESTS.chatPutBackNote,
         REQUESTS.chatUseCredits,
         REQUESTS.chatSwitchAccount,
+        REQUESTS.chatAllowHandoffs,
         REQUESTS.chatDeleteDraft,
       ].includes(channel)
   ),
@@ -307,6 +310,7 @@ const MAY = {
         REQUESTS.chatPutBackNote,
         REQUESTS.chatUseCredits,
         REQUESTS.chatSwitchAccount,
+        REQUESTS.chatAllowHandoffs,
         REQUESTS.chatDeleteDraft,
         REQUESTS.chatRespond,
         REQUESTS.chatInterrupt,

@@ -2342,3 +2342,63 @@ test('an original stops coming once the viewer has gone on, between its parts', 
     [0, 1]
   );
 });
+
+// ---- a manager that had sent a conversation all it may: Allow 6 more on its card --------------------------------------
+
+const HANDOFFS = { to: 'w1', name: 'cart-total-rounding', by: 'shop manager', limit: 6 };
+
+test('with full access the card lets the manager send more, once, and then says so', async (t) => {
+  const history = [
+    { id: 'e1', kind: 'notice', text: 'shop manager has sent cart-total-rounding all 6 messages…', handoffs: HANDOFFS },
+  ];
+  const { open, root, button } = setup(t, { history });
+  const asked = [];
+  messenger.chat.allowHandoffs = async (...args) => (asked.push(args), 6);
+  await open('a');
+  const card = root.querySelector('.ph-handoffs[data-entry="e1"]');
+  assert.match(card.textContent, /cart-total-rounding/);
+  assert.match(
+    card.textContent,
+    /shop manager has sent it all 6 messages it may send until you write there or allow more\./
+  );
+  button('Allow 6 more', card).click();
+  button('Allow 6 more', card)?.click();
+  await settle();
+  assert.deepEqual(asked, [['a', 'e1']]);
+  assert.equal(button('Allow 6 more', card), undefined);
+  assert.equal(card.querySelector('.ph-handoffs-allowed').textContent, 'You allowed 6 more.');
+});
+
+test('a card that comes in while open is drawn as one, and hears when it was allowed on the computer', async (t) => {
+  const { open, root, button } = setup(t);
+  const screen = await open('a');
+  screen.heard({ type: 'notice', text: 'x', entryId: 'e2', handoffs: HANDOFFS });
+  const card = root.querySelector('.ph-handoffs[data-entry="e2"]');
+  assert.ok(button('Allow 6 more', card));
+  screen.heard({ type: 'handoffs', entryId: 'e2', handoffs: { ...HANDOFFS, allowed: 6 } });
+  assert.equal(button('Allow 6 more', card), undefined);
+  assert.equal(card.querySelector('.ph-handoffs-allowed').textContent, 'You allowed 6 more.');
+});
+
+test('with answer-only or read-only access the card says to allow more from the computer, and offers nothing', async (t) => {
+  for (const level of ['answer', 'read']) {
+    const history = [{ id: 'e1', kind: 'notice', text: 'x', handoffs: HANDOFFS }];
+    const { open, root, button } = setup(t, { history });
+    accessFor(t, level);
+    await open('a');
+    const card = root.querySelector('.ph-handoffs[data-entry="e1"]');
+    assert.equal(button('Allow 6 more', card), undefined, level);
+    assert.match(
+      card.querySelector('.ph-handoffs-elsewhere').textContent,
+      /^Allow more from your .+: this phone can’t\.$/
+    );
+  }
+  // Given full access meanwhile, it may.
+  const history = [{ id: 'e1', kind: 'notice', text: 'x', handoffs: HANDOFFS }];
+  const { open, root, button, screen } = setup(t, { history });
+  accessFor(t, 'answer');
+  await open('a');
+  setAccess('full');
+  screen().accessChanged();
+  assert.ok(button('Allow 6 more', root.querySelector('.ph-handoffs')));
+});

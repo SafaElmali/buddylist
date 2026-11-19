@@ -20,6 +20,7 @@ import { tagManagerOf } from './manager-tag.js';
 import { ANSWERED_FROM } from '../../shared/manager-answer.js';
 import { actionRow, copyAction } from './message-actions.js';
 import { QueueTray } from './queue-tray.js';
+import { handoffCard, paintHandoffCard } from './handoff-card.js';
 import { limitSuggestion } from './limit-suggestion.js';
 import { planLimitChoices } from './plan-limit.js';
 import { byline, sentMarks, speakerOf } from './participants.js';
@@ -193,7 +194,10 @@ export class Conversation {
    * @param {{ copy?: (text: string) => Promise<void>, rewind?: (message: Sent) => void, edit?: (message: Sent) => void,
    *   fork?: (id: string) => Promise<void>, sendNow?: (id: string) => Promise<void>, cancel?: (message: Sent) => Promise<void>,
    *   invite?: () => Promise<void>, openTag?: (id: string) => void,
+   *   handoffs?: import('./handoff-card.js').HandoffActions,
    *   tray?: { root: HTMLElement, said: HTMLElement, away: () => void } }} [opts]
+   *   `handoffs`: what the card that lets a manager send more does (see handoff-card.js). Without it, as in the message
+   *   history, the card is its line
    *   `copy`, `rewind` and `edit`: what Copy, Rewind and Edit in the row under a message do (see
    *   message-actions.js), and `fork` what Fork chat from here under a reply does, with the reply's id. Without
    *   them, as in the message history, messages have no row under them.
@@ -206,7 +210,7 @@ export class Conversation {
   constructor(
     root,
     ctx,
-    { copy, rewind, edit, fork, sendNow, cancel, invite, switchManager, planLimit, openTag, tray } = {}
+    { copy, rewind, edit, fork, sendNow, cancel, invite, switchManager, planLimit, handoffs, openTag, tray } = {}
   ) {
     this.root = root;
     this.ctx = ctx;
@@ -219,6 +223,7 @@ export class Conversation {
     this.invite = invite;
     this.switchManager = switchManager;
     this.planLimit = planLimit;
+    this.handoffs = handoffs;
     this.openTag = openTag;
     // What waits is not among the lines: it is in the tray over the message box, until it is read.
     this.tray =
@@ -1026,6 +1031,10 @@ export class Conversation {
   }
 
   addNotice(text, entry = {}) {
+    // A conversation had all of this manager's messages it is sent: the card lets it send more (see handoff-card.js).
+    // In the message history, which can't, it is the line it is kept as.
+    const id = entry.id ?? entry.entryId;
+    if (entry.handoffs && id && this.handoffs) return this.append(handoffCard(id, entry.handoffs, this.handoffs));
     const node = this.line('notice', '', text);
     if (entry.managerNote) {
       node.classList.add('manager-note');
@@ -1033,6 +1042,21 @@ export class Conversation {
       this.kept(node, { id: entry.id ?? entry.entryId, text, managerNote: true, ...(entry.words && { words: true }) });
     }
     return node;
+  }
+
+  /**
+   * A card where the user lets a manager send more says how it stands now: allowed here or in another window, and its
+   * conversation's buddy as the lists have it. Without a card, each card.
+   * @param {string} [entryId]
+   * @param {import('./handoff-card.js').HandoffCard} [card]
+   */
+  refreshHandoffs(entryId, card) {
+    if (!this.handoffs) return;
+    for (const node of this.root.querySelectorAll('.handoff-card')) {
+      if (entryId && node.dataset.entry !== entryId) continue;
+      const shown = card ?? JSON.parse(node.dataset.card);
+      paintHandoffCard(node, shown, this.handoffs.contact(shown.to));
+    }
   }
 
   /**

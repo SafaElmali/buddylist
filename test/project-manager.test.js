@@ -455,6 +455,38 @@ test('a manager’s reports go to its project manager alone, within the limit, a
   assert.throws(() => managers.report(lead.id, 'Done.'), /A project manager reports to the user/);
 });
 
+test('Allow on its card lets a project manager message a manager again, and a manager report again', async (t) => {
+  const app = shop(t);
+  const { managers, reviewer, lead } = app;
+  app.store.settings.turnLimit = 1;
+  const cardIn = (id) => app.history.read(id).findLast((entry) => entry.handoffs);
+
+  // A project manager's messages to a manager: the card is in the project manager's conversation.
+  await app.tell('review manager', 'One.');
+  await assert.rejects(app.tell('review manager', 'Two.'), /Allow 1 more/);
+  const told = cardIn(lead.id);
+  assert.deepEqual(told.handoffs, { to: reviewer.id, name: 'review manager', by: lead.name, limit: 1 });
+  const reviewerHeard = app.sentTo(reviewer.id);
+  assert.equal(managers.allowMore(lead.id, told.id), 1);
+  assert.equal(app.sentTo(reviewer.id), reviewerHeard, 'nothing goes to the manager it is about');
+  assert.deepEqual(app.lines(reviewer.id).at(-1), `You let ${lead.name} send 1 more messages here.`);
+  await app.tell('review manager', 'Two.');
+
+  // A manager's reports: the card is in the manager's conversation, and says reports.
+  managers.report(reviewer.id, 'One.');
+  assert.throws(() => managers.report(reviewer.id, 'Two.'), /You sent .* 1 reports since .*Allow 1 more/);
+  const reported = cardIn(reviewer.id);
+  assert.deepEqual(reported.handoffs, { to: lead.id, name: lead.name, by: 'review manager', limit: 1, reports: true });
+  assert.match(
+    reported.text,
+    /^review manager has sent .* all 1 reports it may send until you write there or allow more\.$/
+  );
+  assert.equal(managers.allowMore(reviewer.id, reported.id), 1);
+  assert.equal(app.lines(lead.id).at(-1), 'You let review manager send 1 more reports here.');
+  assert.match(app.sentTo(reviewer.id), /The user allowed you 1 more reports to /, 'and it hears it may send again');
+  assert.doesNotThrow(() => managers.report(reviewer.id, 'Two.'));
+});
+
 test('a manager with no project manager has nobody to report to, and isn’t told of one', (t) => {
   const app = shop(t, { withLead: false });
   assert.throws(

@@ -14,6 +14,7 @@ version into package.json and package-lock.json in the release prep PR.
 ## v0.7.9
 
 - **An agent you install while buddylist is open answers your next message** — A Codex contact added before Codex was installed kept saying it couldn’t be found and to run `codex login`, even once you had installed Codex and logged in, until you quit buddylist. Now a message whose program isn’t on your PATH has buddylist read your PATH again first, so the next one you send finds it; the same goes for Gemini, OpenCode, Hermes and Grok. One that is still not found says where buddylist looked and points to **Choose executable...** in **Settings > Services**, and no longer tells you to log in. A Codex that isn’t signed in now says to run `codex login`, and your next message after that goes through.
+- **Let a manager send more with one click** — A manager that had sent a conversation all the messages **Hand-offs** allows asked you to write there first, then to tell it you approve. Now a card under its message says so, with **Allow 6 more**: the manager may send as many again without you writing there, nothing goes to that conversation for it, and the manager sends what it couldn’t, asking you as for any message. The same goes for a project manager’s messages to a manager, and a manager’s reports to its project manager. On a phone, it takes **Full** access.
 
 ## v0.7.8 — 2026-11-19
 

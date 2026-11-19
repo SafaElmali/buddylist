@@ -20,6 +20,7 @@ import { answeredElsewhere, answeredLine, cardSays } from './cards.js';
 import { draftOf, keepDraft, keepNote, keepSend, keepWaiting, noteOf, sendsOf } from './drafts.js';
 import { CONNECTION, UNCONFIRMED } from '../remote/network-ipc.js';
 import { promptCard } from './prompt-cards.js';
+import { handoffCard, paintHandoffCard } from './handoff-card.js';
 import { planLimitCard } from './plan-limit.js';
 import { confirmSheet, deleteDraft, draftText } from './draft-bar.js';
 import { ConversationPictures } from './pictures.js';
@@ -495,6 +496,8 @@ export class ConversationScreen {
       const card = this.transcript.querySelector(`[data-request="${CSS.escape(requestId)}"]`);
       if (card && !card.classList.contains('ph-answering')) card.replaceWith(this.#card(prompt));
     }
+    for (const card of this.transcript.querySelectorAll('.ph-handoffs'))
+      paintHandoffCard(/** @type {HTMLElement} */ (card), JSON.parse(/** @type {HTMLElement} */ (card).dataset.card));
     this.#markQueued();
   }
 
@@ -577,8 +580,14 @@ export class ConversationScreen {
             managerNote: event.managerNote,
             id: event.entryId,
             words: event.words,
+            handoffs: event.handoffs,
           })
         );
+      case 'handoffs': {
+        const card = this.transcript.querySelector(`.ph-handoffs[data-entry="${CSS.escape(event.entryId)}"]`);
+        if (card) paintHandoffCard(/** @type {HTMLElement} */ (card), event.handoffs);
+        return;
+      }
       case 'error':
         return this.transcript.append(...this.#entry({ kind: 'error', text: event.message, speaker: event.speaker }));
       default:
@@ -693,6 +702,12 @@ export class ConversationScreen {
         return [line, planLimitCard({ contactId: this.contactId, speaker, said })];
       }
       case 'notice':
+        // A conversation had all of this manager's messages it is sent: the card lets it send more.
+        if (entry.handoffs && entry.id) {
+          const said = (text, failed = false) =>
+            this.transcript.append(this.#line(failed ? 'ph-error' : 'ph-note', text));
+          return [handoffCard({ contactId: this.contactId, entryId: entry.id, card: entry.handoffs, said })];
+        }
         // A manager's note waits to be read as your messages do, and says so under it. One with words its sender
         // wrote can be taken to edit meanwhile.
         return [
