@@ -101,9 +101,13 @@ test('a program not found on the PATH offers to install it or to choose where it
     'Already installed?',
     'Run which hermes in a terminal to find it.',
     'Looked in 3 folders on zsh’s PATH:',
-    '/opt/homebrew/bin · /usr/bin · /bin',
   ])
     assert.ok(text.includes(words), `${words} in: ${text}`);
+  // Each folder is a piece of its own, which a long PATH wraps between.
+  assert.deepEqual(
+    help.querySelectorAll('.st-folders .st-mono').map((node) => node.textContent),
+    ['/opt/homebrew/bin', '/usr/bin', '/bin']
+  );
 
   button(document, 'Copy').click();
   await settle();

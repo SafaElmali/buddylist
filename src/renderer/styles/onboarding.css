@@ -208,8 +208,10 @@
   margin-top: 4px;
 }
 
+/* In the app's own monospace and size, as Settings shows the same command. */
 .ob-agent-missing code {
   margin-right: 2px;
+  font: 11px/1.45 var(--font-mono);
   user-select: text;
   overflow-wrap: anywhere;
 }
