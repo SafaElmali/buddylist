@@ -222,6 +222,14 @@
  * fallback that takes over after outages. `offline`: no answer came back at all (the provider's name didn't
  * resolve, or the connection was refused or cut), as when the internet is down. No other service would get an
  * answer either, so no fallback takes over, and `errorText` says the internet looks down (see offline.js).
+ * `result.limitModel` is the model, by the name its list gives it, whose own limit turned the turn away, as Claude's
+ * weekly limit for Opus does, until `limitResetsAt`: `otherModel` still answers.
+ *
+ * `model-switch` says the agent answers with another model than the one it was given, which it switched to itself,
+ * such as Claude Code after a refusal: `model`, as the list of models names it, from `from`, switched by `by`, with
+ * what it said of it in `text` where it said anything. `session`: it goes on with it until it is given a model again,
+ * else for that one reply. A null `model` says that is over: it answers with the one it was given again. A provider
+ * whose agents never switch says none.
  * @typedef {(
  *   { type: 'state', state: SessionState } |
  *   { type: 'ready', sessionId: string, model: string, permissionMode: string, commands: string[], outputStyles?: string[], outputStyle?: string | null, models?: ModelOption[], effort?: string | null, fastMode?: FastModeStatus } |
@@ -235,7 +243,7 @@
  *   { type: 'tool-result', toolId: string, isError: boolean, declined: boolean, output: string, pictures?: string[], stopped?: true, skipped?: true, durationMs?: number } |
  *   ({ type: 'permission', requestId: string } & PermissionRequest) |
  *   { type: 'permission-resolved', requestId: string, decision: PermissionResponse['decision'], answers?: Record<string, string> } |
- *   { type: 'result', isError: boolean, stopped: boolean, errorText: string, usageLimited?: true, limitKind?: 'session' | 'weekly', planLimit?: PlanLimitStop, failureKind?: 'unavailable' | 'offline', durationMs: number, costUsd: number, advisorUsd?: number } |
+ *   { type: 'result', isError: boolean, stopped: boolean, errorText: string, usageLimited?: true, limitKind?: 'session' | 'weekly', limitModel?: string, otherModel?: string, limitResetsAt?: number, planLimit?: PlanLimitStop, failureKind?: 'unavailable' | 'offline', durationMs: number, costUsd: number, advisorUsd?: number } |
  *   { type: 'session-reset' } |
  *   { type: 'context', used: number, size: number } |
  *   { type: 'limits', limits: UsageLimit[], account?: string } |
@@ -243,6 +251,7 @@
  *   { type: 'background', tasks: BackgroundTask[] } |
  *   { type: 'waiting', count: number } |
  *   { type: 'notice', text: string } |
+ *   { type: 'model-switch', model: string | null, from?: string, by?: string, session: boolean, text?: string } |
  *   { type: 'error', message: string, notFound?: true }
  * )} SessionEvent  an error's `notFound`: its program, or the folder it starts in, isn't there
  */
@@ -258,6 +267,9 @@
  * @property {string} permissionMode   its mode in this conversation
  * @property {string} model            the model it was given; '' for its provider's own default
  * @property {string | null} defaultModel  the model that default comes to, once a session has said
+ * @property {{ model: string, by: string }} [switched]  the model its session answers with instead of `model`, which
+ *   `by` switched it to itself in this conversation, as Claude Code does after a refusal. Left out while it answers
+ *   with the one it was given
  * @property {ModelOption[]} models    the models its session said it has; empty from a provider that is asked itself
  * @property {string | null} effort    the effort level it answers with, when that is known
  * @property {true} [effortPicked]     that level was picked for it in this conversation, by an agent here

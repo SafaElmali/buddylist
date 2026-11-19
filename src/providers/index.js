@@ -97,6 +97,8 @@ export function createProviders({
    * @type {Map<string, { list?: import('./contract.js').ModelOption[], at?: number, asking?: Promise<import('./contract.js').ModelOption[]> }>}
    */
   const models = new Map();
+  /** What each provider whose models go by the folder last listed, in any folder, by its id. */
+  const listedInFolders = new Map();
   /**
    * Asks a provider for its models, unless it is being asked already: whoever asks meanwhile gets the same answer.
    * A failed or empty answer leaves the list it gave before, where it gave one.
@@ -154,12 +156,28 @@ export function createProviders({
     models: (id, where, { fresh = false } = {}) => {
       const provider = get(id);
       if (demo || !provider.listModels) return Promise.resolve(null);
-      if (where && provider.descriptor.modelsByFolder) return provider.listModels(where);
+      if (where && provider.descriptor.modelsByFolder) {
+        return provider.listModels(where).then((list) => {
+          // What it calls its models is the same in every folder: only which is the default can differ.
+          if (list?.length) listedInFolders.set(provider.descriptor.id, list);
+          return list;
+        });
+      }
       const known = models.get(provider.descriptor.id);
       const old = !known?.list || Date.now() - known.at >= MODELS_MAX_AGE_MS;
       const asking = old ? askModels(provider) : known.asking;
       if (!known?.list) return asking;
       return fresh && asking ? asking : Promise.resolve(known.list);
+    },
+    /**
+     * A provider's own list of its models as it last gave it, at once, for what it calls them: its one list, or the
+     * last one it gave in a folder. Null before it has given one (see models).
+     * @param {string} id
+     * @returns {import('./contract.js').ModelOption[] | null}
+     */
+    knownModels: (id) => {
+      const key = get(id).descriptor.id;
+      return models.get(key)?.list ?? listedInFolders.get(key) ?? null;
     },
     /**
      * The agents the user defined that a guest working in `where` can run as, from every provider whose sessions

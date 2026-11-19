@@ -31,12 +31,34 @@ export function modelsFor(who, known) {
 }
 
 /**
- * The model someone answers with: its name where the list has it, else what
- * the contact was given.
+ * The model someone was given: its name where the list has it, else what the contact was given.
  * @param {Participant} who
  * @param {ModelOption[]} catalog
  */
-export const modelName = (who, catalog) => currentModel(who, catalog)?.label || who.model || 'Default model';
+export const pickedModelName = (who, catalog) => currentModel(who, catalog)?.label || who.model || 'Default model';
+
+/**
+ * The model someone answers with: the one its session switched itself to where it did (see Participant.switched),
+ * else the one it was given.
+ * @param {Participant} who
+ * @param {ModelOption[]} catalog
+ */
+export const modelName = (who, catalog) =>
+  pickedModelName(who.switched ? { ...who, model: who.switched.model } : who, catalog);
+
+/**
+ * What says someone answers with another model than the one it was given, which its session switched to itself,
+ * and the way back to that one: "Claude Code switched from Opus 5.5", "Use Opus 5.5 again". Null while it answers
+ * with its own.
+ * @param {Participant} who
+ * @param {ModelOption[]} catalog
+ * @returns {{ note: string, back: string } | null}
+ */
+export function switchedFrom(who, catalog) {
+  if (!who.switched) return null;
+  const picked = pickedModelName(who, catalog);
+  return { note: `${who.switched.by || who.provider.name} switched from ${picked}`, back: `Use ${picked} again` };
+}
 
 /** What the effort badge says of a level left to the model, where nobody says which that is. */
 const DEFAULT_EFFORT = 'Default effort';
@@ -185,18 +207,29 @@ export function fastModeItems(who, catalog, choose, label = 'Fast mode') {
  * @param {Participant} who
  * @param {ModelOption[]} catalog
  * @param {{ service?: boolean }} [opts]  `service`: it is a project's manager, whose service the badge switches
- * @returns {{ label: string, bolt: boolean, held: boolean, title: string }}
+ * @returns {{ label: string, model: string, effort: string, bolt: boolean, held: boolean, title: string }}
+ *   `label`: the model and the effort level, as `model` and `effort` say them apart ('' for a level left unsaid).
  *   `held`: fast mode is on, but something holds it back
  */
 export function answeringBadge(who, catalog, { service = false } = {}) {
   const name = modelName(who, catalog);
   const level = effortName(who, catalog);
   const fast = fastModeBadge(who, catalog);
+  const switched = switchedFrom(who, catalog);
+  const effort = who.effort && level ? level : '';
   return {
-    label: who.effort && level ? `${name} · ${level}` : name,
+    label: effort ? `${name} · ${effort}` : name,
+    // Apart, for the badge to keep the model's name whole while the level gives way.
+    model: name,
+    effort,
     bolt: Boolean(fast?.pressed),
     held: Boolean(fast?.held),
-    title: [service && `Service: ${who.provider.name}`, `Model: ${name}`, level && effortTitle(who, level), fast?.title]
+    title: [
+      service && `Service: ${who.provider.name}`,
+      `Model: ${name}${switched ? ` (${switched.note})` : ''}`,
+      level && effortTitle(who, level),
+      fast?.title,
+    ]
       .filter(Boolean)
       .join('\n'),
   };
