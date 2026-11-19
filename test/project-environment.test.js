@@ -39,9 +39,8 @@ function repository(name = 'shop') {
 const AS_TEST = ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false'];
 
 /** A worktree of `dir`, which is given a first commit to make it from. */
-function worktreeOf(dir, branch = 'their-pr') {
+function worktreeOf(dir, branch = 'their-pr', folder = path.join(tmp(), branch)) {
   spawnSync('git', [...AS_TEST, 'commit', '--quiet', '--allow-empty', '-m', 'first'], { cwd: dir });
-  const folder = path.join(tmp(), branch);
   spawnSync('git', ['worktree', 'add', '--quiet', '-b', branch, folder], { cwd: dir });
   return folder;
 }
@@ -522,4 +521,143 @@ test('projects with nobody on them are listed by name, a repository as one', () 
     { key: 'dir:/notes/api', name: 'api', root: '/notes/api', repository: false },
     { key: 'git:/code/web/.git', name: 'web', root: '/code/web', repository: true },
   ]);
+});
+
+// ---- which project a deleted contact leaves behind ---------------------------------------------------
+// Deleting a contact keeps the project it worked on (see Projects#keep), as the contact list listed it: a worker's
+// worktree is a copy of its repository, never a project of its own, even once git can't say so any more.
+
+const someone = { provider: 'claude', name: 'Claude', model: '', permissionMode: 'default' };
+
+/** A worker's worktree of `dir`, where the app makes them: <worktrees>/<project>/<branch>. */
+const workerOf = (dir, worktreesHome, branch) =>
+  worktreeOf(dir, branch, path.join(worktreesHome, path.basename(dir), branch));
+
+/** Deletes a contact as the contact list does (see removeContact in main/ipc.js). */
+async function deleteContact(store, projects, contact) {
+  projects.keep((await projects.known(contact.cwd)).key);
+  store.removeContact(contact.id);
+}
+
+const names = (projects) => projects.map(({ name }) => name);
+
+test('a worker in a worktree is on its repository’s project: deleting it keeps that, not its folder', git, async () => {
+  const { projects, store, worktreesHome } = setup();
+  const shop = repository('shop');
+  const worker = store.addContact({ ...someone, cwd: workerOf(shop, worktreesHome, 'shop-2') });
+  assert.equal((await projects.known(worker.cwd)).key, `git:${path.join(shop, '.git')}`);
+  await deleteContact(store, projects, worker);
+  assert.deepEqual(names(projects.empty()), ['shop']);
+});
+
+for (const [gone, said] of [
+  ['worktrees', 'worktrees are'],
+  ['repository', 'repository is'],
+]) {
+  test(`workers whose ${said} gone stay on their repository’s project, never one of their own`, git, async () => {
+    const { store, worktreesHome } = setup();
+    const shop = repository('shop');
+    const key = `git:${path.join(shop, '.git')}`;
+    // Something is kept about the project, as it is about one with a manager.
+    store.updateProject(key, { instructions: { general: 'Be brief.' } });
+    const workers = ['shop-2', 'shop-3'].map((branch) =>
+      store.addContact({ ...someone, cwd: workerOf(shop, worktreesHome, branch) })
+    );
+    for (const folder of gone === 'repository' ? [shop] : workers.map(({ cwd }) => cwd)) {
+      fs.rmSync(folder, { recursive: true, force: true });
+    }
+    // The app starts again: git can't say anything of their folders any more.
+    const projects = new Projects({ store, worktreesHome });
+    await projects.know(store.contacts.map(({ cwd }) => cwd));
+    assert.equal((await projects.known(workers[0].cwd)).key, key);
+    assert.deepEqual(
+      (await projects.list()).map(({ name, contacts }) => [name, contacts]),
+      [['shop', 2]],
+      'Settings counts them on it'
+    );
+
+    for (const worker of workers) await deleteContact(store, projects, worker);
+    assert.deepEqual(names(projects.empty()), ['shop']);
+    assert.deepEqual(Object.keys(store.projects), [key], 'nothing is kept about their folders');
+  });
+}
+
+test('a worker whose folder is gone, on a project nothing is known of, leaves no project behind', git, async () => {
+  const { store, worktreesHome } = setup();
+  const worker = store.addContact({ ...someone, cwd: workerOf(repository('shop'), worktreesHome, 'shop-2') });
+  fs.rmSync(worker.cwd, { recursive: true, force: true });
+  const projects = new Projects({ store, worktreesHome });
+  await deleteContact(store, projects, worker);
+  assert.deepEqual(projects.empty(), []);
+  assert.deepEqual(store.projects, {});
+});
+
+test(
+  'a worker whose folder is gone, when two known repositories share its project’s name, keeps nothing',
+  git,
+  async () => {
+    const { store, worktreesHome } = setup();
+    const shop = repository('shop');
+    // Another repository called shop, somewhere else: its worktrees go in the same folder.
+    const other = repository('shop');
+    const keys = [shop, other].map((dir) => `git:${path.join(dir, '.git')}`);
+    for (const key of keys) store.updateProject(key, { instructions: { general: 'Be brief.' } });
+    const worker = store.addContact({ ...someone, cwd: workerOf(shop, worktreesHome, 'shop-2') });
+    fs.rmSync(worker.cwd, { recursive: true, force: true });
+    const projects = new Projects({ store, worktreesHome });
+    assert.equal((await projects.known(worker.cwd)).key, `dir:${worker.cwd}`, 'which shop it was is not guessed');
+    await deleteContact(store, projects, worker);
+    assert.deepEqual(Object.keys(store.projects).sort(), keys.sort());
+  }
+);
+
+test('worktrees’ own folders kept as projects before are forgotten as the app starts, unless a contact works there', () => {
+  const store = new Store(tmp(), STORE_DEFAULTS);
+  const [worktreesHome, oldWorktreesHome] = [tmp(), tmp()];
+  const working = path.join(worktreesHome, 'shop', 'shop-4');
+  store.addContact({ ...someone, cwd: working });
+  const worked = `dir:${working}`;
+  const kept = [
+    worked,
+    // The user's own: a folder outside the worktrees, one whose folder is gone too, and a repository.
+    folder('notes').key,
+    `dir:${path.join(tmp(), 'old-site')}`,
+    'git:/code/shop/.git',
+  ];
+  const forgotten = [
+    `dir:${path.join(worktreesHome, 'shop', 'shop-2')}`,
+    `dir:${path.join(oldWorktreesHome, 'shop', 'shop-3')}`,
+  ];
+  for (const key of [...kept, ...forgotten]) store.updateProject(key, {});
+  store.updateProject(worked, { instructions: { general: 'Be brief.' } });
+
+  new Projects({ store, worktreesHome, oldWorktreesHome }).forgetWorktreeFolders();
+  assert.deepEqual(Object.keys(store.projects).sort(), [...kept].sort());
+  assert.equal(store.getProject(worked).instructions.general, 'Be brief.', 'what was set up there stays');
+});
+
+test('a contact on This computer whose folder became a repository leaves no project behind', git, async () => {
+  const store = new Store(tmp(), STORE_DEFAULTS);
+  const computerHome = path.join(tmp(), 'this-computer');
+  const chat = path.join(computerHome, 'chat-1');
+  fs.mkdirSync(chat, { recursive: true });
+  const contact = store.addContact({ ...someone, cwd: chat });
+  // Its agent made a repository of its folder.
+  spawnSync('git', ['init', '--quiet', '-b', 'main'], { cwd: chat });
+  spawnSync('git', [...AS_TEST, 'commit', '--quiet', '--allow-empty', '-m', 'first'], { cwd: chat });
+  const projects = new Projects({ store, worktreesHome: tmp(), computerHome });
+  assert.equal((await projects.known(chat)).name, 'This computer');
+  await deleteContact(store, projects, contact);
+  assert.deepEqual(projects.empty(), []);
+  assert.deepEqual(store.projects, {});
+});
+
+test('a project the user added stays with nobody on it, also once its own folder is gone', git, async () => {
+  const { projects, store } = setup();
+  const shop = repository('shop');
+  const notes = folder('notes');
+  const contacts = [shop, notes.root].map((cwd) => store.addContact({ ...someone, cwd }));
+  fs.rmSync(notes.root, { recursive: true, force: true });
+  for (const contact of contacts) await deleteContact(store, projects, contact);
+  assert.deepEqual(names(projects.empty()), ['notes', 'shop']);
 });
