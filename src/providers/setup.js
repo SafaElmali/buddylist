@@ -3,8 +3,9 @@
 // found before the first message is. A CLI that signs in through the browser by itself
 // can be asked to do that as well.
 import { execFile } from 'node:child_process';
+import { basename } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
-import { executablePath, spawnable } from './spawnable.js';
+import { executablePath, loginShell, pathFolders, spawnable } from './spawnable.js';
 
 /** How long a CLI gets to say how it stands. */
 const PATIENCE_MS = 8000;
@@ -22,6 +23,16 @@ const PATIENCE_MS = 8000;
  * @property {string} [path]  the executable found for the check
  * @property {string} [version]  the version reported by --version, when available
  * @property {boolean} [bundled]  whether this is the Claude Code that comes with buddylist
+ * @property {string} [installCommand]  what installs it, for one that is missing: "npm install -g @openai/codex"
+ * @property {Looked} [looked]  where it was looked for, for one that is missing and was looked for by its name
+ */
+
+/**
+ * Where a program was looked for: the folders of the app's PATH, which on a Mac or Linux are its login shell's.
+ * @typedef {Object} Looked
+ * @property {string} program  its name: "codex"
+ * @property {string[]} folders
+ * @property {string} shell  the login shell's name, "zsh"; '' on Windows, where the PATH is Windows' own
  */
 
 /**
@@ -88,6 +99,8 @@ export function runCli(command, args, { env = process.env, timeout = PATIENCE_MS
  * @param {string[]} cli.args     what makes it leave with 0 only when it is signed in. A CLI that can't be
  *   asked that is asked for its version, and is ready when it is there
  * @param {string} cli.install    what to do when it is not installed
+ * @param {string} [cli.installCommand]  the command in it that installs it, for the user to copy; none where there is
+ *   no one command
  * @param {string} cli.signIn     what to do when it is not signed in
  * @param {string} [cli.ready]    what there is to say about one that is ready
  * @param {RegExp} [cli.signedOut]  what it prints when it is not signed in, for a CLI that says so and still leaves
@@ -95,14 +108,28 @@ export function runCli(command, args, { env = process.env, timeout = PATIENCE_MS
  * @param {NodeJS.ProcessEnv} [cli.env]
  * @param {boolean} [cli.version]  also ask --version when the check is for sign-in
  * @param {boolean} [cli.bundled]
- * @param {{ run?: typeof runCli }} [deps]  replaceable in tests
+ * @param {{ run?: typeof runCli, platform?: string }} [deps]  replaceable in tests
  * @returns {Promise<Setup>}
  */
 export async function cliSetup(
-  { command, args, install, signIn, ready = '', signedOut, env, version = false, bundled = false },
-  { run = runCli } = {}
+  { command, args, install, installCommand, signIn, ready = '', signedOut, env, version = false, bundled = false },
+  { run = runCli, platform = process.platform } = {}
 ) {
-  if (!command) return { state: 'missing', note: install };
+  // What to do about it, and, for one looked for by its name, where that was.
+  const missing = () => ({
+    state: /** @type {const} */ ('missing'),
+    note: install,
+    ...(installCommand && { installCommand }),
+    ...(command &&
+      !/[\\/:]/.test(command) && {
+        looked: {
+          program: command,
+          folders: pathFolders({ env, platform }),
+          shell: platform === 'win32' ? '' : basename(loginShell({ env: env ?? process.env, platform })),
+        },
+      }),
+  });
+  if (!command) return missing();
   const path = executablePath(command, { env });
   const versionOnly = args.length === 1 && args[0] === '--version';
   const [answer, release] = await Promise.all([
@@ -125,7 +152,7 @@ export async function cliSetup(
   };
   if (killed) return { ...details, state: 'unknown', note: 'The check timed out after 8 seconds. Try Check again.' };
   // A number is what the CLI left with. Anything else is why it never started.
-  if (code === 'ENOENT') return { ...details, state: 'missing', note: install };
+  if (code === 'ENOENT') return { ...details, ...missing() };
   if (typeof code !== 'number')
     return {
       ...details,

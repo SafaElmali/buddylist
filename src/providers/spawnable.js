@@ -27,6 +27,27 @@ export const variable = (env, name) => {
 };
 
 /**
+ * The folders PATH has, in the order a program is looked for in them: on Windows written with ";", and maybe in quotes.
+ * @param {object} [opts]
+ * @param {Record<string, string | undefined>} [opts.env]
+ * @param {string} [opts.platform]  a stand-in for tests
+ * @returns {string[]}
+ */
+export function pathFolders({ env = process.env, platform = process.platform } = {}) {
+  if (platform !== 'win32') return (env.PATH ?? '').split(':').filter(Boolean);
+  return (variable(env, 'PATH') || '')
+    .split(';')
+    .map((folder) => folder.replace(/^"(.*)"$/, '$1'))
+    .filter(Boolean);
+}
+
+/**
+ * The login shell a Mac or Linux user's Terminal starts, whose start-up files say where programs are.
+ * @param {{ env: Record<string, string | undefined>, platform: string }} opts
+ */
+export const loginShell = ({ env, platform }) => env.SHELL || (platform === 'darwin' ? '/bin/zsh' : '/bin/sh');
+
+/**
  * Where `command` is: where it points when it is a path, or else in the first folder of PATH
  * that has it. A name without one of the extensions is tried with each in PATHEXT in turn, so
  * the batch file npm puts next to a script for sh is found, and not the script.
@@ -39,8 +60,7 @@ function lookFor(command, env, exists) {
     .map((extension) => extension.toLowerCase());
   const names = RUNNABLE.test(command) ? [command] : extensions.map((extension) => command + extension);
   if (/[\\/:]/.test(command)) return names.find((name) => exists(name));
-  const folders = (variable(env, 'PATH') || '').split(';').map((folder) => folder.replace(/^"(.*)"$/, '$1'));
-  for (const folder of folders.filter(Boolean)) {
+  for (const folder of pathFolders({ env, platform: 'win32' })) {
     const found = names.map((name) => path.win32.join(folder, name)).find((file) => exists(file));
     if (found) return found;
   }

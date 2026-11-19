@@ -8,7 +8,7 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { runCli } from '../providers/setup.js';
-import { variable } from '../providers/spawnable.js';
+import { loginShell, variable } from '../providers/spawnable.js';
 
 // How long what is started at first waits for the shell's PATH. A shell that answers later is still listened to.
 const WAIT_MS = 5000;
@@ -137,7 +137,7 @@ export function createLoginPath({
   const ask = () =>
     platform === 'win32'
       ? windowsPath({ env, timeout, ask: askWindows })
-      : loginShellPath({ shell: env.SHELL || (platform === 'darwin' ? '/bin/zsh' : '/bin/sh'), timeout });
+      : loginShellPath({ shell: loginShell({ env, platform }), timeout });
   const reload = () =>
     (asking ??= ask()
       .then((found) => {

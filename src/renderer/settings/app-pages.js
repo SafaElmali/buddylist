@@ -31,6 +31,7 @@ import { newContactsPage } from './new-contacts.js';
 import { remotePage } from './remote.js';
 import { schedulesPage } from './schedules.js';
 import { modelsLine, serviceLine } from './service-lines.js';
+import { missingHelp } from './service-missing.js';
 import { shortcutsPage } from './shortcuts.js';
 import { teamsPage } from './teams.js';
 
@@ -363,14 +364,25 @@ function agents(ctx) {
       });
       const reset = button('Use default', () => use(''));
       const retry = button('Check again', () => check(provider, true));
+      const choose = async () => {
+        const path = await api.app.pickFile('program', box.value);
+        if (path) use(path);
+      };
+      notes.set(provider.id, el('<p class="st-hint st-service-note" role="status" hidden></p>'));
+      // Not found where it was looked for by its name: the ways forward take the note's place.
+      const help = el('<div class="st-service-help" hidden></div>');
       const paint = () => {
         reset.disabled = !pathOf(provider);
         retry.disabled = checks.has(provider.id);
+        const setup = setups.get(provider.id);
+        const missing = setup?.state === 'missing' && setup.looked && !pathOf(provider);
+        help.replaceChildren(...(missing ? missingHelp(setup, { choose }) : []));
+        help.hidden = !missing;
+        if (missing) notes.get(provider.id).hidden = true;
       };
       refreshes.set(provider.id, paint);
-      paint();
-      notes.set(provider.id, el('<p class="st-hint st-service-note" role="status" hidden></p>'));
       sayNote(provider);
+      paint();
       const advanced = el(
         '<details class="st-service-advanced"><summary>Use a different installation</summary></details>'
       );
@@ -380,13 +392,7 @@ function agents(ctx) {
           '<p class="st-hint">Only choose a program here to override automatic detection. Leave the path empty to use the default installation.</p>'
         ),
         field('Custom executable path (optional)', box),
-        row(
-          button('Choose executable...', async () => {
-            const path = await api.app.pickFile('program', box.value);
-            if (path) use(path);
-          }),
-          reset
-        )
+        row(button('Choose executable...', choose), reset)
       );
       return [
         row(
@@ -395,6 +401,7 @@ function agents(ctx) {
           provider.accounts && button('Account settings', () => ctx.go('accounts'))
         ),
         notes.get(provider.id),
+        help,
         advanced,
       ];
     },

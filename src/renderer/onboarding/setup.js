@@ -1,7 +1,7 @@
 // How the welcome wizard words what the setup check found, and how Settings and a
 // service's Models dialog word the same of one service. Nothing in here touches the
 // page: main/setup-check.js says how each CLI stands, and this says how that reads.
-import { listNames } from '../lib/format.js';
+import { listNames, plural } from '../lib/format.js';
 
 /** @typedef {import('../../main/setup-check.js').SetupItem} SetupItem */
 
@@ -31,6 +31,26 @@ export function statusText({ state, custom }) {
   if (state === 'missing') return { text: custom ? 'Not found where you said' : 'Not installed', ok: false };
   return { text: 'Could not be checked', ok: null };
 }
+
+/**
+ * What a program that is missing says it was looked for on: "zsh’s PATH", and on Windows "your PATH".
+ * @param {import('../../providers/setup.js').Looked} looked
+ */
+export const pathName = ({ shell }) => (shell ? `${shell}’s PATH` : 'your PATH');
+
+/**
+ * What finds a program that is installed after all, in a terminal: "which codex", and on Windows "where.exe codex"
+ * (PowerShell takes a bare "where" for Where-Object).
+ * @param {import('../../providers/setup.js').Looked} looked
+ */
+export const findCommand = ({ shell, program }) => `${shell ? 'which' : 'where.exe'} ${program}`;
+
+/**
+ * How many folders a missing program was looked for in, and on what: "Looked in 6 folders on zsh’s PATH".
+ * @param {import('../../providers/setup.js').Looked} looked
+ */
+export const lookedIn = (looked) =>
+  `Looked in ${looked.folders.length} ${plural(looked.folders.length, 'folder')} on ${pathName(looked)}`;
 
 /**
  * The services that can be talked to right now. GitHub's CLI is nobody to talk to.

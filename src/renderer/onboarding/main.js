@@ -88,6 +88,17 @@ async function signIn(id, way) {
   await checkSetup();
 }
 
+/**
+ * Choose executable... on the line of a service whose program was not found: the program is kept where Settings >
+ * Services keeps one chosen there, and every CLI is asked again how it stands.
+ */
+async function chooseProgram(id) {
+  const path = await api.app.pickFile('program', '');
+  if (!path) return;
+  state.settings = await api.app.updateSettings({ agents: { [id]: { path } } });
+  await checkSetup();
+}
+
 /** "Sign in..." on a line of the check: which way, where its service has more than one. */
 function pickSignIn(id, button) {
   // GitHub's has a code to show, and a dialog for it. However that ends, every CLI is asked again.
@@ -131,6 +142,7 @@ const context = () => ({
   showFeature,
   picture: (avatar) => pictureHtml({ avatar, size: 'tiny' }),
   recheck: () => checkSetup(true),
+  choose: chooseProgram,
   signIn: pickSignIn,
   cancelSignIn: (id) => api.onboarding.cancelSignIn(id),
   addProject,

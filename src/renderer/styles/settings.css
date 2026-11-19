@@ -390,6 +390,44 @@
   overflow-wrap: anywhere;
 }
 
+/* A program not found: Install it and Already installed? side by side, their headings, buttons and hints level with
+   each other; one under the other where there is no room for both. */
+.st-service-missing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 40px;
+  margin-top: 12px;
+}
+
+.st-service-missing > div {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.st-service-missing > div:last-child {
+  flex: 1 1 220px;
+}
+
+.st-service-missing .st-hint {
+  margin: 0;
+}
+
+.st-install-command {
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+
+.st-service-looked {
+  margin-top: 14px;
+}
+
+.st-service-looked .st-mono {
+  display: block;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
 .st-row .input {
   flex: 1;
   min-width: 0;

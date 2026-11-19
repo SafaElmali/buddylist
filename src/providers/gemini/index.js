@@ -5,6 +5,8 @@ import { cliSetup } from '../setup.js';
 
 export { descriptor };
 
+/** What installs it, for the user to copy. */
+const INSTALL_COMMAND = 'npm install -g @google/gemini-cli';
 const NOT_INSTALLED =
   'Couldn’t find Gemini CLI. Install it with "npm install -g @google/gemini-cli", run "gemini" once to sign in, then send your message again.';
 
@@ -58,7 +60,8 @@ export function createGeminiProvider({ cliPath = () => '', tools = () => [] } = 
       cliSetup({
         command: cli(),
         args: ['--version'],
-        install: 'Install it with "npm install -g @google/gemini-cli", then run "gemini" once to sign in.',
+        install: `Install it with "${INSTALL_COMMAND}", then run "gemini" once to sign in.`,
+        installCommand: INSTALL_COMMAND,
         signIn: 'Open Terminal and run "gemini" to see what is wrong with it.',
         ready: 'Installed. Whether it is signed in shows with your first message.',
       }),
