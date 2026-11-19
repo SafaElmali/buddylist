@@ -212,6 +212,7 @@ window.messenger = {
     interrupt: invoke('chat:interrupt'),
     useCredits: invoke('chat:use-credits'),
     switchAccount: invoke('chat:switch-account'),
+    allowHandoffs: invoke('chat:allow-handoffs'),
     sendNow: invoke('chat:send-now'),
     startDraft: invoke('chat:start-draft'),
     deleteDraft: invoke('chat:delete-draft'),

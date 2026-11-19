@@ -1,7 +1,7 @@
 // The card under the line of an agent that drafted a conversation for the user (see shared/drafted.js): its buddy and
 // name, which opens it, how it stands, and Start while it waits to start. Once started or deleted, it says that.
 import { el, html } from '../lib/dom.js';
-import { buddy } from '../lib/icons.js';
+import { paintBuddy } from '../lib/icons.js';
 import { WAITING_TO_START, draftState } from '../../shared/drafted.js';
 
 /** What the card says of a conversation, by how it stands (see draftState). */
@@ -66,11 +66,7 @@ export function paintDraftCard(node, contact) {
   const view = draftCardView(contact, node.dataset.name);
   node.dataset.name = view.name;
   node.dataset.state = view.state;
-  const icon = node.querySelector('.draft-card-buddy');
-  if (icon.dataset.icon !== view.icon) {
-    icon.replaceChildren(el(buddy(view.icon, 16)));
-    icon.dataset.icon = view.icon;
-  }
+  paintBuddy(node.querySelector('.draft-card-buddy'), view.icon);
   const name = /** @type {HTMLButtonElement} */ (node.querySelector('.draft-card-name'));
   name.textContent = view.name;
   name.disabled = !view.open;

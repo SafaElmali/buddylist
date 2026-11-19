@@ -616,6 +616,8 @@ export const COUNTED = Object.freeze({
   // a phone, once another was put in use. No amounts, nor which account.
   [REQUESTS.chatUseCredits]: { event: 'usage credits used once', about: whenDone(agentOf) },
   [REQUESTS.chatSwitchAccount]: { event: 'switched at plan limit', about: whenDone(agentOf) },
+  // Allow 6 more, on the card of a manager that had sent a conversation all it may: once it allowed more. Never whom.
+  [REQUESTS.chatAllowHandoffs]: { event: 'more messages allowed', about: whenDone(agentOf) },
   // Settings > Remote access. Never the password, the code, a device's name or where it is.
   [REQUESTS.remoteUpdate]: { event: 'remote access changed', about: remoteChanged },
   [REQUESTS.remotePassword]: { event: 'remote password set' },

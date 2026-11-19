@@ -62,6 +62,7 @@ import {
   workerNote,
 } from '../shared/managers.js';
 import { pullRequestTags } from '../shared/pull-request-text.js';
+import { allowMoreTold, allowedHere, allowedNote, handoffsLine } from '../shared/handoffs.js';
 import { REVIEW_ROLE, noSuchRole, roleNamed } from '../shared/teams.js';
 import { DEFAULT_TURN_LIMIT } from '../shared/turn-limit.js';
 import { percentOf } from '../shared/usage.js';
@@ -135,13 +136,18 @@ export class Managers {
    * @type {Map<string, Map<string, { worker: string, entry: string, line: string }>>}
    */
   #asks = new Map();
+  /**
+   * manager id:worker id -> a message to that worker the user wasn't asked to approve, as the worker had all of the
+   * manager's it is sent (see refuses): refused when it runs, whatever changed meanwhile.
+   */
+  #refusedUnasked = new Set();
 
   /**
    * @param {object} deps
    * @param {Pick<import('./storage/store.js').Store, 'contacts' | 'getContact' | 'addContact' | 'settings' | 'profile'>} deps.store
    * @param {Pick<import('./storage/history.js').History, 'read'>} deps.history
    * @param {Pick<import('./project-settings.js').Projects, 'known' | 'settings' | 'update'>} deps.projects
-   * @param {Pick<import('./conversations.js').Conversations, 'pass' | 'notice' | 'view' | 'end' | 'reset' | 'restoreContact' | 'setModel' | 'inviteAsked' | 'waitingOn' | 'answerFor'> & Partial<Pick<import('./conversations.js').Conversations, 'hurryNote' | 'stopped' | 'atPlanLimit' | 'switchProvider' | 'withdraw' | 'managerAnswered'>>} deps.conversations
+   * @param {Pick<import('./conversations.js').Conversations, 'pass' | 'notice' | 'handoffsChanged' | 'view' | 'end' | 'reset' | 'restoreContact' | 'setModel' | 'inviteAsked' | 'waitingOn' | 'answerFor'> & Partial<Pick<import('./conversations.js').Conversations, 'hurryNote' | 'stopped' | 'atPlanLimit' | 'switchProvider' | 'withdraw' | 'managerAnswered'>>} deps.conversations
    * @param {(id: string) => import('../providers/contract.js').ProviderDescriptor} deps.descriptor  a service, by id
    * @param {string[]} deps.worktreesHomes  where contacts' worktrees go, and went before: a project's are in a folder of its name
    * @param {() => void} deps.onContactsChanged  a manager was added, put back on the list, or turned off
@@ -995,21 +1001,105 @@ export class Managers {
     );
   }
 
+  /** How many of a sender's messages a conversation is sent until the user writes to it: Hand-offs in Settings. */
+  #limit() {
+    return this.store.settings.turnLimit ?? DEFAULT_TURN_LIMIT;
+  }
+
   /**
-   * How many messages a manager sent a worker since the user last wrote to it.
-   * @param {string} workerId
-   * @param {string} managerId
+   * What a conversation has had since the user last wrote to it, or since `stop` says.
+   * @param {string} contactId
+   * @param {(entry: any) => boolean} [stop]
    */
-  #sentSinceUser(workerId, managerId) {
-    const entries = this.history.read(workerId);
-    const since = entries.findLastIndex((entry) => entry.kind === 'user');
-    return entries.slice(since + 1).filter((entry) => entry.kind === 'notice' && entry.from === managerId).length;
+  #sinceUser(contactId, stop = () => false) {
+    const entries = this.history.read(contactId);
+    return entries.slice(entries.findLastIndex((entry) => entry.kind === 'user' || stop(entry)) + 1);
+  }
+
+  /**
+   * What a sender passed on to a conversation since the user last wrote to it, or let it send more there with the card
+   * a refusal left (see allowMore): its lines there since.
+   * @param {string} targetId
+   * @param {string} senderId
+   */
+  #sentSince(targetId, senderId) {
+    return this.#sinceUser(targetId, (entry) => entry.allows === senderId).filter(
+      (entry) => entry.kind === 'notice' && entry.from === senderId
+    );
+  }
+
+  /**
+   * A conversation had all of a sender's messages it is sent: the sender's conversation shows the user a card, where
+   * they let it send more (see allowMore). One for each conversation, until the user writes to the sender again or
+   * allows more on it.
+   * @param {Contact} sender
+   * @param {Contact} target
+   * @param {string} sent  what the sender is told it sent there, as a sentence without its full stop
+   * @param {{ reports?: boolean }} [what]  `reports`: its reports to its project manager
+   * @returns {Error}  what the sender is told
+   */
+  #refused(sender, target, sent, { reports = false } = {}) {
+    const limit = this.#limit();
+    const shown = this.#sinceUser(sender.id).some(
+      (entry) => entry.handoffs?.to === target.id && !entry.handoffs.allowed
+    );
+    if (!shown) {
+      /** @type {import('../shared/handoffs.js').HandoffCard} */
+      const card = { to: target.id, name: target.name, by: sender.name, limit, ...(reports && { reports: true }) };
+      this.conversations.notice(sender.id, handoffsLine(card), { handoffs: card });
+    }
+    return new Error(`${sent}, which is as many as it is sent. ${allowMoreTold(limit)}`);
+  }
+
+  /**
+   * Whether a manager's message to a worker, by name, would be refused now, the worker having had all of its messages:
+   * the user isn't asked to approve one that can't go (see app-tools.js). That message is refused when it runs, also
+   * where the user allowed more meanwhile: nobody approved it.
+   * @param {string} managerId
+   * @param {unknown} to
+   */
+  refuses(managerId, to) {
+    let worker;
+    try {
+      const { manager, project } = this.#asking(managerId);
+      worker = this.#worker(manager, project, String(to ?? ''));
+    } catch {
+      return false;
+    }
+    const key = `${managerId}:${worker.id}`;
+    const full = this.#sentSince(worker.id, managerId).length >= this.#limit();
+    if (full) this.#refusedUnasked.add(key);
+    else this.#refusedUnasked.delete(key);
+    return full;
+  }
+
+  /**
+   * The user let a sender send more, with Allow on the card a refusal left in its conversation (see #refused): the
+   * conversation the card is about is sent as many again, as if the user had written to it, and a line there says so,
+   * which its agent doesn't read. The sender hears it may send again, and starts on it where it is free. A window asks
+   * for this with the card's id, for the user: no agent can.
+   * @param {string} contactId  the sender, whose conversation the card is in
+   * @param {string} entryId  the card
+   * @returns {number}  how many more it may send: 0 for no card, or one allowed already
+   */
+  allowMore(contactId, entryId) {
+    const sender = this.store.getContact(contactId);
+    /** @type {import('../shared/handoffs.js').HandoffCard | undefined} */
+    const card = this.history.read(contactId).findLast((entry) => entry.id === entryId)?.handoffs;
+    if (!sender || !card || card.allowed) return 0;
+    const target = this.store.getContact(card.to);
+    if (!target) throw new Error(`${card.name} was deleted, so there is nothing to allow.`);
+    const more = this.#limit();
+    this.conversations.notice(target.id, allowedHere(sender.name, more, card.reports), { allows: sender.id });
+    this.conversations.handoffsChanged(contactId, entryId, { ...card, allowed: more });
+    this.conversations.pass(sender.id, { key: `allowed:${target.id}`, line: '', note: allowedNote(card, more) });
+    return more;
   }
 
   /**
    * A manager's message for one of its workers. Its window shows it at once, and its agent reads it once it
    * is free. A worker is sent as many as the agents of a conversation take turns on one message of the user's:
-   * past that, the user is the one to hear of it.
+   * past that, the user is the one to hear of it, and may allow more (see allowMore).
    * @param {string} managerId
    * @param {string} to  the worker, by name
    * @param {string} text
@@ -1022,12 +1112,18 @@ export class Managers {
     const said = String(text ?? '').trim();
     if (!said) throw new Error('Say what the message is.');
     if (said.length > MESSAGE_MAX) throw new Error(`A message is at most ${MESSAGE_MAX} characters.`);
-    const limit = this.store.settings.turnLimit ?? DEFAULT_TURN_LIMIT;
-    if (this.#sentSinceUser(worker.id, manager.id) >= limit) {
-      throw new Error(
-        `${worker.name} was sent ${limit} messages of yours since the user last wrote to it, which is as many ` +
-          'as it is sent. Tell the user what is left instead.'
+    const limit = this.#limit();
+    if (this.#sentSince(worker.id, manager.id).length >= limit) {
+      this.#refusedUnasked.delete(`${manager.id}:${worker.id}`);
+      throw this.#refused(
+        manager,
+        worker,
+        `${worker.name} was sent ${limit} messages of yours since the user last wrote to it or allowed more`
       );
+    }
+    // The user wasn't asked to approve it, as it couldn't go then (see refuses).
+    if (this.#refusedUnasked.delete(`${manager.id}:${worker.id}`)) {
+      throw new Error('Nothing was sent: the user allowed more meanwhile. Send it again, for them to approve.');
     }
     const busy = this.conversations.view(worker).status !== 'online';
     // The user stopped it: what it is sent waits for them, also an urgent message (see Conversations#hurryNote). As it
@@ -1570,11 +1666,12 @@ export class Managers {
       const { lead, key, project } = this.#leading(leadId);
       const manager = this.#managerNamedBy(lead, project, to);
       const worker = String(job ?? '').trim() ? await this.#jobOf(key, project, job) : null;
-      const limit = this.store.settings.turnLimit ?? DEFAULT_TURN_LIMIT;
-      if (this.#sentSinceUser(manager.id, lead.id) >= limit) {
-        throw new Error(
-          `${manager.name} was sent ${limit} messages of yours since the user last wrote to it, which is as many ` +
-            'as it is sent. Tell the user what is left instead.'
+      const limit = this.#limit();
+      if (this.#sentSince(manager.id, lead.id).length >= limit) {
+        throw this.#refused(
+          lead,
+          manager,
+          `${manager.name} was sent ${limit} messages of yours since the user last wrote to it or allowed more`
         );
       }
       return { lead, manager, worker };
@@ -1654,19 +1751,16 @@ export class Managers {
         `A report is at most ${REPORT_UP_MAX} characters: the verdict, what must change, and which worker.`
       );
     }
-    const limit = this.store.settings.turnLimit ?? DEFAULT_TURN_LIMIT;
-    const entries = this.history.read(lead.id);
-    const since = entries.findLastIndex((entry) => entry.kind === 'user');
-    const reports = entries
-      .slice(since + 1)
-      .filter(
-        (entry) =>
-          entry.kind === 'notice' && entry.from === manager.id && entry.text?.startsWith(`${manager.name} reports:`)
-      );
+    const limit = this.#limit();
+    const reports = this.#sentSince(lead.id, manager.id).filter((entry) =>
+      entry.text?.startsWith(`${manager.name} reports:`)
+    );
     if (reports.length >= limit) {
-      throw new Error(
-        `You sent ${lead.name} ${limit} reports since the user last wrote to it, which is as many as it is sent. ` +
-          'Tell the user instead.'
+      throw this.#refused(
+        manager,
+        lead,
+        `You sent ${lead.name} ${limit} reports since the user last wrote to it or allowed more`,
+        { reports: true }
       );
     }
     this.conversations.pass(lead.id, {

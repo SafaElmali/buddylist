@@ -1351,6 +1351,8 @@ const handlers = {
   // The demo's agents never reach a plan's limit: there is no turn stopped there to let go on.
   [REQUESTS.chatUseCredits]: () => false,
   [REQUESTS.chatSwitchAccount]: () => null,
+  // The demo's managers never run out of hand-offs: nothing to allow.
+  [REQUESTS.chatAllowHandoffs]: () => 0,
   [REQUESTS.chatRespond]: (_win, contactId, requestId, response) =>
     conversations.respond(contactId, requestId, response),
   [REQUESTS.chatStopHelper]: (_win, contactId, helperId, participantId) =>

@@ -2231,6 +2231,33 @@
     color: var(--warn);
   }
 
+  /* A conversation had all of the manager's messages: a card as wide as reads well, under the call it refused. */
+  & .handoff-card {
+    max-width: 560px;
+    margin: 6px 0 10px 22px;
+    padding: 8px 8px 8px 12px;
+    border-color: var(--hairline);
+    border-radius: 8px;
+    font-size: 13px;
+  }
+
+  & .handoff-card-name {
+    font-weight: 600;
+  }
+
+  & .handoff-card-says,
+  & .handoff-card-hint {
+    color: var(--text-dim);
+  }
+
+  & .handoff-card-allowed {
+    font-weight: 600;
+  }
+
+  & .handoff-card-hint {
+    font-size: 12px;
+  }
+
   & .answered-from {
     margin-top: 8px;
     color: var(--text-dim);

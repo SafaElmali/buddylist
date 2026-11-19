@@ -1,7 +1,7 @@
 // All artwork is drawn here as inline SVG (original art in a mid-2000s
 // messenger style). Every call returns fresh markup with unique gradient ids.
 // The app's own icon is the exception: a picture, drawn by `npm run icon` (see appIcon).
-import { escapeHtml } from './dom.js';
+import { el, escapeHtml } from './dom.js';
 
 let counter = 0;
 const uid = () => `i${++counter}`;
@@ -84,6 +84,17 @@ export function buddy(status = 'online', size = 16, { lead = false, label = '' }
     <ellipse cx="5.9" cy="3.1" rx="1.3" ry=".8" fill="#fff" opacity=".75"/>
     ${badge}${lead ? LEAD_STAR : ''}
   </svg>`;
+}
+
+/**
+ * A 16px buddy in `slot`, drawn again only when its status changed: a card's, painted whenever the list changes.
+ * @param {HTMLElement} slot
+ * @param {string} status
+ */
+export function paintBuddy(slot, status) {
+  if (slot.dataset.icon === status) return;
+  slot.replaceChildren(el(buddy(status, 16)));
+  slot.dataset.icon = status;
 }
 
 /**

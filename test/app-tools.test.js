@@ -829,6 +829,8 @@ const managersFor = () => {
     calls,
     oversees: (contact) => contact.id === 'm1',
     say: async (...args) => (calls.push(['say', ...args]), 'Sent.'),
+    // A worker named "Full" had all of the manager's messages it is sent.
+    refuses: (_managerId, to) => to === 'Full',
     answer: async (...args) => (calls.push(['answer', ...args]), 'Answered.'),
     // The card a worker waits on: what it asks, for the manager's answer to be shown under.
     questionsOf: (...args) => (calls.push(['questionsOf', ...args]), ['Which runner?', 'What to cover?']),
@@ -880,6 +882,8 @@ test('a manager’s tools do what the managers do, for that manager, and only it
   ]);
   // A message sets another agent to work: the user reads it before it goes.
   assert.equal(message.ask({ to: 'Claude (tags)', text: 'Fix it.' }), true);
+  // Not one that can't go, to a conversation that had all of the manager's messages: the user's way out is a card.
+  assert.equal(message.ask({ to: 'Full', text: 'Fix it.' }), false);
   for (const one of [look, brief, sources]) assert.equal(one.ask({}), false);
   assert.equal(takes(sources, { add: [{ name: 'PRD' }], remove: ['COM-630'] }), true);
   assert.equal(takes(sources, {}), true, 'to read them');

@@ -1167,19 +1167,35 @@ export class Conversations {
     this.chats.send(hostId, {
       type: 'notice',
       text,
-      ...(extra.managerNote && { entryId: entry.id, managerNote: true }),
+      ...((extra.managerNote || extra.handoffs) && { entryId: entry.id }),
+      ...(extra.managerNote && { managerNote: true }),
       ...(extra.words && { words: true }),
+      ...(extra.handoffs && { handoffs: extra.handoffs }),
     });
     return entry;
   }
 
   /**
-   * Something the app did to a contact's folder, said in its conversation and kept with it.
+   * Something the app did, said in a contact's conversation and kept with it: to its folder, or for its project's
+   * managers (see main/managers.js), with what the line is kept with. `handoffs`: the card where the user lets a
+   * sender send more (see shared/handoffs.js). `allows`: the line that lets a sender send more here.
    * @param {string} contactId
    * @param {string} text
+   * @param {{ handoffs?: import('../shared/handoffs.js').HandoffCard, allows?: string }} [extra]
    */
-  notice(contactId, text) {
-    if (this.store.getContact(contactId)) this.#notice(contactId, text);
+  notice(contactId, text, extra = {}) {
+    if (this.store.getContact(contactId)) this.#notice(contactId, text, extra);
+  }
+
+  /**
+   * A card where the user lets a sender send more says how it stands now, kept and in every window that shows it.
+   * @param {string} contactId
+   * @param {string} entryId
+   * @param {import('../shared/handoffs.js').HandoffCard} handoffs
+   */
+  handoffsChanged(contactId, entryId, handoffs) {
+    this.history.update(contactId, entryId, { handoffs }, { heard: false });
+    this.chats.send(contactId, { type: 'handoffs', entryId, handoffs });
   }
 
   /**
@@ -4733,7 +4749,8 @@ export class Conversations {
    * @param {string} contactId
    * @param {object} what
    * @param {string} what.key  a note that still waits under the same key is replaced: only the newest is read
-   * @param {string} what.line  what the window shows
+   * @param {string} what.line  what the window shows: '' for news its window says already, as a card does, and with no
+   *   `from`
    * @param {string} what.note  what the agent is sent
    * @param {string} [what.from]  the contact it is from, kept with the line
    * @param {string} [what.said]  with `from`: the words its sender wrote, as a manager's message has them. The user may
@@ -4747,7 +4764,10 @@ export class Conversations {
   pass(contactId, { key, line, note, from, said, quiet = false, images = [] }) {
     const contact = this.store.getContact(contactId);
     if (!contact || contact.archived) return false;
-    const entry = this.#notice(contactId, line, from ? { from, managerNote: true, ...(said && { words: true }) } : {});
+    const entry =
+      line || from
+        ? this.#notice(contactId, line, from ? { from, managerNote: true, ...(said && { words: true }) } : {})
+        : null;
     inner(this.#notes, contactId).set(key, { text: note, images });
     if (quiet) {
       if (!this.#quietNotes.has(contactId)) this.#quietNotes.set(contactId, new Set());
