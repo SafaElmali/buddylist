@@ -53,6 +53,7 @@ import {
   managerMessage,
   managerName,
   managerNoteOf,
+  managerSettingsOf,
   managerSwitchMode,
   questionNote,
   managersAtWork,
@@ -4221,4 +4222,15 @@ test('a tag of the manager alone starts no drafted worker: its first message sti
   assert.equal(app.store.getContact(worker.id).draft, 'Round the cart total before tax.', 'still a draft');
   assert.equal(sessionOf(worker.id), undefined);
   await settled();
+});
+
+test('a manager’s settings are its own among the others, or else the first’s', () => {
+  const first = cleanManager({ id: 'm-shop', model: 'sonnet' });
+  const release = cleanManager({ id: 'm-release', model: 'opus' });
+  const settings = { manager: first, managers: [release] };
+  assert.equal(managerSettingsOf(settings, 'm-release'), release);
+  assert.equal(managerSettingsOf(settings, 'm-shop'), first, 'the first is none of the others');
+  assert.equal(managerSettingsOf(settings, 'gone'), first, 'one that is no manager of the project any more');
+  assert.equal(managerSettingsOf(settings, null), first);
+  assert.equal(managerSettingsOf(settings), first);
 });

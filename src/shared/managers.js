@@ -533,6 +533,16 @@ export function cleanManagers(value) {
 }
 
 /**
+ * What one of a project's managers is set up with, by its contact: its own among the others, or else the first's,
+ * which is also what a project with no manager yet starts its first with.
+ * @param {Pick<import('./project-settings.js').ProjectSettings, 'manager' | 'managers'>} settings  the project's
+ * @param {string | null} [id]
+ * @returns {ManagerSettings}
+ */
+export const managerSettingsOf = (settings, id) =>
+  (id && settings.managers.find((one) => one.id === id)) || settings.manager;
+
+/**
  * The projects "Add a manager" offers: each repository without a manager turned on, once, by name. A folder
  * outside a repository has no worktrees for a manager to oversee.
  * @template {{ key: string, name: string, repository: boolean, settings: Pick<ManagerSettings, 'on'> }} P

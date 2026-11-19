@@ -7,7 +7,14 @@ import { api } from '../lib/api.js';
 import { el, errorText, html } from '../lib/dom.js';
 import { effortPicker, modelPicker, servicePicker } from '../contacts/model-picker.js';
 import { askModels } from '../contacts/models.js';
-import { CHECKS, NEW_WORKERS, WORKER_MODES, cleanWorkers, switchedTo } from '../../shared/managers.js';
+import {
+  CHECKS,
+  NEW_WORKERS,
+  WORKER_MODES,
+  cleanWorkers,
+  managerSettingsOf,
+  switchedTo,
+} from '../../shared/managers.js';
 import { newScriptId } from '../../shared/project-settings.js';
 import { PROJECT_SETTINGS } from '../../shared/settings-pages.js';
 import {
@@ -475,13 +482,11 @@ export function newWorkersGroup(providers, kept, onSave, managerService = 'claud
 }
 
 /**
- * What one of a project's managers is set up with, by its contact: one of the others, or else the first. With no
- * manager yet, what the first one starts with.
+ * What one of a project's managers is set up with, by its contact (see managerSettingsOf).
  * @param {import('../../main/project-settings.js').ProjectView} project
  * @param {string} [id]
  */
-const settingsOf = (project, id) =>
-  (id && project.settings.managers.find((one) => one.id === id)) || project.settings.manager;
+const settingsOf = (project, id) => managerSettingsOf(project.settings, id);
 
 /**
  * What a manager's line in the list says of it: whether it is on, its model, how many conversations are under it,
