@@ -41,6 +41,7 @@ import {
   managerInstructions,
   managerMessage,
   managerName,
+  managerSettingsOf,
   managerSwitchMode,
   notePutBackNote,
   noteTakenNote,
@@ -278,7 +279,7 @@ export class Managers {
    * @returns {ManagerSettings}
    */
   settingsOf(key, id) {
-    return (id && this.#others(key).find((one) => one.id === id)) || this.#first(key);
+    return managerSettingsOf(this.projects.settings(key), id);
   }
 
   /**
