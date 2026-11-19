@@ -13,6 +13,7 @@ version into package.json and package-lock.json in the release prep PR.
 
 ## v0.7.9
 
+- **Move a window from anywhere on its title bar** — In the Professional look, once the contact list, a long conversation or a page of Settings was scrolled down, grabbing the middle of the title bar didn’t move the window: only its ends did. The whole title bar moves it again, in every window, and the buttons on it work as before. The same goes for Settings in the Messenger look.
 - **An agent you install while buddylist is open answers your next message** — A Codex contact added before Codex was installed kept saying it couldn’t be found and to run `codex login`, even once you had installed Codex and logged in, until you quit buddylist. Now a message whose program isn’t on your PATH has buddylist read your PATH again first, so the next one you send finds it; the same goes for Gemini, OpenCode, Hermes and Grok. One that is still not found says where buddylist looked and points to **Choose executable...** in **Settings > Services**, and no longer tells you to log in. A Codex that isn’t signed in now says to run `codex login`, and your next message after that goes through.
 
 ## v0.7.8 — 2026-11-19
