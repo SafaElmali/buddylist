@@ -30,7 +30,9 @@ export function missingHelp({ note, installCommand, looked }, { choose }) {
   ways.append(install, installed);
   const where = el(
     html`<p class="st-hint st-service-looked">
-      ${lookedIn(looked)}:<span class="st-mono">${looked.folders.join('  ·  ')}</span>
+      ${lookedIn(looked)}:<span class="st-folders"
+        >${looked.folders.map((folder) => html`<span class="st-mono">${folder}</span> `)}</span
+      >
     </p>`
   );
   return [ways, where];

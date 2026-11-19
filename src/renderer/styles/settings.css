@@ -422,10 +422,21 @@
   margin-top: 14px;
 }
 
-.st-service-looked .st-mono {
+.st-folders {
   display: block;
   margin-top: 2px;
+}
+
+/* A folder is one piece, with the dot after it: a long PATH wraps between folders, and a line starts with one. Only a
+   folder longer than the line breaks. */
+.st-folders .st-mono {
+  display: inline-block;
+  max-width: 100%;
   overflow-wrap: anywhere;
+}
+
+.st-folders .st-mono:not(:last-child)::after {
+  content: ' ·';
 }
 
 .st-row .input {
