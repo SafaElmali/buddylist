@@ -91,6 +91,22 @@ const otherServersTool = (name) => String(name).startsWith('mcp__') && !String(n
 // by the names the mode picker gives them: Accept edits runs one that writes in the folder, and Bypass permissions any.
 const RUNS_UNASKED = { acceptEdits: 'Auto-accept file edits', bypassPermissions: 'Never ask' };
 
+/**
+ * Claude Code's own ways of answering with another model than the one it was given (see the system messages of the same
+ * names in its SDK): after a refusal, when the model isn't available to the login, and when it runs on usage credits the
+ * user turned down. A refusal's may be for that one reply (`scope: 'local'`); the rest go on with it in the session.
+ */
+const MODEL_SWITCHES = new Set(['model_refusal_fallback', 'model_fallback', 'model_consent_fallback']);
+
+/**
+ * The limits Claude Code says are a model's own, with the model they hold back and another that still answers past
+ * them, by the names Claude Code's list gives them.
+ */
+const MODEL_LIMITS = {
+  seven_day_opus: { model: 'opus', other: 'sonnet' },
+  seven_day_sonnet: { model: 'sonnet', other: 'opus' },
+};
+
 /** What Claude Code says, on stderr and in the result it ends with, when a sandbox it needs can't run. */
 const SANDBOX_REFUSED = /sandbox required but unavailable/i;
 
@@ -260,6 +276,8 @@ export class ClaudeSession extends BaseSession {
     this.limit = null;
     /** The turn going on was turned away by a limit. */
     this.limited = false;
+    /** The model Claude Code switched this session to itself, as its list names it, until it is given one again. */
+    this.switchedTo = null;
     /**
      * Where the login stops at its plan's limit rather than spend usage credits: the turn going on is being stopped
      * for that, once Claude Code says it is served from them.
@@ -351,6 +369,8 @@ export class ClaudeSession extends BaseSession {
 
   start() {
     if (this.q) return;
+    // A Claude Code started anew starts with the model it was given.
+    this.#switchedBack();
     this.refused = null;
     this.turnError = '';
     this.turnFailure = null;
@@ -643,6 +663,8 @@ export class ClaudeSession extends BaseSession {
       this.emit({ type: 'notice', text: `Connection hiccup, retrying (attempt ${msg.attempt})…` });
     } else if (msg.subtype === 'notification' && msg.text) {
       this.emit({ type: 'notice', text: msg.text });
+    } else if (MODEL_SWITCHES.has(msg.subtype) && msg.fallback_model) {
+      this.#modelSwitched(msg);
     } else if (msg.subtype === 'task_started' && msg.task_type === 'local_agent' && msg.tool_use_id) {
       // A helper. Other tasks are a command or a watcher left running, and nobody's helper.
       this.helpers.set(msg.tool_use_id, msg.task_id);
@@ -658,6 +680,32 @@ export class ClaudeSession extends BaseSession {
       // Every task running in the background now: one that ended without saying so is not left running here.
       this.#tellBackground(this.background.level(msg));
     }
+  }
+
+  /**
+   * Claude Code answers with another model than the one it was given, and says why: for the rest of the session, or
+   * for this one reply. The app is told which, in Claude Code's words where it gave any.
+   * @param {{ subtype: string, scope?: string, original_model?: string, fallback_model: string, content?: unknown }} msg
+   */
+  #modelSwitched(msg) {
+    const model = this.#modelInUse(msg.fallback_model);
+    const session = !(msg.subtype === 'model_refusal_fallback' && msg.scope === 'local');
+    if (session) this.switchedTo = model;
+    this.emit({
+      type: 'model-switch',
+      model,
+      from: this.#modelInUse(msg.original_model || this.mainModel),
+      by: 'Claude Code',
+      session,
+      text: typeof msg.content === 'string' ? msg.content.trim() : '',
+    });
+  }
+
+  /** It answers with the model it was given again: one it was switched from is over. */
+  #switchedBack() {
+    if (!this.switchedTo) return;
+    this.switchedTo = null;
+    this.emit({ type: 'model-switch', model: null, session: true });
   }
 
   /**
@@ -988,6 +1036,7 @@ export class ClaudeSession extends BaseSession {
     if (credit) this.stopped = false;
     const isError = msg.is_error && !this.stopped;
     const limited = this.limited && !this.stopped;
+    const modelLimit = MODEL_LIMITS[this.limit?.rateLimitType];
     this.limited = false;
     const advisorUsd = this.#advisorSpent(msg.modelUsage);
     if (credit) this.#stoppedAtLimit(credit, { durationMs: msg.duration_ms, costUsd: msg.total_cost_usd, advisorUsd });
@@ -1004,6 +1053,12 @@ export class ClaudeSession extends BaseSession {
             : this.limit?.rateLimitType === 'five_hour'
               ? { limitKind: 'session' }
               : {}),
+          // A model's own limit: another model of Claude's still answers until it resets.
+          ...(modelLimit && {
+            limitModel: modelLimit.model,
+            otherModel: modelLimit.other,
+            ...(this.limit.resetsAt > 0 && { limitResetsAt: this.limit.resetsAt * 1000 }),
+          }),
         }),
         ...(isError && this.turnFailure && { failureKind: this.turnFailure }),
         errorText: isError ? (this.refused ?? errorTextOf(said || this.turnError, this.turnFailure)) : '',
@@ -1774,6 +1829,8 @@ export class ClaudeSession extends BaseSession {
 
   async setModel(model) {
     this.contact.model = model;
+    // Given one, even the one it had: Claude Code answers with it, whatever it switched to meanwhile.
+    this.#switchedBack();
     if (this.q) await this.q.setModel(model || undefined);
   }
 

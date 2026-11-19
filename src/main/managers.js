@@ -1797,6 +1797,10 @@ export class Managers {
         .map((entry) => `${entry.speakerName || entry.kind}: ${entry.text}`)
         .join('\n\n')
         .slice(-20000);
+      // A fallback of its own service's is named by its model: "Sonnet 5.5 takes over".
+      const takesOver =
+        (current.provider === provider.id && this.conversations.modelLabel?.(provider.id, after.model)) ||
+        provider.name;
       this.conversations.switchProvider(current.id, provider, after.model, fallback, mode);
       if (current.archived && after.on) this.conversations.restoreContact(current.id);
       fallback?.ready();
@@ -1805,7 +1809,7 @@ export class Managers {
       if (after.on)
         this.conversations.pass(current.id, {
           key: 'settings',
-          line: `${provider.name} takes over from the brief and recent conversation.`,
+          line: `${takesOver} takes over from the brief and recent conversation.`,
           note: [
             takeoverNote(projectOfKey(key).name, after, { lead: Boolean(current.leads) }),
             recent && `[Recent conversation before switching services]\n${recent}`,

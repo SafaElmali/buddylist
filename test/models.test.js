@@ -692,6 +692,19 @@ test('folder-dependent defaults are refreshed in that folder without replacing t
   assert.equal(await providers.models('codex', { cwd: '/elsewhere' }), codexModels);
 });
 
+test('what a provider calls its models is known at once once it has said, in a folder or not', async () => {
+  let given = 0;
+  const providers = providersWith(async () => [{ id: `model-${(given += 1)}`, label: `Model ${given}`, hint: '' }]);
+  assert.equal(providers.knownModels('claude'), null, 'nothing before it has said');
+  await providers.models('claude', { cwd: '/work/topic' });
+  assert.deepEqual(ids(providers.knownModels('claude')), ['model-1'], 'the list it gave in a folder');
+  await providers.models('claude');
+  assert.deepEqual(ids(providers.knownModels('claude')), ['model-2'], 'its one list, once it has given one');
+  await providers.models('claude', { cwd: '/work/other' });
+  assert.deepEqual(ids(providers.knownModels('claude')), ['model-2'], 'which comes first');
+  assert.equal(providers.knownModels('gemini'), null);
+});
+
 test('a provider that can’t be asked has no list of its own', async () => {
   const providers = createProviders({ app: { isPackaged: false } });
   assert.equal(await providers.models('gemini'), null);

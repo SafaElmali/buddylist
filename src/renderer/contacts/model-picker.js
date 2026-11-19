@@ -29,6 +29,8 @@ import { askingModels, modelsOf } from './models.js';
  * @param {number} [opts.width]  as wide as the button, unless that is a small one
  * @param {import('../../providers/contract.js').ModelOption} [opts.first]  a choice above Default that is no model
  *   (see modelChoices)
+ * @param {{ note: string, back: string, go: () => void } | null} [opts.back]  while its session answers with another
+ *   model than the one it was given, which it switched to itself: what says so, over the list, and the way back
  */
 export function openModelList(
   anchor,
@@ -41,6 +43,7 @@ export function openModelList(
     asking,
     width = anchor.offsetWidth - 2,
     first,
+    back = null,
   }
 ) {
   let known = models();
@@ -94,14 +97,32 @@ export function openModelList(
           ),
         ]
       : [];
-  // Enter takes the highlighted row: the model in use to begin with, the best match once you type.
+  // Over the models, while it answers with another one than it was given: the way back to that one, first.
+  const backTo = () =>
+    back && !search.value.trim()
+      ? [
+          el(html`<div class="menu-note" role="presentation">${back.note}</div>`),
+          row(
+            html`<div class="menu-item model-back-item" role="menuitem">
+              <span class="menu-check">${raw(avatarSvg(provider.avatar))}</span>
+              <span class="menu-label">${back.back}</span>
+            </div>`,
+            back.go
+          ),
+          el('<div class="menu-sep"></div>'),
+        ]
+      : [];
+  // Enter takes the highlighted row: the way back, or else the model in use, to begin with, the best match once you
+  // type.
   const draw = () => {
     const { catalog, shown } = known;
     list.replaceChildren(
+      ...backTo(),
       ...modelChoices({ catalog, shown, current, query: search.value, first }).map(modelRow),
       ...more()
     );
-    const highlighted = (!search.value.trim() && list.querySelector('.current')) || list.querySelector('.menu-item');
+    const highlighted =
+      (!search.value.trim() && list.querySelector('.model-back-item, .current')) || list.querySelector('.menu-item');
     list.querySelector('.menu-item.active')?.classList.remove('active');
     highlighted?.classList.add('active');
   };

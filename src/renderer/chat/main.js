@@ -110,7 +110,9 @@ import {
   fastModeBadge,
   fastModeItems,
   modelName,
+  pickedModelName,
   serviceItems,
+  switchedFrom,
 } from './models.js';
 import { readMyColor, saveMyColor } from './my-color.js';
 import { outputStyleItems, outputStyleLabel } from './output-styles.js';
@@ -229,6 +231,16 @@ const conversation = new Conversation($('#conversation'), ctx, {
   fork: (id) => forkFrom(id),
   invite,
   switchManager: () => api.settings.open({ section: 'manager', contactId: ctx.contactId }),
+  // On the line that says a session switched to another model: the one it was given, again.
+  switchedBack: (speaker) => switchedBack(ctx.participants.find((who) => who.id === speaker)),
+  // Past a limit of one model's own: that model's name, and another of the service's that still answers.
+  modelOf: (speaker, model) => {
+    const who = ctx.participants.find((one) => one.id === (speaker || ctx.contactId)) ?? host();
+    return {
+      label: pickedModelName({ ...who, model }, knownModels(who, ctx.contact.cwd).catalog),
+      use: () => setModel(who, model),
+    };
+  },
   // Under a turn stopped at its plan's limit: that turn in usage credits, once the user says so, or another account.
   planLimit: {
     useCredits: async ({ speaker }) => {
@@ -720,6 +732,7 @@ function refreshParticipants() {
   if (!alone && !composer?.editingNote) composer?.stopEditing();
   learnModels();
   renderParticipants(ctx);
+  conversation.refreshSwitches();
   // A conversation with several agents opens with the list of them, as does one someone just
   // joined. Put away, the tab stays away until then. Nobody asked for it, so it is not counted.
   if (!alone && !grouped) sidePane.quietly(() => agents.show());
@@ -1573,11 +1586,30 @@ const modeMenu = () => perAgent(modeItems, (who) => modeOf(who).label);
  * @param {Participant} who
  */
 async function setModel(who, model) {
-  updateParticipant(who.id, { model });
+  // Given one, it answers with it: whatever its session switched to meanwhile is over (see useModelAgain).
+  updateParticipant(who.id, { model, switched: undefined });
   renderParticipants(ctx);
+  conversation.refreshSwitches();
   noteChange('Model', who, modelName(who, knownModels(who, ctx.contact.cwd).catalog));
   // What comes back may be another effort level: one the new model takes.
   await api.chat.setModel(who.id, model);
+}
+
+/**
+ * Someone answers with another model than the one it was given, which its session switched to itself, as Claude Code
+ * does after a refusal: who did, and the way back to the one it was given, as its Agents row, its badge's menu, its
+ * list of models and the conversation offer it. Null while it answers with its own.
+ * @param {Participant | undefined} who
+ */
+function switchedBack(who) {
+  const switched = who?.switched && switchedFrom(who, knownModels(who, ctx.contact.cwd).catalog);
+  return switched ? { ...switched, go: () => setModel(who, who.model) } : null;
+}
+
+/** The top of someone's badge menu, while its session answers with another model: what happened, and the way back. */
+function switchedItems(who) {
+  const back = switchedBack(who);
+  return back ? [{ label: back.note, note: true }, { label: back.back, action: back.go }, { separator: true }] : [];
 }
 
 /**
@@ -1597,6 +1629,7 @@ function pickModel(badge, who) {
     asking: learnModelsOf(who.provider),
     width: 280,
     pick: (model) => setModel(who, model),
+    back: switchedBack(who),
     // Which models to offer is chosen from a provider's own list. A session's is offered whole.
     addModels: who.models.length ? undefined : () => modelsDialog(who.provider),
   });
@@ -2543,8 +2576,9 @@ function mountControls() {
     const badge = /** @type {HTMLElement} */ (e.currentTarget);
     if (isMenuOpen()) return closeMenu();
     const items = badgeItems(servicesMenu(), answeringMenu());
-    if (!items) return pickModel(badge, host());
-    toggleMenu(badge, () => items);
+    const back = switchedItems(host());
+    if (!items && !back.length) return pickModel(badge, host());
+    toggleMenu(badge, () => [...back, ...(items ?? answeringMenu())]);
   });
   // With several agents here, a button in the badges' place opens the Agents tab, where each has
   // its badges in its row.
@@ -2554,7 +2588,7 @@ function mountControls() {
     if (archived()) return;
     const button = /** @type {HTMLElement} */ (
       /** @type {HTMLElement} */ (e.target).closest(
-        '.mode-badge, .setting-badge, .roster-remove, .roster-pause, .roster-stop, .turns-choice'
+        '.mode-badge, .setting-badge, .roster-remove, .roster-pause, .roster-stop, .roster-back, .turns-choice'
       )
     );
     // Under the rows, whether they take turns is everyone's.
@@ -2566,6 +2600,7 @@ function mountControls() {
       if (who.host && ctx.contact.manages && ['working', 'waiting', 'connecting'].includes(who.state)) stop();
     } else if (button.classList.contains('roster-remove')) askToRemove(who);
     else if (button.classList.contains('roster-pause')) setPaused(who, !who.paused);
+    else if (button.classList.contains('roster-back')) switchedBack(who)?.go();
     else if (button.classList.contains('model-badge')) isMenuOpen() ? closeMenu() : pickModel(button, who);
     else if (button.classList.contains('effort-badge')) toggleMenu(button, () => effortsFor(who));
     else if (button.classList.contains('fast-badge')) setFastMode(who, !who.fastMode);
