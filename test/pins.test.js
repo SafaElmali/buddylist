@@ -35,9 +35,13 @@ test('the line says whose a pin is and what it says, and which of how many it is
 test('a right-click on a message pins it, or takes its pin off', () => {
   const asked = [];
   const pin = (id, pinned) => asked.push([id, pinned]);
-  const [item] = messageItems([], { id: 'a', pinned: false }, pin);
-  assert.equal(item.label, 'Pin message');
-  item.action();
+  // A plain spot in a message, with nothing selected and no link: pinning is all there is.
+  const only = messageItems([[], []], { id: 'a', pinned: false }, pin);
+  assert.deepEqual(
+    only.map((item) => item.label),
+    ['Pin message']
+  );
+  only[0].action();
   const [unpin] = messageItems([], { id: 'b', pinned: true }, pin);
   assert.equal(unpin.label, 'Unpin message');
   unpin.action();
@@ -47,20 +51,40 @@ test('a right-click on a message pins it, or takes its pin off', () => {
   ]);
 });
 
+const labels = (items) => items.map((item) => (item.separator ? '-' : item.label));
+
 test('with words selected in it, pinning comes after what is offered for the words', () => {
   const words = [{ label: 'Reply' }, { label: 'Copy' }];
-  const items = messageItems(words, { id: 'a', pinned: false }, () => {});
-  assert.deepEqual(
-    items.map((item) => (item.separator ? '-' : item.label)),
-    ['Reply', 'Copy', '-', 'Pin message']
-  );
+  assert.deepEqual(labels(messageItems([words, []], { id: 'a', pinned: false }, () => {})), [
+    'Reply',
+    'Copy',
+    '-',
+    'Pin message',
+  ]);
   // Outside a message that is kept, the words are all there is.
-  assert.equal(
-    messageItems(words, null, () => {}),
-    words
-  );
+  assert.deepEqual(labels(messageItems([words, []], null, () => {})), ['Reply', 'Copy']);
   assert.deepEqual(
-    messageItems([], null, () => {}),
+    messageItems([[], []], null, () => {}),
     []
   );
+});
+
+test('on a link in words selected, what the link offers comes between the words’ and pinning, each set apart', () => {
+  const words = [{ label: 'Reply' }, { label: 'Copy' }];
+  const link = [{ label: 'Copy email address' }];
+  assert.deepEqual(labels(messageItems([words, link], { id: 'a', pinned: true }, () => {})), [
+    'Reply',
+    'Copy',
+    '-',
+    'Copy email address',
+    '-',
+    'Unpin message',
+  ]);
+  // On a link with nothing selected, it comes first.
+  assert.deepEqual(labels(messageItems([[], link], { id: 'a', pinned: false }, () => {})), [
+    'Copy email address',
+    '-',
+    'Pin message',
+  ]);
+  assert.deepEqual(labels(messageItems([[], link], null, () => {})), ['Copy email address']);
 });

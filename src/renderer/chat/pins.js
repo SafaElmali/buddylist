@@ -38,20 +38,23 @@ export function pinLine(pins, at) {
 }
 
 /**
- * A right-click on a message: what it offers for words selected in it, and pinning the message.
- * @param {import('../lib/menu.js').MenuItem[]} wordItems  for the words selected, if any
+ * A right-click on a message: what it offers for what is under the pointer, such as words selected in it or a link,
+ * and then pinning the message. Each set is apart from the next.
+ * @param {import('../lib/menu.js').MenuItem[][]} sets  for the words selected, the link, the picture: those empty
+ *   are left out
  * @param {{ id: string, pinned: boolean } | null} message  the message, where it can be pinned
  * @param {(id: string, pinned: boolean) => void} pin
  * @returns {import('../lib/menu.js').MenuItem[]}
  */
-export function messageItems(wordItems, message, pin) {
-  if (!message) return wordItems;
-  const { id, pinned } = message;
-  return [
-    ...wordItems,
-    ...(wordItems.length ? [{ separator: true }] : []),
-    { label: pinned ? 'Unpin message' : 'Pin message', icon: smallIcon.pin(), action: () => pin(id, !pinned) },
-  ];
+export function messageItems(sets, message, pin) {
+  const pinning = message && {
+    label: message.pinned ? 'Unpin message' : 'Pin message',
+    icon: smallIcon.pin(),
+    action: () => pin(message.id, !message.pinned),
+  };
+  return [...sets, pinning ? [pinning] : []]
+    .filter((set) => set.length)
+    .flatMap((set, i) => (i ? [{ separator: true }, ...set] : set));
 }
 
 export class PinBar {

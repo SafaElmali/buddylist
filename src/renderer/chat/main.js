@@ -73,6 +73,7 @@ import { Helpers } from './helpers.js';
 import { Invitations, shortcutAnswer } from './invitations.js';
 import { inviteDialog } from './invite-dialog.js';
 import { mcpDialog } from './mcp-dialog.js';
+import { messageLinkItems } from './message-links.js';
 import { contactDialog } from '../contacts/contact-dialog.js';
 import { creatingContact } from '../contacts/creation-flow.js';
 import { managerServiceDialog } from '../contacts/manager-service-dialog.js';
@@ -559,6 +560,8 @@ const pullRequest = new PullRequestButton(ctx, {
 });
 /** Whether a click on a link to a web page opens it beside the conversation: where you asked for that and there is a browser there. */
 const linksBeside = () => !ctx.web && Boolean(ctx.settings.linksBeside);
+/** Where a click on a link to a web page opens it, for its menu to say so. @returns {'beside' | 'external'} */
+const linkClicks = () => (linksBeside() ? 'beside' : 'external');
 /**
  * A link in what a command printed, in a terminal or in a script's output: a click opens it where a link in the
  * conversation opens, ⌘-click in your own browser (see output-links.js).
@@ -567,7 +570,7 @@ const linksBeside = () => !ctx.web && Boolean(ctx.settings.linksBeside);
 const outputLinks = {
   beside: linksBeside,
   open: (url, how) => (how === 'beside' ? browser.open(url) : api.app.openExternal(url)),
-  menu: (url) => linkItems(url, outputLinks.beside() ? 'beside' : 'external'),
+  menu: (url) => linkItems(url, linkClicks()),
 };
 const terminals = new Terminals(sidePane, ctx, {
   links: outputLinks,
@@ -2785,9 +2788,10 @@ function mountControls() {
     add: (picture, quote) => composer.replyWith(picture, quote),
     notice: (text) => conversation.addNotice(text),
   });
-  // A right-click on a link offers it beside the conversation and in your own browser, whichever a click opens it in.
-  // On words selected in a message, it offers to reply to them, or to copy them. On a message that is kept,
-  // to pin it, or to take its pin off. On a picture, to reply with it, copy it or download it, and to pin its message.
+  // On words selected in a message, a right-click offers to reply to them, or to copy them. On a link, to open it as a
+  // click does and to copy it: a web page beside the conversation or in your own browser, whichever a click opens it
+  // in, a file of the folder as a right-click on it in All files does, an e-mail address to copy. On a message that is
+  // kept, to pin it, or to take its pin off. On a picture, to reply with it, copy it or download it, and to pin its message.
   $('#conversation').addEventListener('contextmenu', (e) => {
     const target = /** @type {HTMLElement} */ (e.target);
     const message = /** @type {HTMLElement | null} */ (target.closest('.msg[data-id]'));
@@ -2797,36 +2801,26 @@ function mountControls() {
     if (picture) {
       e.preventDefault();
       const reply = pictureReplies.replying(target, 'menu');
-      openMenu({ x: e.clientX, y: e.clientY }, messageItems(mediaItems(picture, { reply }), pinnable, pinMessage));
+      openMenu({ x: e.clientX, y: e.clientY }, messageItems([mediaItems(picture, { reply })], pinnable, pinMessage));
       return;
     }
     const link = /** @type {HTMLAnchorElement | null} */ (target.closest('a[href]'));
-    if (link && isWebAddress(link.href)) {
-      e.preventDefault();
-      openMenu({ x: e.clientX, y: e.clientY }, linkItems(link.href));
-      return;
-    }
-    // On a link to a file of the folder, what a right-click on it in All files offers, as to open it in its app.
-    const file = link && !ctx.web ? linkedFile(link.getAttribute('href')) : null;
-    const fileItems = file && files.linkMenu(file);
-    if (fileItems) {
-      e.preventDefault();
-      openMenu({ x: e.clientX, y: e.clientY }, fileItems);
-      return;
-    }
     const words = quoteReply.selected();
-    const items = messageItems(
-      words.trim()
-        ? [
-            ...(archived()
-              ? []
-              : [{ label: 'Reply', icon: smallIcon.comment(), action: () => quoteReply.reply(words) }]),
-            { label: 'Copy', hint: IS_MAC ? '⌘C' : 'Ctrl+C', action: () => navigator.clipboard.writeText(words) },
-          ]
-        : [],
-      pinnable,
-      pinMessage
-    );
+    const wordItems = words.trim()
+      ? [
+          ...(archived() ? [] : [{ label: 'Reply', icon: smallIcon.comment(), action: () => quoteReply.reply(words) }]),
+          { label: 'Copy', hint: IS_MAC ? '⌘C' : 'Ctrl+C', action: () => navigator.clipboard.writeText(words) },
+        ]
+      : [];
+    const linkTo = link && { url: link.href, href: link.getAttribute('href') };
+    const linkSet = linkTo
+      ? messageLinkItems(linkTo, {
+          web: (url) => linkItems(url, linkClicks()),
+          file: ctx.web ? null : (file) => files.linkMenu(file),
+          copy: (text) => navigator.clipboard.writeText(text),
+        })
+      : [];
+    const items = messageItems([wordItems, linkSet], pinnable, pinMessage);
     if (!items.length) return;
     e.preventDefault();
     openMenu({ x: e.clientX, y: e.clientY }, items);

@@ -133,6 +133,13 @@ Git's ignored files are left out. The list shows up to 30 matches and refreshes 
 - The pins are the conversation's: they are there when its window opens again, and after a restart. A new chat starts with none, and a conversation picked up again from [Message history](#message-history) has its own back. Rewinding to a message, or editing one, drops the pins on what was said after it, with the rest of it.
 - Pinning is not hearing from the contact: the contact list sorted by **Last active** stays as it was.
 
+**Copy a link.** Right-click a link in the conversation, in a message, an activity line or a report an agent hands back, for what can be done with it, over **Pin message**:
+
+- A web page: **Open beside the conversation** and **Open in your browser**, with what a click does in bold, and **Copy link address**, which copies the whole address, not the words the link shows.
+- An e-mail address: **Copy email address** copies the address alone, such as `fake@example.com`, without `mailto:` or the subject the link would start a message with. A click on it opens nothing.
+- A file: one in the contact's folder offers what a right-click on it in [All files](#the-side-pane-files-changes-and-checks-above-what-runs-below) does, such as **Copy** its path and **Open file**. One outside the folder, such as a recording in `/tmp`, offers **Copy path**, its whole path, and **Download** for a picture, a video or a sound.
+- With words selected, **Reply** and **Copy** come first, as on any selection, and the link's items after them.
+
 **Questions.** When Claude asks you something with answers to pick from, a card says so in the conversation, like _"Claude has a question for you."_:
 
 - A question that takes one answer has a button for each. Click one, and the card goes on to the next question, if there is one.

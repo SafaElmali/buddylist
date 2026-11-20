@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { linkedFile, linkRanges, onAnotherComputer, pictureAddress } from '../src/shared/links.js';
+import { linkedFile, linkRanges, mailAddress, onAnotherComputer, pictureAddress } from '../src/shared/links.js';
 
 const links = (text) => linkRanges(text).map(({ start, end }) => text.slice(start, end));
 
@@ -87,6 +87,25 @@ test('a web page, an e-mail address or a place on the page is no file', () => {
     null,
   ]) {
     assert.equal(linkedFile(href), null, String(href));
+  }
+});
+
+test('an e-mail link writes to its address alone: no mailto:, and nothing of the message it would start', () => {
+  assert.equal(mailAddress('mailto:fake@example.com'), 'fake@example.com');
+  assert.equal(mailAddress('mailto:fake@example.com?subject=Hi%20there&body=Hello'), 'fake@example.com');
+  assert.equal(mailAddress('MAILTO:fake@example.com#top'), 'fake@example.com', 'whatever case its scheme is in');
+  assert.equal(mailAddress('  mailto:fake%40example.com '), 'fake@example.com', 'as written, not as it was escaped');
+  assert.equal(mailAddress('mailto:fake+tags@example.com'), 'fake+tags@example.com', 'a + is part of it');
+  assert.equal(mailAddress('mailto:one@example.com,two@example.com'), 'one@example.com,two@example.com');
+  assert.equal(mailAddress('mailto:100%@example.com'), '100%@example.com', 'a % that escapes nothing stays');
+  for (const href of [
+    'mailto:',
+    'mailto:?subject=Hi',
+    'https://example.com/mailto:fake@example.com',
+    'src/a.js',
+    null,
+  ]) {
+    assert.equal(mailAddress(href), null, String(href));
   }
 });
 
