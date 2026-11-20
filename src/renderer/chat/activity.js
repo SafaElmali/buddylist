@@ -372,6 +372,12 @@ class Fold {
   }
 }
 
+/** Opens the run of calls `element` is in, for a line folded away in it to be seen. @param {Element | null} element */
+export function openRun(element) {
+  const run = element?.closest('.fold');
+  if (run) folds.get(run)?.toggle(true);
+}
+
 export class ActivityLines {
   /** The clock that counts up the calls going on, while any is. */
   #ticking = null;

@@ -17,7 +17,7 @@ import { smallIcon } from '../lib/icons.js';
 import { avatarSvg } from '../lib/pictures.js';
 import { sentPictures } from '../../shared/pictures.js';
 import { mediaItems } from '../lib/media-menu.js';
-import { closeMenu, isMenuOpen, openMenu, openPopover } from '../lib/menu.js';
+import { closeMenu, isMenuOpen, openMenu } from '../lib/menu.js';
 import { togglePalette } from '../lib/palette.js';
 import { setPack } from '../lib/pack.js';
 import { sounds } from '../lib/sounds.js';
@@ -67,6 +67,7 @@ import { commandNames } from './command-completion.js';
 import { Composer } from './composer.js';
 import { ContactsPane } from './contacts-pane.js';
 import { Conversation } from './conversation.js';
+import { ConversationFind } from './conversation-find.js';
 import { GoingOn } from './going-on.js';
 import { Helpers } from './helpers.js';
 import { Invitations, shortcutAnswer } from './invitations.js';
@@ -1863,30 +1864,12 @@ async function saveConversation() {
   if (await api.chat.save(ctx.contactId)) conversation.addNotice('Conversation saved.');
 }
 
-function openFind(anchor = $('#input')) {
-  // Asked for again while it is open: what was typed in it is chosen, to type over.
-  const open = /** @type {HTMLInputElement | null} */ (document.querySelector('.popup .find-box input'));
-  if (open) {
-    open.focus();
-    return open.select();
-  }
-  const box = el(
-    '<div class="find-box"><input class="input" placeholder="Find in conversation" /><button class="btn" type="button">Next</button></div>'
-  );
-  const input = /** @type {HTMLInputElement} */ (box.querySelector('input'));
-  // With `back`, the one before: Shift+Enter, as in a terminal's Find.
-  const next = (back = false) => {
-    if (!input.value) return;
-    // What a run of tool calls is folded over can't be found until it is opened.
-    activities.unfold(input.value);
-    /** @type {any} */ (window).find(input.value, false, back, true);
-  };
-  box.querySelector('button').addEventListener('click', () => next());
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') next(e.shiftKey);
-  });
-  openPopover(anchor, box, { align: 'right' });
-  input.focus();
+const conversationFind = new ConversationFind(conversation.root, $('#to-line'));
+
+/** Find in conversation: its strip under the To: line, or what was typed in it chosen, to type over. */
+function openFind() {
+  closeMenu();
+  conversationFind.open();
 }
 
 /** What was last clicked in the window, for ⌘F to find in the tab of the side pane it is in. @type {Node | null} */
@@ -2673,7 +2656,7 @@ function mountControls() {
     const who = name && ctx.participants.find((p) => p.id === name.dataset.id);
     if (who) rename(who);
   });
-  $('#search').addEventListener('click', (e) => openFind(e.currentTarget));
+  $('#search').addEventListener('click', openFind);
   for (const type of ['focusin', 'pointerover', 'pointerdown']) {
     document.addEventListener(type, (e) => files.rememberFindTarget(e.target));
   }

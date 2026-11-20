@@ -7,6 +7,7 @@ const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", nbsp: ' '
 const decode = (text) => text.replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (_, name) => ENTITIES[name]);
 
 class Text {
+  nodeType = 3;
   parentElement = null;
   constructor(text) {
     this.data = text;
@@ -20,6 +21,7 @@ class Text {
 const dataName = (name) => `data-${name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
 
 export class Element {
+  nodeType = 1;
   parentElement = null;
   childNodes = [];
   attributes = new Map();

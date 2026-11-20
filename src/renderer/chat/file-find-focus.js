@@ -4,12 +4,8 @@ export class FileFindFocus {
 
   /** The last focus or pointer interaction wins. Menus retain the place they opened from. */
   remember(node) {
-    // The explicit conversation action can open this while a file has focus. Repeated Find
-    // stays in that search field; a menu or palette still keeps its original scope.
-    if (node?.closest?.('.popup .find-box')) {
-      this.#last = node;
-      return;
-    }
+    // A menu or palette keeps the scope it opened from. Conversation Find, opened while a file had focus, is a
+    // place of its own: Find again stays in it.
     if (!node?.closest || node.closest('.popup, .menubar, .modal')) return;
     this.#last = node;
   }

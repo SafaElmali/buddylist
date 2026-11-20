@@ -73,12 +73,12 @@
     opacity: 0.5;
   }
 
-  & .file-find .btn {
+  & .find-bar .btn {
     min-width: 28px;
     padding: 0 6px;
   }
 
-  & .file-find-case[aria-pressed='true'] {
+  & .find-case[aria-pressed='true'] {
     border-color: var(--focus-border);
     background: var(--row-selected-bg);
   }
@@ -2403,6 +2403,7 @@
     grid-template:
       'tabs tabs tabs tabs' auto
       'to to to to' auto
+      'find find find find' auto
       'archived archived archived archived' auto
       'pins pins pins pins' auto
       'talk talk talk talk' minmax(0, 1fr)
@@ -2419,6 +2420,15 @@
 
   & .to-line {
     grid-area: to;
+  }
+
+  /* Find in conversation: a bar along the To: line's foot, as wide as the window. */
+  & .conversation-find {
+    grid-area: find;
+    margin: 0;
+    padding: 6px 16px;
+    border-bottom: 1px solid var(--bar-border);
+    background: var(--body-bg);
   }
 
   & .archived-bar {
