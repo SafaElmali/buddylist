@@ -4129,61 +4129,92 @@
   user-select: none;
 }
 
-/* In-file Find stays above the scrolling text, using the conversation and terminal controls. */
-.file-find {
+/* A Find bar (find-bar.js) over the text it searches, with the terminal's close button. */
+.find-bar {
   flex: none;
   flex-wrap: wrap;
   align-items: center;
-  border-bottom: 1px solid var(--pane-border-soft);
-  background: var(--pane);
 }
 
-.file-find .input {
+.find-bar .input {
   flex: 1;
   min-width: 70px;
   width: 100px;
 }
 
-.file-find-count {
+.find-count {
   color: var(--text-dim, var(--muted));
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.file-find .btn {
+.find-bar .btn {
   padding: 2px 6px;
 }
 
-.file-find-case[aria-pressed='true'] {
+.find-case[aria-pressed='true'] {
   border-color: var(--link);
   background: var(--row-selected-bg, #dfe8f8);
 }
 
-.file-find .btn svg {
+.find-bar .btn svg {
   width: 13px;
   height: 13px;
   vertical-align: middle;
 }
 
-.file-find-prev svg {
+.find-prev svg {
   transform: rotate(180deg);
 }
 
-.file-find-note {
+.find-note {
   flex-basis: 100%;
   color: var(--text-dim, var(--muted));
   font-size: 11px;
 }
 
-::highlight(file-find-matches) {
+/* In a file it stays above the scrolling text. */
+.file-find {
+  border-bottom: 1px solid var(--pane-border-soft);
+  background: var(--pane);
+}
+
+/* In the conversation, a strip under the To: line that the transcript makes room for: a short box, as a query is
+   short, and the close button at the far end. */
+.conversation-find {
+  margin-bottom: 5px;
+  padding: 0;
+}
+
+.conversation-find .input {
+  flex: 0 1 320px;
+}
+
+.conversation-find .terminal-find-close {
+  margin-left: auto;
+}
+
+/* Every match, and the one you are at as a selection, darker for its white letters to read in every theme. */
+::highlight(file-find-matches),
+::highlight(conversation-find-matches) {
   background-color: color-mix(in srgb, var(--terminal-match-ring) 35%, transparent);
 }
 
-::highlight(file-find-current) {
-  background-color: var(--terminal-select);
+::highlight(file-find-current),
+::highlight(conversation-find-current) {
+  background-color: color-mix(in srgb, var(--terminal-select) 80%, #000);
   color: #fff;
   text-decoration: underline;
+}
+
+/* On a dark page that blue is as dark as the other marks: there the one you are at is the bright one. */
+@media (prefers-color-scheme: dark) {
+  ::highlight(file-find-current),
+  ::highlight(conversation-find-current) {
+    background-color: var(--terminal-match-ring);
+    color: #000;
+  }
 }
 
 /* ---- the Checks tab: the pull request's checks, and how each stands (checks.js) --------------- */

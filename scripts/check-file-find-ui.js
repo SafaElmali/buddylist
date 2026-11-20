@@ -73,7 +73,7 @@ try {
     .length;
   const expectCount = async (value) => {
     await chat.waitForFunction(
-      (text) => document.querySelector('.file-tab:not([hidden]) .file-find-count')?.textContent === text,
+      (text) => document.querySelector('.file-tab:not([hidden]) .find-count')?.textContent === text,
       value
     );
   };
@@ -153,11 +153,19 @@ try {
       await field.press('Escape');
       await chat.locator('#input').click();
       await chat.keyboard.press(`${mod}+f`);
-      const conversationFind = chat.locator('.popup .find-box input');
+      const conversationFind = chat.locator('.conversation-find input');
       await conversationFind.fill('conversation-only-needle');
+      await chat
+        .locator('.conversation-find .find-count')
+        .filter({ hasText: /^1 of 1$/ })
+        .waitFor();
       await conversationFind.press('Enter');
-      assert.equal(await chat.evaluate(() => window.getSelection().toString()), 'conversation-only-needle');
+      assert.equal(
+        await chat.evaluate(() => [...CSS.highlights.get('conversation-find-current')][0].toString()),
+        'conversation-only-needle'
+      );
       await conversationFind.press('Escape');
+      assert.equal(await chat.evaluate(() => CSS.highlights.has('conversation-find-matches')), false);
       checks.push(
         `${look}/${theme}: file navigation, case, spans, scrolling, pointer routing, Esc, composer and conversation Find`
       );
@@ -172,9 +180,9 @@ try {
     if (!find) throw new Error('Missing native conversation Find action');
     find.click();
   });
-  await chat.locator('.popup .find-box input').waitFor();
+  await chat.locator('.conversation-find input').waitFor();
   await chat.keyboard.press(`${mod}+f`);
-  await chat.locator('.popup .find-box input').waitFor();
+  await chat.locator('.conversation-find input').waitFor();
   await chat.keyboard.press('Escape');
   await chat.keyboard.press(`${mod}+k`);
   await chat.locator('.palette input').fill('Find in Conversation');
@@ -182,7 +190,7 @@ try {
     .locator('.palette-name')
     .filter({ hasText: /^Find in Conversation/ })
     .click();
-  await chat.locator('.popup .find-box input').waitFor();
+  await chat.locator('.conversation-find input').waitFor();
   await chat.keyboard.press('Escape');
   checks.push('Native Edit menu and command palette open conversation Find from a file');
   await openFile('src/renderer/chat/main.js');
@@ -193,7 +201,7 @@ try {
   await expectCount('2000 of 2,000+');
   await field.press('Enter');
   await expectCount('1 of 2,000+');
-  assert.match(await fileTab.locator('.file-find-note').textContent(), /First 2,000/);
+  assert.match(await fileTab.locator('.find-note').textContent(), /First 2,000/);
   await field.fill('no-matches-in-this-repository-123456');
   await expectCount('No matches');
   await field.fill('e');
@@ -208,7 +216,7 @@ try {
   await chat.keyboard.press(`${mod}+f`);
   await field.fill('buddylist');
   await chat.waitForFunction(() =>
-    document.querySelector('.file-tab:not([hidden]) .file-find-count')?.textContent.startsWith('1 of')
+    document.querySelector('.file-tab:not([hidden]) .find-count')?.textContent.startsWith('1 of')
   );
   assert.equal(await fileTab.locator('.preview-toggle input').isChecked(), false);
   assert.equal(await view.isVisible(), true);

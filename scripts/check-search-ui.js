@@ -1,6 +1,6 @@
 // Real Electron components in an isolated demo profile; no user conversations or live providers.
 // node scripts/check-search-ui.js [output-directory] [label]
-/* global window, document, getSelection, KeyboardEvent, requestAnimationFrame */
+/* global window, document, CSS, KeyboardEvent, requestAnimationFrame */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -187,23 +187,31 @@ try {
   await chat.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await chat.locator('#input').focus();
   await chat.keyboard.press('Meta+f');
-  await chat.locator('.find-box input').fill('needle');
+  await chat.locator('.conversation-find input').waitFor();
   metrics.find = await chat.evaluate(() => {
-    const input = document.querySelector('.find-box input');
+    const input = /** @type {HTMLInputElement} */ (document.querySelector('.conversation-find input'));
+    let start = performance.now();
+    input.value = 'needle';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    const typed = performance.now() - start;
     const samples = [];
     for (let i = 0; i < 7; i++) {
-      const start = performance.now();
+      start = performance.now();
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
       samples.push(performance.now() - start);
     }
+    const [current] = CSS.highlights.get('conversation-find-current') ?? [];
     return {
-      selected: getSelection().toString(),
-      inConversation: Boolean(getSelection().anchorNode?.parentElement?.closest('#conversation')),
+      current: current?.toString(),
+      inConversation: Boolean(current?.startContainer.parentElement?.closest('#conversation')),
+      count: document.querySelector('.conversation-find .find-count').textContent,
+      typed,
       median: [...samples].sort((a, b) => a - b)[3],
       samples,
     };
   });
-  assert.equal(metrics.find.selected, 'needle');
+  assert.equal(metrics.find.current, 'needle');
+  assert.match(metrics.find.count, /^\d+ of \d+$/);
   assert.equal(metrics.find.inConversation, true);
   await chat.screenshot({ path: path.join(output, `${label}-conversation-find.png`) });
   metrics.highlights = await chat.evaluate(

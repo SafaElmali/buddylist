@@ -119,8 +119,8 @@ test('hidden, closed and collapsed file tabs cannot take Find', (t) => {
 test('explicit conversation Find keeps the shortcut when it was opened from a file', (t) => {
   const { focus, get, target } = routing(t);
   focus.remember(get('.file-view'));
-  const box = el('<div class="find-box"><input /></div>');
-  get('.popup').append(box);
+  const box = el('<div class="find-box conversation-find"><input /></div>');
+  get('textarea').before(box);
   focus.remember(box.querySelector('input'));
   assert.equal(target(box.querySelector('input')), null);
 });

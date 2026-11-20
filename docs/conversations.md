@@ -8,7 +8,16 @@
 
 **⌘K** on Mac or **Ctrl+K** on Windows and Linux opens the [command palette](contact-list.md#command-palette). Its keys, and those of the other shortcuts here, can be changed under [Settings > Shortcuts](settings.md#app). The palette lets you jump to another contact, find a past conversation by the words in it, open a file of the contact's folder, run an action from this window's menus or open a page of Settings. It knows other words for things too: `shell` finds the terminal, `reviewer` finds **Invite**, `PR` finds **Create PR**. To message your last viewed contact from another app, use [Quick send](contact-list.md#quick-send).
 
-**⌘F** on Mac or **Ctrl+F** on Windows and Linux finds in the part of the window you are using: the conversation, an open file, a [terminal](terminal.md), or the search box of the **All files** or **Changes** tab. **Edit > Find...** does the same. **Edit > Find in Conversation...**, also in the command palette (⌘K / Ctrl+K), always opens conversation search. The **Search** button stays in the Messenger look; Professional keeps search in the menu, palette and keyboard. In conversation and file search, Enter goes to the next match, and Shift+Enter to the one before.
+**⌘F** on Mac or **Ctrl+F** on Windows and Linux finds in the part of the window you are using: the conversation, an open file, a [terminal](terminal.md), or the search box of the **All files** or **Changes** tab. **Edit > Find...** does the same. **Edit > Find in Conversation...**, also in the command palette (⌘K / Ctrl+K), always opens conversation search. The **Search** button stays in the Messenger look; Professional keeps search in the menu, palette and keyboard.
+
+**Find in conversation** is a bar under the To: line, and the conversation makes room for it. It marks every place your text is in your messages, the replies and the activity lines, and the match you are at more strongly, scrolled to the middle. Its count says where you are, such as **3 of 12**, or **No matches**; with nothing typed it says nothing and marks nothing.
+
+- Enter or ↓ goes to the next match, Shift+Enter or ↑ to the one before, as do the bar's ↓ and ↑ buttons, wrapping at either end. **Aa** matches case.
+- It starts at the first match from the top of what you see, or at the nearest one above when there is none further down.
+- Runs of tool calls folded away are looked through too, and their matches counted. Going to one opens its run. An output you haven't opened with **Show output** isn't searched, nor are buttons.
+- As new lines come in, the count follows them and you stay at the match you were at. Nothing scrolls by itself.
+- At most the first **2,000 matches** are marked, with a note when there are more, as in Find in file.
+- **Esc** closes it, takes the marks away and gives the keyboard back to where it was. ⌘F (Ctrl+F) with it open chooses what you typed, to type over; opened again, it has your last search.
 
 **Back to latest** appears when you scroll up from the newest line. Click it to return to the bottom. A count on it says how many new agent replies arrived while you were reading above; it clears when you reach the bottom again. While an agent is working, the button shows typing dots instead of its arrow, as more is on its way below; point at it and the arrow is back.
 
@@ -210,7 +219,7 @@ The tool calls a contact makes one after another fold into one line:
 - **Claude's advisor.** With Claude Code's advisor on (`advisorModel` in your Claude settings, set by `/advisor`), Claude can ask that stronger model for advice. Its line says _"Claude asked the advisor · Fable"_ and goes on until the advice is back. It never asks you first, in any mode or in a read-only seat, and has no output to show: the advice is for Claude alone. The turn's last line says what the advisor added to its cost: _"Done in 9.7s · $0.50 · advisor $0.31"_.
 - **Pictures** a call handed back, such as a screenshot, are under its line, and all of them are in a row under the folded line while its calls are put away. Click one to see it over the whole window, as a picture in a message opens, to zoom in on and drag about. **‹** and **›**, or ← and →, go through the others in its row, with a count such as _2 of 8_, and from the last back to the first. **Esc** closes it.
 - A message, a request for permission or the end of a turn starts a new line. So does another agent's call in a group conversation.
-- Searching in [Message history](#message-history) or with **Find in conversation** opens the lines your text is in.
+- Searching in [Message history](#message-history) opens the lines your text is in. **Find in conversation** opens a run when you go to a match in it.
 
 **View > Show activity lines** shows or hides the lines for what a contact does, like _"Claude ran `npm test`"_ and a helper's own, indented under it:
 
