@@ -296,7 +296,7 @@ export class Terminals {
 
   /** How the pane's + lists this kind of tab: choosing it opens another terminal. Its shortcut is the window's to add. */
   get kind() {
-    return { label: 'Terminal', icon: smallIcon.terminal(), open: () => this.open() };
+    return { label: 'Terminal', about: 'terminal', icon: smallIcon.terminal(), open: () => this.open() };
   }
 
   /**
@@ -423,6 +423,7 @@ export class Terminals {
     return {
       id: shell.id,
       title: terminalTitle(shell.number, shell.name),
+      about: 'terminal',
       icon: smallIcon.terminal(),
       body: shell.body,
       // With what else runs in the folder: the project's scripts.

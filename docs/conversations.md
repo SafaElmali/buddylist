@@ -340,7 +340,7 @@ To open it, choose **View > Changes**, press ⇧⌘G (Ctrl+Shift+G on Windows an
 
 The tab only reads the folder. It doesn't stage, commit or undo anything, and it leaves git's own files alone, so it never gets in the way of the agent's git commands.
 
-The **+** lists every kind of tab the pane can open, each with its shortcut, and under them the conversation's plans. So far those are [**Terminal**](terminal.md), which opens another one, **Changes**, and for a Claude contact [**Subagents**](subagents.md) and [**Background**](background.md).
+The **+** lists every kind of tab the pane can open, each with a line on what it is and its shortcut, and under them the conversation's plans. The shortcuts so far are [**Terminal**](terminal.md), which opens another one, **Changes**, and for a Claude contact [**Subagents**](subagents.md) and [**Background**](background.md).
 
 ## The side pane: files, changes and checks above, what runs below
 
@@ -348,6 +348,7 @@ The pane beside a conversation has two halves, each with tabs of its own.
 
 - **On top** is what there is to look at: **All files**, **Changes**, **Checks**, **Session**, **Shared**, a plan, a [web page](browser-tab.md), the [subagents](subagents.md), what runs in the [background](background.md), and beside a [project's manager](project-managers.md) its **Team** and **Brief**. The **+** after its tabs opens any of them.
 - **Below** is what runs in the contact's folder: **Setup**, **Run** and the [terminals](terminal.md). It has a **+** of its own, and the arrow in front of its tabs folds it away, down to the tabs. Going to one of them brings it back.
+- **What each tab is.** Each **+** says it in a few words under every kind's name, such as _What this branch changed, file by file_ under **Changes**, and a tab says it in a sentence or two over what it shows. A screen reader reads both: the line with its row, and the note with its tab. The note's ✕, which Tab reaches, puts it away for every tab of that kind in every conversation; the line in the **+** stays.
 - Every conversation opens with **All files**, **Changes** and **Checks**, and one that nothing was said in yet with all six. See [The Run button](run-button.md) for **Setup** and **Run**. A project's manager changes no files, so its window opens with **Team** in front of **All files**, and nothing below. A contact on [This computer](contact-list.md#this-computer) works on no project, so its window opens with **All files** alone: what its agent made in its folder. It has no **Changes** or **Checks** to open, and no **Run** or **Create PR** over its conversation, which says **&lt;This computer&gt;** where another says its folder.
 - The pane is always there, also with every tab closed. The arrows at the end of its bar collapse it to a thin rail at the window's side, and the window gets narrower. The arrows, or a click on the rail, expand it again with its tabs as they were. Opening a tab, from the toolbar or the **+**, expands it too. It stays collapsed in that window when you go on to another conversation.
 - A half with more tabs than it has room for gets arrows at the ends of its row. Each click brings the next tab that is cut off into sight, and a trackpad scrolls the row too. The [chat tabs](#chat-tabs) over the conversation have them as well.

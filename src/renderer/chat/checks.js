@@ -188,7 +188,7 @@ export class Checks {
   }
 
   get kind() {
-    return { label: 'Checks', icon: smallIcon.check(), open: () => this.show() };
+    return { label: 'Checks', about: 'checks', icon: smallIcon.check(), open: () => this.show() };
   }
 
   /**
@@ -200,6 +200,7 @@ export class Checks {
     this.pane.open({
       id: TAB,
       title: 'Checks',
+      about: 'checks',
       icon: smallIcon.check(),
       body: this.body,
       // Asked again whenever it is gone back to: checks move on by themselves.

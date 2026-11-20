@@ -127,7 +127,7 @@ export async function play(d, { workers, manager, chat, cartChat }) {
   d.look(pane.locator('.pane-bar').first(), { ms: 1300, pad: 160 });
   await d.wait(500);
   await d.click(pane.locator('.pane-add').first(), { ms: 900 });
-  await d.click(chat.locator('.menu-item, [role="menuitem"]', { hasText: /^\s*Brief\s*$/ }).first(), { ms: 500 });
+  await d.click(chat.getByRole('menuitem', { name: 'Brief', exact: true }), { ms: 500 });
   const known = pane.getByText('Decided in #shop on Slack');
   await known.waitFor();
   d.look(await d.rect(pane.locator('.pane-bar').first(), known), { ms: 800, pad: 20 });

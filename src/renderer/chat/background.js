@@ -109,7 +109,7 @@ export const tagOf = ({ kind, by }, several) => [KINDS[kind], several ? `for ${b
 /** Without a task to list. @param {string[]} names  the agents here that can leave something running */
 export function nobodyNote(names) {
   const who = names.length === 1 ? names[0] : 'an agent here';
-  return `Nothing has run in the background yet. When ${who} starts a command or a watcher there, it is listed here, with what it prints.`;
+  return `Nothing has run in the background yet. When ${who} starts a command or a watcher there, it is listed here.`;
 }
 
 /**
@@ -162,6 +162,7 @@ export class Background {
     this.tab = {
       id: TAB,
       title: 'Background',
+      about: 'background',
       icon: smallIcon.background(),
       body: this.body,
       onSelect: () => {
@@ -188,7 +189,7 @@ export class Background {
 
   /** How the pane's + lists this kind of tab. Its shortcut is the window's to add. */
   get kind() {
-    return { label: 'Background', icon: smallIcon.background(), open: () => this.show() };
+    return { label: 'Background', about: 'background', icon: smallIcon.background(), open: () => this.show() };
   }
 
   /** How many tasks this conversation has had. */

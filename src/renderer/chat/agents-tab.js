@@ -19,12 +19,12 @@ export class AgentsTab {
     const body = el('<div class="agents-tab"></div>');
     body.append(roster);
     /** @type {import('./side-pane.js').PaneTab} */
-    this.tab = { id: TAB, title: 'Agents', icon: smallIcon.agents(), body, room: ROOM };
+    this.tab = { id: TAB, title: 'Agents', about: 'agents', icon: smallIcon.agents(), body, room: ROOM };
   }
 
   /** How the pane's + lists this kind of tab. */
   get kind() {
-    return { label: 'Agents', icon: smallIcon.agents(), open: () => this.show() };
+    return { label: 'Agents', about: 'agents', icon: smallIcon.agents(), open: () => this.show() };
   }
 
   /** Whether the pane shows the list now. */

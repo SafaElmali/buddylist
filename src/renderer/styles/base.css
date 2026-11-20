@@ -335,6 +335,26 @@ a:hover,
   color: var(--muted);
 }
 
+/* An item with a line under its name, such as the side pane's + has (see menu.js): its icon and its shortcut stay
+   on the name's line. */
+.menu-item.has-about {
+  align-items: start;
+  padding-top: 2px;
+  padding-bottom: 3px;
+}
+
+.menu-about {
+  grid-column: 2 / -1;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.menu-item.active .menu-about {
+  color: inherit;
+  opacity: 0.8;
+}
+
 /* A line about the rows, such as why there are no others: read, never chosen. Under the labels. */
 .menu-note {
   max-width: 320px;

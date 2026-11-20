@@ -37,12 +37,12 @@ export class BriefTab {
     /** The brief drawn last, so that the same one is not drawn again. */
     this.drawn = null;
     /** @type {import('./side-pane.js').PaneTab} */
-    this.tab = { id: TAB, title: 'Brief', icon: smallIcon.plan(), body: this.body, room: ROOM };
+    this.tab = { id: TAB, title: 'Brief', about: 'brief', icon: smallIcon.plan(), body: this.body, room: ROOM };
   }
 
   /** How the pane's + lists this kind of tab. */
   get kind() {
-    return { label: 'Brief', icon: smallIcon.plan(), open: () => this.show() };
+    return { label: 'Brief', about: 'brief', icon: smallIcon.plan(), open: () => this.show() };
   }
 
   /**

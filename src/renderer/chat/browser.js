@@ -156,7 +156,7 @@ export class Browser {
 
   /** How the pane's + lists this kind of tab: choosing it opens another page. Its shortcut is the window's to add. */
   get kind() {
-    return { label: 'Browser', icon: smallIcon.globe(), desktop: true, open: () => this.open() };
+    return { label: 'Browser', about: 'browser', icon: smallIcon.globe(), desktop: true, open: () => this.open() };
   }
 
   /**
@@ -243,6 +243,7 @@ export class Browser {
     return {
       id: page.id,
       title: pageTitle(page),
+      about: 'browser',
       icon: smallIcon.globe(),
       body: page.body,
       room: BROWSER_ROOM,
