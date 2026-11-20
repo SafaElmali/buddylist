@@ -90,7 +90,8 @@ export class Composer {
   #editing = null;
   /**
    * The message you would most likely send next, which the empty box offers after a reply (see
-   * suggestions.js): Tab writes it in, Esc puts it away. Gone once anything goes in the box.
+   * suggestions.js): Tab writes it in, Esc puts it away. Anything in the box hides it, and it shows again once
+   * the box is empty. Gone for good once taken, put away, sent over, edited over, or another takes its place.
    */
   #next = '';
 
@@ -411,14 +412,15 @@ export class Composer {
    * then still goes, to be read once the turn is over: the button is Send again for it.
    */
   refresh() {
-    // Whatever goes in the box is yours to send instead: the message on offer is gone for good.
-    if (!this.#blank) this.#next = '';
     const hint = commandNames(this.ctx).length
       ? 'Type a message. @ for files, / for commands.'
       : 'Type a message. @ for files.';
-    this.input.placeholder = this.#blank ? this.#next || hint : '';
-    this.nextHint.textContent = this.#next ? `Suggestion: ${this.#next}. Press Tab to use it.` : '';
-    this.nextKey.hidden = !this.#next;
+    // The message on offer waits under whatever is in the box, to show again once it is empty.
+    const blank = this.#blank;
+    const next = blank ? this.#next : '';
+    this.input.placeholder = blank ? next || hint : '';
+    this.nextHint.textContent = next ? `Suggestion: ${next}. Press Tab to use it.` : '';
+    this.nextKey.hidden = !next;
     const empty = !this.input.value.trim() && !this.#attached;
     const stop = empty && AT_WORK.includes(this.ctx.state);
     this.sendButton.disabled = (empty && !stop) || (stop && Boolean(this.ctx.stopping));
@@ -658,7 +660,8 @@ export class Composer {
       return;
     }
     // The box empties. Unless what is sent is a message ↑ brought back: then what you were
-    // writing before that is in it again, to go on with.
+    // writing before that is in it again, to go on with. The message on offer was for the reply before it.
+    this.#next = '';
     this.#fill(this.recall.sending());
     this.attachments = [];
     this.files = [];
@@ -733,6 +736,8 @@ export class Composer {
     const before = this.#putAway();
     this.recall.sending();
     this.#editing = { id, before, sending: false };
+    // The message on offer was for a box with no edit in it: it goes for good.
+    this.#next = '';
     const said = splitOutputs(text);
     this.attachments = pictures.map((preview, i) => resent(preview, originals[i]));
     this.files = [];
@@ -753,6 +758,7 @@ export class Composer {
     const before = this.#putAway();
     this.recall.sending();
     this.#editing = { id, before, sending: false, note: { from } };
+    this.#next = '';
     this.attachments = [];
     this.files = [];
     this.outputs = [];

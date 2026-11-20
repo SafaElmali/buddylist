@@ -714,6 +714,10 @@ const shown = () => {
   const $ = (selector) => globalThis.document.querySelector(selector);
   return { placeholder: $('#input').placeholder, key: !$('#next-key').hidden, hint: $('#next-hint').textContent };
 };
+/** What it shows with the message on offer showing, with nothing on offer, and with something in the box. */
+const OFFERED = { placeholder: NEXT, key: true, hint: `Suggestion: ${NEXT}. Press Tab to use it.` };
+const NONE = { placeholder: HINT, key: false, hint: '' };
+const OVER = { placeholder: '', key: false, hint: '' };
 
 test('the message you would send next shows grey in the empty box, with the Tab key and a hint for screen readers', () => {
   const { composer } = open();
@@ -771,43 +775,98 @@ test('Tab is left alone with nothing on offer, the completion menu open, the key
   assert.equal(shown().placeholder, NEXT, 'it is still on offer');
 });
 
-test('typing, pasting or attaching anything takes it away for good, also once the box is empty again', async () => {
+/** Takes out the first picture, file or terminal in the box, with its ✕. */
+const removeFirst = () =>
+  globalThis.document.querySelector('#attachments').children[0].querySelector('button:last-of-type').fire('click');
+
+test('typing, pasting or attaching anything only hides it: it is back once the box is empty again', async () => {
   const { composer, input, type } = open();
   composer.offer(NEXT);
   type('c');
-  assert.deepEqual(shown(), { placeholder: '', key: false, hint: '' });
+  assert.deepEqual(shown(), OVER);
+  assert.equal(input.fire('keydown', key('Tab')).defaultPrevented, false, 'Tab is the box’s own over words');
   type('');
-  assert.deepEqual(shown(), { placeholder: HINT, key: false, hint: '' });
-  assert.equal(input.fire('keydown', key('Tab')).defaultPrevented, false, 'Tab has nothing to write');
+  assert.deepEqual(shown(), OFFERED, 'the words are gone');
 
-  composer.offer(NEXT);
   composer.addPicked({ pictures: [], paths: ['/work/shop/README.md'] });
-  composer.files = [];
-  composer.refresh();
-  assert.equal(shown().placeholder, HINT, 'a file went in');
+  assert.deepEqual(shown(), OVER, 'a file went in');
+  removeFirst();
+  assert.deepEqual(shown(), OFFERED, 'and came out again');
 
-  composer.offer(NEXT);
   input.fire('paste', { clipboardData: { files: [new File([new Uint8Array(3)], 'one.png', { type: 'image/png' })] } });
   await settle();
-  composer.attachments = [];
-  composer.refresh();
-  assert.equal(shown().placeholder, HINT, 'a picture went in');
+  assert.deepEqual(shown(), OVER, 'a picture went in');
+  removeFirst();
+  assert.deepEqual(shown(), OFFERED, 'and came out again');
 
-  composer.offer(NEXT);
+  composer.addOutput({ kind: 'terminal', id: 't1', name: 'Terminal' }, 'menu');
+  assert.deepEqual(shown(), OVER, 'a terminal went in');
+  removeFirst();
+  assert.deepEqual(shown(), OFFERED, 'and came out again');
+
   composer.insert('(Y)');
+  assert.deepEqual(shown(), OVER, 'an emoticon or a quick message went in');
   type('');
-  assert.equal(shown().placeholder, HINT, 'an emoticon or a quick message went in');
+  assert.deepEqual(shown(), OFFERED);
+
+  // Tab takes it once the box is empty again.
+  const tab = input.fire('keydown', key('Tab'));
+  assert.equal(tab.defaultPrevented, true);
+  assert.equal(input.value, NEXT);
+  type('');
+  assert.deepEqual(shown(), NONE, 'taken, it is not offered again');
 });
 
-test('nothing is offered over words in the box, nor while a message you sent is being edited', () => {
+test('one offered over words in the box waits under them, and none is offered while a message you sent is being edited', () => {
   const { composer, type } = open();
   type('also check the footer');
   composer.offer(NEXT);
+  assert.deepEqual(shown(), OVER);
   type('');
-  assert.equal(shown().placeholder, HINT);
+  assert.deepEqual(shown(), OFFERED);
   composer.edit({ id: 'said-1', text: '', pictures: [] });
   composer.offer(NEXT);
   assert.equal(shown().placeholder, HINT);
+});
+
+test('put away with Esc, it stays away once the box is typed in and emptied again', () => {
+  const { composer, input, type } = open({ contactId: 'claude-esc-typed' });
+  composer.offer(NEXT);
+  input.fire('keydown', key('Escape'));
+  type('c');
+  type('');
+  assert.deepEqual(shown(), NONE);
+  assert.equal(input.fire('keydown', key('Tab')).defaultPrevented, false, 'Tab has nothing to write');
+});
+
+test('sending a message takes it away for good', () => {
+  const { composer, input, type, asked } = open();
+  composer.offer(NEXT);
+  type('looks good');
+  input.fire('keydown', key('Enter'));
+  assert.deepEqual(
+    asked.sent.map(({ text }) => text),
+    ['looks good']
+  );
+  assert.equal(input.value, '');
+  assert.deepEqual(shown(), NONE);
+  assert.equal(input.fire('keydown', key('Tab')).defaultPrevented, false, 'Tab has nothing to write');
+});
+
+test('editing a message you sent takes it away for good, an empty one too', () => {
+  for (const start of [
+    (composer) => composer.edit({ id: 'said-1', text: '', pictures: [] }),
+    (composer) => composer.editNote({ id: 'note-1', text: '', from: 'Manager' }),
+  ]) {
+    const { composer, input } = open();
+    composer.offer(NEXT);
+    start(composer);
+    assert.deepEqual(shown(), NONE, 'not over the message being edited');
+    assert.equal(input.fire('keydown', key('Tab')).defaultPrevented, false, 'Tab has nothing to write');
+    composer.stopEditing();
+    assert.equal(input.value, '');
+    assert.deepEqual(shown(), NONE, 'nor once the edit is called off');
+  }
 });
 
 test('Esc puts it away for that reply, also when the window comes back to the contact', () => {
