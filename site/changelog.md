@@ -11,6 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
+## v0.7.10
+
+- **The suggested message comes back when you clear the box** — After a reply, the empty message box shows the message you would most likely send next, for Tab to use. Once you typed anything there, it was gone even after you deleted what you typed, until you went to another conversation and back. Now typing, pasting or attaching only hides it: empty the box and it is there again, with Tab to use it. It goes for good once you use it, put it away with Esc, send a message or start editing one, or a new reply suggests another.
+
 ## v0.7.9 — 2026-11-20
 
 - **Let a manager send more with one click** — A manager that had sent a conversation all the messages **Hand-offs** allows asked you to write there first, then to tell it you approve. Now a card under its message says so, with **Allow 6 more**: one click lets the manager send as many again without you writing there, and nothing goes to that conversation for it. The manager then sends what it couldn’t, asking you first as for any message. The same goes for a project manager’s messages to a manager, and a manager’s reports to its project manager. On a phone, it takes **Full** access.
