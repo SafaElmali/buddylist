@@ -255,13 +255,14 @@ export class PrStack {
   }
 
   get kind() {
-    return { label: 'PR stack', icon: listIcon.branch(), open: () => this.show() };
+    return { label: 'PR stack', about: 'prStack', icon: listIcon.branch(), open: () => this.show() };
   }
 
   show() {
     this.pane.open({
       id: PR_STACK_TAB,
       title: 'PR stack',
+      about: 'prStack',
       icon: listIcon.branch(),
       body: this.body,
       room: 340,

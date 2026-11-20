@@ -181,6 +181,21 @@
     background: var(--danger);
   }
 
+  & .menu-item.has-about {
+    padding-top: 4px;
+    padding-bottom: 5px;
+  }
+
+  & .menu-about {
+    color: var(--text-faint);
+    font-size: 11.5px;
+    line-height: 15px;
+  }
+
+  & .menu-item.active .menu-about {
+    color: inherit;
+  }
+
   & .menu-sep {
     margin: 5px 6px;
     background: var(--hairline);
@@ -1800,7 +1815,8 @@
   }
 
   & .pin-bar-unpin,
-  & .terminal-find-close {
+  & .terminal-find-close,
+  & .pane-about-close {
     width: 22px;
     height: 22px;
     border: 0;
@@ -1809,7 +1825,8 @@
   }
 
   & .pin-bar-unpin:hover,
-  & .terminal-find-close:hover {
+  & .terminal-find-close:hover,
+  & .pane-about-close:hover {
     background: var(--hover-bg);
     color: var(--text);
   }
@@ -3267,6 +3284,14 @@
     border: 0;
     border-radius: 0;
     background: var(--body-bg);
+  }
+
+  & .pane-about {
+    margin: 8px 10px 4px;
+    padding: 6px 4px 6px 10px;
+    border-radius: 6px;
+    color: var(--text-soft);
+    font: 12px/16px var(--font-ui);
   }
 
   & .pane-lower {

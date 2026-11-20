@@ -7,6 +7,7 @@ import { smallIcon } from './icons.js';
  * @typedef {Object} MenuItem
  * @property {string} [label]
  * @property {string} [hint]       right-aligned text, e.g. a shortcut
+ * @property {string} [about]      a quieter line under the label, saying what the item is: read as its description
  * @property {string} [key]        a lowercase letter that chooses the item while its menu is open, shown
  *   where the hint goes when it has none
  * @property {string} [icon]     trusted markup: an SVG, or an app's own icon
@@ -35,6 +36,8 @@ import { smallIcon } from './icons.js';
  */
 
 let current = null;
+/** For the id of each item's `about` line, which the item points to. */
+let abouts = 0;
 
 export function closeMenu() {
   if (!current) return;
@@ -182,7 +185,9 @@ export function openPopover(anchor, content, { align = 'left', above = false, re
  *   back to the menu it was opened from
  */
 function menuList(items, showSubmenu, back = null) {
-  const list = el(`<div class="menu${items.length > 18 ? ' menu-scroll' : ''}"></div>`);
+  // An item with a line under its label is as tall as two.
+  const rows = items.reduce((count, item) => count + (item.about ? 2 : 1), 0);
+  const list = el(`<div class="menu${rows > 18 ? ' menu-scroll' : ''}"></div>`);
   if (back) {
     const row = el(
       `<div class="menu-item menu-back" role="menuitem"><span class="menu-check">‹</span><span class="menu-label">${escapeHtml(back.label)}</span><span class="menu-hint"></span></div>`
@@ -209,6 +214,7 @@ function menuList(items, showSubmenu, back = null) {
       item.bold && 'bold',
       item.danger && 'danger',
       item.submenu && 'has-submenu',
+      item.about && 'has-about',
     ]
       .filter(Boolean)
       .join(' ');
@@ -218,6 +224,14 @@ function menuList(items, showSubmenu, back = null) {
       <span class="menu-label">${escapeHtml(item.label)}</span>
       <span class="menu-hint">${item.submenu ? '▸' : tickAtEnd ? '✓' : escapeHtml(item.hint || item.key?.toUpperCase() || '')}</span>
     </div>`);
+    if (item.about) {
+      // Its description, not its name: the item is still called by its label.
+      const about = el(
+        html`<span class="menu-about" id="menu-about-${++abouts}" aria-hidden="true">${item.about}</span>`
+      );
+      row.append(about);
+      row.setAttribute('aria-describedby', about.id);
+    }
     if (item.title) row.title = item.title;
     if (item.ariaLabel) row.setAttribute('aria-label', item.ariaLabel);
     if (item.disabled) row.setAttribute('aria-disabled', 'true');

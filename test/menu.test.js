@@ -149,3 +149,27 @@ test('a ticked row with nothing to do is chosen as any other: it closes the menu
   hit('Enter');
   assert.equal(isMenuOpen(), false);
 });
+
+test('a line under a name says what the row is: its description, while the row keeps its name', (t) => {
+  const { node } = opened(t, [
+    { label: 'Changes', hint: '⇧⌘G', about: 'What this branch changed, file by file' },
+    { label: 'Notes' },
+  ]);
+  const [changes, notes] = node.querySelectorAll('.menu-item');
+  const about = changes.querySelector('.menu-about');
+  assert.equal(about.textContent, 'What this branch changed, file by file');
+  assert.equal(changes.getAttribute('aria-describedby'), about.id, 'a screen reader reads it after the name');
+  assert.equal(about.getAttribute('aria-hidden'), 'true', 'and not as part of the name');
+  assert.equal(changes.querySelector('.menu-label').textContent, 'Changes');
+  assert.equal(changes.querySelector('.menu-hint').textContent, '⇧⌘G', 'the shortcut stays in its column');
+  assert.ok(changes.classList.contains('has-about'));
+  assert.equal(notes.querySelector('.menu-about'), null, 'a row without one has none');
+  assert.equal(notes.getAttribute('aria-describedby'), null);
+});
+
+test('rows with a line under their name count twice towards a menu that scrolls', (t) => {
+  const rows = (count, about) => Array.from({ length: count }, (_, i) => ({ label: `Row ${i}`, about }));
+  assert.ok(opened(t, rows(10, 'What it is')).node.querySelector('.menu-scroll'));
+  closeMenu();
+  assert.equal(opened(t, rows(10)).node.querySelector('.menu-scroll'), null, 'ten plain rows fit');
+});

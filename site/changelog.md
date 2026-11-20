@@ -14,6 +14,7 @@ version into package.json and package-lock.json in the release prep PR.
 ## v0.7.10
 
 - **The suggested message comes back when you clear the box** — After a reply, the empty message box shows the message you would most likely send next, for Tab to use. Once you typed anything there, it was gone even after you deleted what you typed, until you went to another conversation and back. Now typing, pasting or attaching only hides it: empty the box and it is there again, with Tab to use it. It goes for good once you use it, put it away with Esc, send a message or start editing one, or a new reply suggests another.
+- **Know what each tab of the side pane is** — The side pane’s **+** listed **Team**, **Brief**, **Changes**, **Session**, **Shared** and the rest by name alone. Now it says what each is in a few words under its name, such as _What this branch changed, file by file_, and a tab says it in a sentence or two over what it shows, with how to use it. Its ✕ puts that note away for every tab of that kind; the words in the **+** stay. A screen reader reads both.
 
 ## v0.7.9 — 2026-11-20
 

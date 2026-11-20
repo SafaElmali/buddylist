@@ -14,6 +14,7 @@ import { $, $$, el, html, raw } from '../lib/dom.js';
 import { smallIcon } from '../lib/icons.js';
 import { openMenu } from '../lib/menu.js';
 import { PANE_MIN_WIDTH } from '../../shared/side-pane.js';
+import { ABOUT, aboutLine, putAboutAway, putAway } from './pane-about.js';
 import { widestFrom } from './sidebar.js';
 import { tabArrows } from './tab-arrows.js';
 
@@ -21,6 +22,7 @@ import { tabArrows } from './tab-arrows.js';
  * @typedef {Object} PaneTab
  * @property {string} id
  * @property {string} title
+ * @property {string} [about]   which of the +'s kinds of tab it is (see pane-about.js): what that is, is said over it
  * @property {string} icon        trusted SVG markup
  * @property {HTMLElement} body   what the pane shows while this tab is the chosen one
  * @property {boolean} [lower]    it goes in the pane's lower half, with what runs in the folder
@@ -40,6 +42,12 @@ import { tabArrows } from './tab-arrows.js';
  * @property {boolean} [unavailable]  its content is no longer available
  */
 
+/** Over the tab a half shows: what its kind of tab is, until its ✕ puts that away (see pane-about.js). */
+const aboutNote = (half) => `<div class="pane-about" role="note" hidden>
+  <p id="pane-about-${half}"></p>
+  <button class="pane-about-close" type="button" aria-label="Hide this note" data-tip="Hide this note, in every conversation">✕</button>
+</div>`;
+
 /**
  * What the pane had open as the window went on from a contact, to open again when it comes back.
  * @typedef {Object} PaneState
@@ -55,6 +63,7 @@ import { tabArrows } from './tab-arrows.js';
  * A kind of tab the pane's + can open.
  * @typedef {Object} PaneKind
  * @property {string} label
+ * @property {string} about       which it is in pane-about.js: what the + says under its name
  * @property {string} icon        trusted SVG markup
  * @property {string} [hint]      its shortcut, as people write it
  * @property {boolean} [desktop]  needs the desktop app: a browser of its own, say. The browser preview has none
@@ -339,7 +348,7 @@ export function withKept(tabs, kept) {
 }
 
 /**
- * What the + lists: the kinds of tab there are here, each with its shortcut, then
+ * What the + lists: the kinds of tab there are here, each with its shortcut and a line on what it is, then
  * whatever else can be opened, the conversation's plans say. A kind that isn't
  * built is not among `kinds`, and one the browser preview can't run is left out there.
  * @param {PaneKind[]} kinds
@@ -349,7 +358,7 @@ export function withKept(tabs, kept) {
 export function addMenu(kinds, { web = false, more = [] } = {}) {
   const items = kinds
     .filter((kind) => !(web && kind.desktop))
-    .map(({ label, icon, hint, open }) => ({ label, icon, hint, action: open }));
+    .map(({ label, about, icon, hint, open }) => ({ label, about: ABOUT[about]?.short, icon, hint, action: open }));
   return items.length && more.length ? [...items, { separator: true }, ...more] : [...items, ...more];
 }
 
@@ -425,6 +434,7 @@ export class SidePane {
               </button>
             </div>
             <div class="pane-body">
+              ${aboutNote('upper')}
               <p class="pane-none" hidden>Nothing is open here. The + above opens files, changes, a web page and more.</p>
             </div>
           </div>
@@ -441,19 +451,30 @@ export class SidePane {
               <div class="pane-tabs" role="tablist"></div>
               <button class="pane-add" type="button" hidden>+</button>
             </div>
-            <div class="pane-body"></div>
+            <div class="pane-body">${aboutNote('lower')}</div>
           </div>
         </div>`
       )
     );
     /**
      * The two halves, each with the tab it shows. A tab says which it is in (`lower`).
-     * @type {Record<'upper' | 'lower', { node: HTMLElement, strip: HTMLElement, body: HTMLElement, selected: string | null }>}
+     * @type {Record<'upper' | 'lower', { node: HTMLElement, strip: HTMLElement, body: HTMLElement, about: HTMLElement, aboutText: HTMLElement, selected: string | null }>}
      */
     this.halves = Object.fromEntries(
       ['upper', 'lower'].map((name) => {
         const node = $(`.pane-${name}`, root);
-        return [name, { node, strip: $('.pane-tabs', node), body: $('.pane-body', node), selected: null }];
+        const about = $('.pane-about', node);
+        return [
+          name,
+          {
+            node,
+            strip: $('.pane-tabs', node),
+            body: $('.pane-body', node),
+            about,
+            aboutText: $('p', about),
+            selected: null,
+          },
+        ];
       })
     );
     // The gap between the conversation's side and the pane, which it drags wider or narrower.
@@ -486,7 +507,15 @@ export class SidePane {
       button.setAttribute('aria-label', adds.title);
       button.addEventListener('click', () => adds.action(button));
     }
-    for (const { strip } of Object.values(this.halves)) this.#tabStrip(strip);
+    for (const half of Object.values(this.halves)) {
+      this.#tabStrip(half.strip);
+      // Read once, a tab's line goes: for every tab of its kind, in every conversation.
+      $('.pane-about-close', half.about).addEventListener('click', () => {
+        putAboutAway(this.tabs.find((tab) => tab.id === half.selected)?.about);
+        this.#draw();
+        $('.pane-tab.selected', half.strip)?.focus();
+      });
+    }
 
     // Where the last page in this window had the pane, it is from the first picture, empty until
     // `settle`: the window kept the room for it.
@@ -1095,7 +1124,9 @@ export class SidePane {
   }
 
   #draw() {
-    for (const half of Object.values(this.halves)) this.#drawHalf(half);
+    // What was put away is read once a drawing, for both halves.
+    const away = putAway();
+    for (const half of Object.values(this.halves)) this.#drawHalf(half, away);
     const { upper, lower } = this.halves;
     const [above, below] = [this.#tabsOf(upper).length, this.#tabsOf(lower).length];
     // With nothing in either half, the upper one says how to open something: once what comes back
@@ -1110,7 +1141,8 @@ export class SidePane {
   }
 
   // Every tab's contents stay in the page, hidden: taken out, they would forget how far they were scrolled.
-  #drawHalf(half) {
+  /** @param {Set<string>} away  the kinds of tab whose line was put away */
+  #drawHalf(half, away) {
     const tabs = this.#tabsOf(half);
     const focused = half.strip.contains(document.activeElement) ? document.activeElement : null;
     const focusedId = focused?.closest('.pane-tab')?.dataset.id;
@@ -1150,6 +1182,11 @@ export class SidePane {
       })
     );
     for (const tab of tabs) tab.body.hidden = tab.id !== half.selected;
+    // Over the tab it shows, what that kind of tab is: also what a screen reader says of the tab.
+    const line = aboutLine(tabs.find((tab) => tab.id === half.selected)?.about, away);
+    half.about.hidden = !line;
+    half.aboutText.textContent = line ?? '';
+    if (line) $('.pane-tab.selected', half.strip)?.setAttribute('aria-describedby', half.aboutText.id);
     if (focusedId) {
       const node =
         $$('.pane-tab', half.strip).find((tab) => tab.dataset.id === focusedId) ?? $('.pane-tab.selected', half.strip);

@@ -231,7 +231,7 @@ export class Files {
   }
 
   get kind() {
-    return { label: 'All files', icon: smallIcon.folder(), open: () => this.show() };
+    return { label: 'All files', about: 'files', icon: smallIcon.folder(), open: () => this.show() };
   }
 
   /** Claims Find only for an open file, leaving list tabs and the conversation to their own handlers. */
@@ -253,6 +253,7 @@ export class Files {
     this.pane.open({
       id: TAB,
       title: 'All files',
+      about: 'files',
       icon: smallIcon.folder(),
       body: this.body,
       onSelect: () => this.refresh(),

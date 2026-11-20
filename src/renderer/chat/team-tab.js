@@ -286,7 +286,7 @@ export class TeamTab {
     this.team = [];
     this.drawn = '';
     /** @type {import('./side-pane.js').PaneTab} */
-    this.tab = { id: TAB, title: 'Team', icon: smallIcon.agents(), body: this.body, room: ROOM };
+    this.tab = { id: TAB, title: 'Team', about: 'team', icon: smallIcon.agents(), body: this.body, room: ROOM };
     this.list.addEventListener('click', (e) => {
       const id = /** @type {HTMLElement} */ (e.target).closest('.team-row')?.getAttribute('data-id');
       const contact = id && this.team.find((one) => one.id === id);
@@ -348,7 +348,7 @@ export class TeamTab {
 
   /** How the pane's + lists this kind of tab. */
   get kind() {
-    return { label: 'Team', icon: smallIcon.agents(), open: () => this.show() };
+    return { label: 'Team', about: 'team', icon: smallIcon.agents(), open: () => this.show() };
   }
 
   /**

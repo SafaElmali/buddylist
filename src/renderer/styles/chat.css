@@ -1089,7 +1089,8 @@
 }
 
 .pin-bar-unpin,
-.terminal-find-close {
+.terminal-find-close,
+.pane-about-close {
   flex: none;
   width: 16px;
   height: 16px;
@@ -1106,7 +1107,8 @@
 }
 
 .pin-bar-unpin:hover,
-.terminal-find-close:hover {
+.terminal-find-close:hover,
+.pane-about-close:hover {
   border-color: var(--hover-border);
   background: var(--hover-bg);
 }
@@ -3835,6 +3837,26 @@
 /* Nor is there anything to drag wider beside it. */
 .chat-main:has(> .side-pane.collapsed) > .pane-splitter {
   pointer-events: none;
+}
+
+/* Over a tab, what its kind of tab is, until its ✕ puts that away (pane-about.js). */
+.pane-about {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 6px 6px 2px;
+  padding: 4px 4px 5px 8px;
+  border: 1px solid var(--select-soft-border);
+  background: var(--select-soft);
+  color: var(--text-dim, #5a6a82);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.pane-about p {
+  flex: 1;
+  margin: 0;
 }
 
 /* What a pane with nothing open in it says. */
