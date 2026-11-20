@@ -47,6 +47,8 @@ export class FindBar {
   #ranges = [];
   #result = { matches: [], capped: false };
   #current = -1;
+  /** A search to be done soon, `keep` as `search` has it. @type {{ timer: ReturnType<typeof setTimeout>, keep: boolean } | null} */
+  #waiting = null;
 
   /**
    * @param {string} label  what it finds in, as "Find in file"
@@ -122,7 +124,22 @@ export class FindBar {
 
   /** What was typed changed. @param {boolean} composing  an input method is still putting a word together */
   typed(composing) {
-    if (!composing) this.search();
+    if (!composing) return this.search();
+    this.#cancel();
+    this.clear();
+    this.prev.disabled = this.next.disabled = true;
+  }
+
+  /**
+   * Searches in `ms`. What you type waits again with each key, for the last of it. A search again of what changed
+   * leaves one already waiting as it is, so it comes on time while things go on changing.
+   * @param {number} ms
+   * @param {boolean} [keep]  as `search` has it
+   */
+  later(ms, keep = false) {
+    if (keep && this.#waiting) return;
+    this.#cancel();
+    this.#waiting = { keep, timer: setTimeout(() => this.search(keep), ms) };
   }
 
   open() {
@@ -134,6 +151,7 @@ export class FindBar {
   }
 
   close() {
+    this.#cancel();
     this.box.hidden = true;
     this.clear();
   }
@@ -144,6 +162,7 @@ export class FindBar {
    *   and nothing is scrolled
    */
   search(keep = false) {
+    this.#cancel();
     const was = this.#ranges[this.#current];
     const index = this.#current;
     this.clear();
@@ -168,6 +187,8 @@ export class FindBar {
 
   /** Goes to the next match, or with `backwards` the one before, wrapping at either end. */
   step(backwards = false) {
+    // What is still to be searched is, before going on from it.
+    if (this.#waiting) this.search(this.#waiting.keep);
     this.#current = nextFileMatch(this.#current, this.#ranges.length, backwards);
     this.#show();
   }
@@ -190,6 +211,11 @@ export class FindBar {
     if (rect.top < view.top || rect.bottom > view.bottom) {
       scroller.scrollTop += rect.top - view.top - scroller.clientHeight / 2;
     }
+  }
+
+  #cancel() {
+    clearTimeout(this.#waiting?.timer);
+    this.#waiting = null;
   }
 
   #show(scroll = true) {

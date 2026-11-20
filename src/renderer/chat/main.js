@@ -2656,7 +2656,7 @@ function mountControls() {
     const who = name && ctx.participants.find((p) => p.id === name.dataset.id);
     if (who) rename(who);
   });
-  $('#search').addEventListener('click', () => openFind());
+  $('#search').addEventListener('click', openFind);
   for (const type of ['focusin', 'pointerover', 'pointerdown']) {
     document.addEventListener(type, (e) => files.rememberFindTarget(e.target));
   }

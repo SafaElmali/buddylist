@@ -58,7 +58,6 @@ function place(range) {
 }
 
 export class ConversationFind extends FindBar {
-  #timer = null;
   /** @type {ReturnType<typeof transcriptText> | null} what was read of the transcript, until it changes */
   #text = null;
   /** Where the keyboard was before it opened, to have it back. @type {HTMLElement | null} */
@@ -71,7 +70,6 @@ export class ConversationFind extends FindBar {
    */
   constructor(root, under) {
     super('Find in conversation', 'conversation-find', root);
-    this.root = root;
     this.box.classList.add('conversation-find');
     under.after(this.box);
   }
@@ -80,7 +78,7 @@ export class ConversationFind extends FindBar {
     if (this.box.hidden) {
       this.#back = /** @type {HTMLElement | null} */ (document.activeElement);
       this.#text = null;
-      this.#watch.observe(this.root, {
+      this.#watch.observe(this.scroller, {
         subtree: true,
         childList: true,
         characterData: true,
@@ -91,7 +89,6 @@ export class ConversationFind extends FindBar {
   }
 
   close() {
-    this.#stop();
     this.#watch.disconnect();
     this.#text = null;
     super.close();
@@ -100,26 +97,22 @@ export class ConversationFind extends FindBar {
   }
 
   content() {
-    const { text, nodes } = (this.#text ??= transcriptText(this.root));
+    const { text, nodes } = (this.#text ??= transcriptText(this.scroller));
     return { text, range: (start, end) => textRange(nodes, start, end) };
   }
 
   /** The first match from the top of what is on show down, or else the last one above it: the one nearest. */
   startAt(ranges) {
-    const { top } = this.root.getBoundingClientRect();
-    const index = ranges.findIndex((range) => place(range).bottom >= top);
-    return index >= 0 ? index : ranges.length - 1;
-  }
-
-  search(keep = false) {
-    this.#stop();
-    super.search(keep);
-  }
-
-  step(backwards = false) {
-    // Lines that just came in are counted before going on.
-    if (this.#timer) this.search(true);
-    super.step(backwards);
+    const { top } = this.scroller.getBoundingClientRect();
+    // They are in the order they are drawn, top to bottom.
+    let low = 0;
+    let high = ranges.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (place(ranges[mid]).bottom >= top) high = mid;
+      else low = mid + 1;
+    }
+    return Math.min(low, ranges.length - 1);
   }
 
   reveal(range) {
@@ -129,11 +122,6 @@ export class ConversationFind extends FindBar {
 
   #changed() {
     this.#text = null;
-    this.#timer ??= setTimeout(() => this.search(true), REFRESH_MS);
-  }
-
-  #stop() {
-    clearTimeout(this.#timer);
-    this.#timer = null;
+    this.later(REFRESH_MS, true);
   }
 }

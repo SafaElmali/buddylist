@@ -5,7 +5,6 @@ export const FILE_FIND_DELAY = 120;
 const LARGE_FILE = 50000;
 
 export class FileFind extends FindBar {
-  #timer = null;
   #text = '';
   #ready = false;
   #cut = false;
@@ -23,7 +22,6 @@ export class FileFind extends FindBar {
 
   /** A reread replaces the text and its DOM together. Null means a binary file or a read error. */
   update(lines, cut = false) {
-    this.#cancel();
     this.clear();
     this.#ready = lines !== null;
     this.#text = lines?.join('\n') ?? '';
@@ -40,31 +38,17 @@ export class FileFind extends FindBar {
   }
 
   close(focus = true) {
-    this.#cancel();
     super.close();
     if (focus) this.view.focus({ preventScroll: true });
   }
 
+  /** A large file waits for the last key before it is searched. */
   typed(composing) {
-    this.#cancel();
+    if (composing || !this.input.value || this.#text.length <= LARGE_FILE) return super.typed(composing);
     this.clear();
     this.prev.disabled = this.next.disabled = true;
-    if (composing) return;
-    if (this.input.value && this.#text.length > LARGE_FILE) {
-      this.count.textContent = 'Searching…';
-      this.#timer = setTimeout(() => this.search(), FILE_FIND_DELAY);
-    } else this.search();
-  }
-
-  search(keep = false) {
-    this.#cancel();
-    super.search(keep);
-  }
-
-  step(backwards = false) {
-    // Enter while a large file is waiting searches the new query before navigating it.
-    if (this.#timer) this.search();
-    super.step(backwards);
+    this.count.textContent = 'Searching…';
+    this.later(FILE_FIND_DELAY);
   }
 
   content() {
@@ -77,11 +61,6 @@ export class FileFind extends FindBar {
         ...(!this.#ready ? ['No file text to search.'] : []),
       ],
     };
-  }
-
-  #cancel() {
-    clearTimeout(this.#timer);
-    this.#timer = null;
   }
 
   #textNodes() {

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ConversationFind, REFRESH_MS, transcriptText } from '../src/renderer/chat/conversation-find.js';
 import { ActivityLines } from '../src/renderer/chat/activity.js';
+import { FILE_FIND_DELAY, FileFind } from '../src/renderer/chat/file-find.js';
 import { Conversation } from '../src/renderer/chat/conversation.js';
 import { el } from '../src/renderer/lib/dom.js';
 import { page } from './fixtures/dom.js';
@@ -334,4 +335,43 @@ test('at most 2,000 matches are marked, and it says so', (t) => {
   assert.equal(marked(), 2000);
   assert.equal(find.note.hidden, false);
   assert.match(find.note.textContent, /First 2,000 matches shown/);
+});
+
+test('while a reply streams in, the count is brought up to date on time, not put off by each change', (t) => {
+  const { root, find, type, count, observers } = chat(t, '<p>one cart</p>');
+  find.open();
+  type('cart');
+  root.append(el('<p>two cart</p>'));
+  observers[0].callback([]);
+  t.mock.timers.tick(REFRESH_MS - 50);
+  root.append(el('<p>three cart</p>'));
+  observers[0].callback([]);
+  t.mock.timers.tick(50);
+  assert.equal(count(), '1 of 3');
+});
+
+test('a large file waits for the last key, and Enter searches what waits before going on', (t) => {
+  const { document } = browser(t);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const tab = el('<div class="file-tab"><div class="file-view"></div></div>');
+  document.body.append(tab);
+  const find = new FileFind(tab, tab.querySelector('.file-view'), () => {});
+  find.input.select = () => {};
+  find.update(['x'.repeat(60000)]);
+  find.open();
+  const type = (text) => {
+    find.input.value = text;
+    find.input.fire('input');
+  };
+  type('zz');
+  assert.equal(find.count.textContent, 'Searching…');
+  t.mock.timers.tick(FILE_FIND_DELAY - 20);
+  type('zzz');
+  t.mock.timers.tick(FILE_FIND_DELAY - 20);
+  assert.equal(find.count.textContent, 'Searching…', 'each key waits again');
+  t.mock.timers.tick(20);
+  assert.equal(find.count.textContent, 'No matches');
+  type('zzzz');
+  find.input.fire('keydown', { key: 'Enter' });
+  assert.equal(find.count.textContent, 'No matches');
 });
