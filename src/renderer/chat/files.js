@@ -466,16 +466,20 @@ export class Files {
 
   /**
    * What a right-click on a link to a file of the folder offers: what one on the file here does, as
-   * opening it in its app. One outside the folder, as a proof video in /tmp, can be downloaded if it is a
-   * picture, a video or a sound, and a picture copied. Null for anything else outside it.
+   * opening it in its app. One outside the folder, as a proof video in /tmp, has its whole path to copy, and
+   * can be downloaded if it is a picture, a video or a sound, and a picture copied.
    * @param {string} file  from the top of the folder, or of the disk
-   * @returns {import('../lib/menu.js').MenuItem[] | null}
+   * @returns {import('../lib/menu.js').MenuItem[]}
    */
   linkMenu(file) {
     const path = pathFrom(this.ctx.contact.cwd, file);
     if (!/^(\/|\.\.\/)/.test(path)) return this.#items(path);
-    const media = mediaItems(fileAddress(path.startsWith('/') ? path : `${this.ctx.contact.cwd}/${path}`));
-    return media.length ? media : null;
+    const whole = path.startsWith('/') ? path : `${this.ctx.contact.cwd}/${path}`;
+    const media = mediaItems(fileAddress(whole));
+    return [
+      { label: 'Copy path', action: () => navigator.clipboard.writeText(whole) },
+      ...(media.length ? [{ separator: true }, ...media] : []),
+    ];
   }
 
   /**

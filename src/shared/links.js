@@ -56,6 +56,17 @@ export function linkedFile(href) {
   return unescaped(written).replace(LINE, '');
 }
 
+/**
+ * The e-mail address a mailto: link writes to, without what it would start the message with:
+ * "mailto:fake@example.com?subject=Hi" is "fake@example.com". Several stay as written, a comma between.
+ * @param {string | null} href  the link's href as written
+ * @returns {string | null}  null for a link of another kind, or one that names no address
+ */
+export function mailAddress(href) {
+  const to = /^mailto:([^?#]*)/i.exec(String(href ?? '').trim())?.[1] ?? '';
+  return unescapedAll(to).trim() || null;
+}
+
 // From the top of a Windows disk: "C:\shots", "C:/shots".
 const DRIVE = /^[a-z]:[\\/]/i;
 

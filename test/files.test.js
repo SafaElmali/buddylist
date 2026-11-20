@@ -275,7 +275,27 @@ test('a right-click on a link to a file of the folder offers what one on the fil
     ['src/app.js', { inFolder: true }],
   ]);
   assert.equal(tab.linkMenu('src/').at(-2).label, 'Open folder');
-  for (const outside of ['/etc/hosts', '../notes/plan.md']) assert.equal(tab.linkMenu(outside), null, outside);
+});
+
+test('a right-click on a link to a file outside the folder offers to copy its whole path', async (t) => {
+  const dir = folder({});
+  const { tab } = filesTab(t, dir);
+  const copied = [];
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText: async (text) => void copied.push(text) },
+    configurable: true,
+  });
+  t.after(() => delete navigator.clipboard);
+  for (const outside of ['/Users/example/notes/plan.md', '../notes/plan.md']) {
+    const items = tab.linkMenu(outside);
+    assert.deepEqual(
+      items.map((item) => item.label),
+      ['Copy path'],
+      outside
+    );
+    await items[0].action();
+  }
+  assert.deepEqual(copied, ['/Users/example/notes/plan.md', `${dir}/../notes/plan.md`]);
 });
 
 test('a right-click on a link to a picture or a video offers to download it, also outside the folder', async (t) => {
@@ -284,9 +304,9 @@ test('a right-click on a link to a picture or a video offers to download it, als
   const labels = (items) => items.map((item) => item.label ?? '—');
   // In the folder, after what the file offers in All files.
   assert.deepEqual(labels(tab.linkMenu('shots/home.png')).slice(-3), ['—', 'Copy image', 'Download image...']);
-  // Outside it, as a proof video in /tmp, that is all there is.
-  assert.deepEqual(labels(tab.linkMenu('/tmp/proof.mp4')), ['Download video...']);
-  assert.deepEqual(labels(tab.linkMenu('../shots/home.png')), ['Copy image', 'Download image...']);
+  // Outside it, as a proof video in /tmp, after its path.
+  assert.deepEqual(labels(tab.linkMenu('/tmp/proof.mp4')), ['Copy path', '—', 'Download video...']);
+  assert.deepEqual(labels(tab.linkMenu('../shots/home.png')), ['Copy path', '—', 'Copy image', 'Download image...']);
 });
 
 // ---- Send Files: what you picked ---------------------------------------------------------------------------
