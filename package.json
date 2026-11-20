@@ -1,7 +1,7 @@
 {
   "name": "buddylist",
   "productName": "buddylist",
-  "version": "0.7.9",
+  "version": "0.7.10",
   "description": "Run coding agents side by side in one app.",
   "main": "src/main/index.js",
   "type": "module",
