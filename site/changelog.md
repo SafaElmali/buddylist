@@ -14,6 +14,7 @@ version into package.json and package-lock.json in the release prep PR.
 ## v0.7.10
 
 - **The suggested message comes back when you clear the box** — After a reply, the empty message box shows the message you would most likely send next, for Tab to use. Once you typed anything there, it was gone even after you deleted what you typed, until you went to another conversation and back. Now typing, pasting or attaching only hides it: empty the box and it is there again, with Tab to use it. It goes for good once you use it, put it away with Esc, send a message or start editing one, or a new reply suggests another.
+- **Find in a conversation marks what it finds** — ⌘F (Ctrl+F) in a conversation opened a small box over the message box, and its **Next** only moved a selection you could hardly see, with no count. Now a bar under the To: line marks every match in your messages, the replies and the activity lines, the one you are at more strongly, and says where you are, such as **3 of 12**. Enter or ↓ goes to the next and Shift+Enter or ↑ back, wrapping at either end, and **Aa** matches case. Matches in a run of tool calls folded away are counted too, and going to one opens it. As new lines come in, the count follows and you stay where you were. **Esc** closes it and takes the marks away. On a dark page, the match you are at in a file’s Find is now the bright one too.
 
 ## v0.7.9 — 2026-11-20
 
