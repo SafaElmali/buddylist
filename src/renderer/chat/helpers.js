@@ -182,7 +182,7 @@ export const tagOf = ({ agent, by }, several) => [agent, several ? `for ${by}` :
 /** Without a helper to list. @param {string[]} names  the agents here that can have helpers */
 export function nobodyNote(names) {
   const who = names.length === 1 ? names[0] : 'an agent here';
-  return `Nobody is helping yet. When ${who} hands part of a job to a subagent, it is listed here, with what it is doing.`;
+  return `Nobody is helping yet. When ${who} hands part of a job to a subagent, it is listed here.`;
 }
 
 const note = (text) => el(html`<div class="helpers-note">${text}</div>`);
@@ -220,7 +220,7 @@ export class Helpers {
     this.ended = this.body.querySelector('.helpers-ended');
     this.list = /** @type {HTMLElement} */ (this.body.querySelector('.helpers-list'));
     /** @type {import('./side-pane.js').PaneTab} */
-    this.tab = { id: TAB, title: 'Subagents', icon: smallIcon.helper(), body: this.body };
+    this.tab = { id: TAB, title: 'Subagents', about: 'helpers', icon: smallIcon.helper(), body: this.body };
 
     this.list.addEventListener('click', (e) => {
       const target = /** @type {HTMLElement} */ (e.target);
@@ -235,7 +235,7 @@ export class Helpers {
 
   /** How the pane's + lists this kind of tab. Its shortcut is the window's to add. */
   get kind() {
-    return { label: 'Subagents', icon: smallIcon.helper(), open: () => this.show() };
+    return { label: 'Subagents', about: 'helpers', icon: smallIcon.helper(), open: () => this.show() };
   }
 
   /** How many helpers this conversation has had. */

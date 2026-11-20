@@ -53,9 +53,8 @@ const KINDS = [
   { kind: 'picture', title: 'Pictures' },
 ];
 
-/** What the tab says while nothing has been shared. */
-export const NOTHING_SHARED =
-  'Nothing has been shared here yet. The links, files and pictures sent in this conversation are listed here.';
+/** What the tab says while nothing has been shared. What it lists is said over it (see pane-about.js). */
+export const NOTHING_SHARED = 'Nothing has been shared here yet.';
 
 /**
  * What a link in a message shares: a file an agent linked by its path, an issue or pull request, a
@@ -227,13 +226,14 @@ export class SharedTab {
   }
 
   get kind() {
-    return { label: 'Shared', icon: smallIcon.link(), open: () => this.show() };
+    return { label: 'Shared', about: 'shared', icon: smallIcon.link(), open: () => this.show() };
   }
 
   show() {
     this.pane.open({
       id: TAB,
       title: 'Shared',
+      about: 'shared',
       icon: smallIcon.link(),
       body: this.body,
       onSelect: () => this.paint(),

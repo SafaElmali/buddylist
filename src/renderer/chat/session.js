@@ -73,7 +73,7 @@ export class Session {
   }
 
   get kind() {
-    return { label: 'Session', icon: smallIcon.info(), open: () => this.show() };
+    return { label: 'Session', about: 'session', icon: smallIcon.info(), open: () => this.show() };
   }
 
   show() {
@@ -81,6 +81,7 @@ export class Session {
     this.pane.open({
       id: TAB,
       title: 'Session',
+      about: 'session',
       icon: smallIcon.info(),
       body: this.body,
       // Asked again whenever it is gone back to: a branch moves on, a server connects.

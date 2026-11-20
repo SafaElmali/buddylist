@@ -106,6 +106,7 @@ class ScriptTab {
     this.tab = {
       id: this.id,
       title: this.words.title,
+      about: kind,
       icon: smallIcon.terminal(),
       body: this.body,
       // With the terminals: what runs in the folder.
@@ -338,8 +339,8 @@ export class ScriptTabs {
   /** The two kinds of tab, for the menu that lists what can be opened beside the conversation. */
   get kinds() {
     return [
-      { label: 'Setup', icon: smallIcon.terminal(), open: () => this.setup.open() },
-      { label: 'Run', icon: smallIcon.terminal(), open: () => this.runs.open() },
+      { label: 'Setup', about: 'setup', icon: smallIcon.terminal(), open: () => this.setup.open() },
+      { label: 'Run', about: 'run', icon: smallIcon.terminal(), open: () => this.runs.open() },
     ];
   }
 

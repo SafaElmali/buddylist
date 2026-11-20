@@ -826,6 +826,7 @@ export class Changes {
     this.tab = {
       id: TAB,
       title: 'Changes',
+      about: 'changes',
       icon: smallIcon.changes(),
       body: this.body,
       onSelect: () => this.refresh(),
@@ -1005,7 +1006,7 @@ export class Changes {
 
   /** How the pane's + lists this kind of tab. Its shortcut is the window's to add. */
   get kind() {
-    return { label: 'Changes', icon: smallIcon.changes(), open: () => this.show() };
+    return { label: 'Changes', about: 'changes', icon: smallIcon.changes(), open: () => this.show() };
   }
 
   /**
