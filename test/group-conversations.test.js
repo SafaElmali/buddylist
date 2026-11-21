@@ -4,6 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Conversations } from '../src/main/conversations.js';
+import { folderState, inRepository } from '../src/main/changes.js';
 import { Store } from '../src/main/storage/store.js';
 import { History } from '../src/main/storage/history.js';
 import { AcpSession } from '../src/providers/acp/session.js';
@@ -118,6 +119,7 @@ function setup() {
       providers,
       chats,
       notifier,
+      folders: { inRepository, state: folderState },
       onContactsChanged: () => {
         changes += 1;
         const host = store.contacts.find((contact) => contact.name === 'Claude');

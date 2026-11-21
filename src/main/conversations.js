@@ -49,7 +49,6 @@ import { pullRequestStatus } from '../shared/pull-request-text.js';
 import { hasEvery, searchTerms } from '../shared/search.js';
 import { REVIEW_ROLE, ROLE_NAME_MAX, roleInstructions, roleMode } from '../shared/teams.js';
 import { FROM_A_SESSION, GO_AHEAD, Relay, effortCheck } from './relay.js';
-import { folderState, inRepository } from './changes.js';
 import { Turns } from './turns.js';
 import { WorkerHandover } from './worker-handover.js';
 import { quoteOf } from '../shared/quotes.js';
@@ -205,7 +204,7 @@ export function promptView(prompt) {
  *   and is put on it when its turn starts
  * @property {Promise<unknown> | null} picking  the levels a reply gave, while they are being looked up
  * @property {Map<string, { state: string | null, own: boolean }>} seen  where the folder's files stood (see
- *   folderState) when each agent here that answers after changes last heard what went on, by id. `own`: it had a turn
+ *   Conversations#folders) when each agent here that answers after changes last heard what went on, by id. `own`: it had a turn
  *   since, so what it changed itself is taken in once it heard what the others did (see #lookFirst)
  * @property {Promise<void> | null} looking  the folder is being read as a round ends (see #followUp): until it is
  *   read, the round goes on
@@ -497,6 +496,9 @@ export class Conversations {
    *   nobody is on This computer when left out
    * @param {(cwd: string) => Promise<string | null>} [deps.branchOf]  the branch a folder is on now (see worktrees.js);
    *   none when left out
+   * @param {{ inRepository: (cwd: string) => boolean, state: (cwd: string) => Promise<string | null> }} [deps.folders]
+   *   whether a folder is in a git repository, and where its files stand (see changes.js folderState); in none when left
+   *   out, so only the history tells what changed
    * @param {(cwd: string) => { env?: Record<string, string>, instructions?: string, mainFolder?: string }} [deps.forAgent]
    *   what the project of a folder starts its agents with (see Projects.forAgent); nothing when left out
    * @param {(contact: Contact, reply: string, opts: { asks: boolean }) => Promise<string[]>} [deps.suggestReplies]
@@ -522,6 +524,7 @@ export class Conversations {
     inWorktree = () => false,
     computerHome = '',
     branchOf = async () => null,
+    folders = { inRepository: () => false, state: async () => null },
     forAgent = () => ({}),
     suggestReplies = async () => [],
     loginOf = () => '',
@@ -546,6 +549,7 @@ export class Conversations {
     this.inWorktree = inWorktree;
     this.computerHome = computerHome;
     this.branchOf = branchOf;
+    this.folders = folders;
     this.forAgent = forAgent;
     this.suggestReplies = suggestReplies;
     this.loginOf = loginOf;
@@ -2650,7 +2654,7 @@ export class Conversations {
       return;
     }
     const host = this.store.getContact(hostId);
-    group.looking = folderState(host.cwd).then((state) => {
+    group.looking = this.folders.state(host.cwd).then((state) => {
       group.looking = null;
       if (this.#groups.get(hostId) !== group) return;
       const due = new Set([...changed, ...unsure.filter((id) => state && state !== group.seen.get(id)?.state)]);
@@ -2677,14 +2681,14 @@ export class Conversations {
   #lookFirst(hostId, group, id) {
     const cwd = this.store.getContact(hostId)?.cwd;
     const after = this.participants(hostId).filter((agent) => agent.afterChanges);
-    if (!after.length || !inRepository(cwd)) return null;
+    if (!after.length || !this.folders.inRepository(cwd)) return null;
     let entries;
     const heardAll = (agent) => !group.relay.actedFor((entries ??= this.history.read(hostId)), agent, hostId);
     const noting = after
       .map((agent) => agent.id)
       .filter((agent) => agent === id || !group.seen.has(agent) || (group.seen.get(agent).own && heardAll(agent)));
     if (!noting.length) return null;
-    return folderState(cwd).then((state) => {
+    return this.folders.state(cwd).then((state) => {
       for (const agent of noting) group.seen.set(agent, { state, own: agent === id });
     });
   }
