@@ -2640,25 +2640,27 @@ export class Conversations {
     const waiting = this.participants(hostId).filter((agent) => agent.afterChanges && !agent.paused);
     if (!waiting.length) return;
     const entries = this.history.read(hostId);
-    const changed = waiting.filter((agent) => group.relay.changedFor(entries, agent.id, hostId)).map(({ id }) => id);
-    const unsure = waiting
-      .filter(({ id }) => !changed.includes(id) && group.seen.get(id)?.state)
-      .filter(({ id }) => group.relay.actedFor(entries, id, hostId))
-      .map(({ id }) => id);
+    const ids = waiting.map(({ id }) => id);
+    const changed = ids.filter((id) => group.relay.changedFor(entries, id, hostId));
+    const unsure = ids.filter(
+      (id) => !changed.includes(id) && group.seen.get(id)?.state && group.relay.actedFor(entries, id, hostId)
+    );
     if (!unsure.length) {
       group.turns.followUp(changed);
       return;
     }
-    group.looking = folderState(this.store.getContact(hostId).cwd).then((state) => {
+    const host = this.store.getContact(hostId);
+    group.looking = folderState(host.cwd).then((state) => {
       group.looking = null;
       if (this.#groups.get(hostId) !== group) return;
-      const moved = unsure.filter((id) => state && state !== group.seen.get(id)?.state);
+      const due = new Set([...changed, ...unsure.filter((id) => state && state !== group.seen.get(id)?.state)]);
       // Paused, or gone, meanwhile.
-      const due = this.participants(hostId)
-        .filter((agent) => !agent.paused && [...changed, ...moved].includes(agent.id))
-        .map(({ id }) => id);
-      if (group.turns.followUp(due).length) this.#nextTurn(hostId);
-      else this.#settled(hostId);
+      const still = this.participants(hostId).filter((agent) => !agent.paused && due.has(agent.id));
+      if (group.turns.followUp(still.map(({ id }) => id)).length) return this.#nextTurn(hostId);
+      // Nobody answers after the round: it is over, as its sessions said already.
+      this.#tellState(hostId, hostId);
+      this.#free(host);
+      this.onContactsChanged();
     });
   }
 
@@ -2676,30 +2678,15 @@ export class Conversations {
     const cwd = this.store.getContact(hostId)?.cwd;
     const after = this.participants(hostId).filter((agent) => agent.afterChanges);
     if (!after.length || !inRepository(cwd)) return null;
-    const entries = this.history.read(hostId);
+    let entries;
+    const heardAll = (agent) => !group.relay.actedFor((entries ??= this.history.read(hostId)), agent, hostId);
     const noting = after
       .map((agent) => agent.id)
-      .filter((agent) => {
-        const seen = group.seen.get(agent);
-        return agent === id || !seen || (seen.own && !group.relay.actedFor(entries, agent, hostId));
-      });
+      .filter((agent) => agent === id || !group.seen.has(agent) || (group.seen.get(agent).own && heardAll(agent)));
     if (!noting.length) return null;
     return folderState(cwd).then((state) => {
       for (const agent of noting) group.seen.set(agent, { state, own: agent === id });
     });
-  }
-
-  /**
-   * Its round went on while the folder was read, and nobody answers after it: the conversation is idle, as its sessions
-   * said already.
-   * @param {string} hostId
-   */
-  #settled(hostId) {
-    const host = this.store.getContact(hostId);
-    if (!host) return;
-    this.#tellState(hostId, hostId);
-    this.#free(host);
-    this.onContactsChanged();
   }
 
   /**

@@ -3707,15 +3707,7 @@ const HAS_GIT = spawnSync('git', ['--version']).status === 0;
 async function worktreeSetup() {
   const app = setup();
   const { claude, store } = app;
-  const git = (...args) =>
-    execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', ...args], {
-      cwd: claude.cwd,
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-  git('init', '--quiet', '-b', 'main');
-  fs.writeFileSync(path.join(claude.cwd, 'a.txt'), 'one');
-  git('add', '.');
-  git('-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'add a.txt');
+  asRepository(app, { 'a.txt': 'one' });
   // macOS hands out temp folders through a symlink; git answers with the real path.
   const home = path.join(fs.realpathSync(app.dir), 'worktrees');
   const cwd = await createWorktree({ cwd: claude.cwd, branch: 'feature', base: 'current', home });
@@ -6324,10 +6316,10 @@ function editsAndAnswers(app, who, file, text = 'Done.') {
 }
 
 /**
- * Claude's folder made a repository with one commit, of src/login.js: what changes in it, git can tell. Answers with
- * a way to write a file there, as a command would, and one to run git there.
+ * Claude's folder made a repository on `main`, with `files` as its one commit: what changes in it, git can tell.
+ * Answers with a way to write a file there, as a command would, and one to run git there.
  */
-function asRepository(app) {
+function asRepository(app, files = { 'src/login.js': 'login\n' }) {
   const { cwd } = app.claude;
   const git = (...args) =>
     execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', ...args], {
@@ -6339,7 +6331,7 @@ function asRepository(app) {
     fs.writeFileSync(path.join(cwd, file), text);
   };
   git('init', '--quiet', '-b', 'main');
-  write('src/login.js', 'login\n');
+  for (const [file, text] of Object.entries(files)) write(file, text);
   git('add', '.');
   git('-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'first');
   return { git, write };

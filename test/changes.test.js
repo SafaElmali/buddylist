@@ -10,7 +10,6 @@ import {
   fileOf,
   folderState,
   gitRunner,
-  HASHED_AT_MOST,
   inRepository,
   listChanges,
   MAX_COMMITS,
@@ -1666,7 +1665,7 @@ test('a folder outside any repository, or gone, has no state to tell', opts, asy
 
 test('past the files it reads, a changed file is told by its size and time instead', opts, async () => {
   const dir = repository();
-  for (let i = 0; i <= HASHED_AT_MOST; i += 1) write(dir, `many/${i}.txt`, `${i}\n`);
+  for (let i = 0; i <= MAX_FILES; i += 1) write(dir, `many/${i}.txt`, `${i}\n`);
   const many = await folderState(dir);
   assert.equal(await folderState(dir), many);
   write(dir, 'many/0.txt', 'changed and longer\n');

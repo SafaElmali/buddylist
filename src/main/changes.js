@@ -13,6 +13,7 @@ import { UNCOMMITTED } from '../shared/changes.js';
 import { CONTEXT_LINES, cutOff, hunksOf, isBinaryDiff } from '../shared/unified-diff.js';
 import { branchLabel } from './contact-card.js';
 import { execTool } from './git-command.js';
+import { foldersFromTop } from '../providers/checkout.js';
 import { readText, SHOWN_AT_MOST } from './files.js';
 import { defaultBranch, isInside } from './worktrees.js';
 
@@ -595,9 +596,8 @@ export async function commitFiles(cwd, commit, { run = git } = {}) {
 
 // ---- where a folder's files stand ---------------------------------------------------------------
 
-/** How many changed files `folderState` has git read; past that, each is told by its size and when it changed. */
-export const HASHED_AT_MOST = MAX_FILES;
-// And how much of them in all.
+// How much of the changed files `folderState` has git read, MAX_FILES of them at most. Past that, each is told by
+// its size and when it changed.
 const HASHED_BYTES = 32 * 1024 * 1024;
 // How many names go on one git command line.
 const HASHED_AT_ONCE = 100;
@@ -609,11 +609,7 @@ const NO_FILE = '000000';
  * @param {string} cwd
  */
 export function inRepository(cwd) {
-  if (!cwd) return false;
-  for (let dir = path.resolve(cwd); ; dir = path.dirname(dir)) {
-    if (fs.existsSync(path.join(dir, '.git'))) return true;
-    if (dir === path.dirname(dir)) return false;
-  }
+  return Boolean(cwd) && fs.existsSync(path.join(foldersFromTop(cwd)[0], '.git'));
 }
 
 /**
@@ -657,27 +653,23 @@ async function standing(dir, run) {
   if (status.cut) return null;
   const unread = [];
   for (const record of status.stdout.split('\0')) {
-    if (record.startsWith('? ')) unread.push(record.slice(2));
-    else if (record.startsWith('1 ')) {
-      // "1 <XY> <sub> <mode HEAD> <mode index> <mode file> <object HEAD> <object index> <path>"
-      const [, xy, sub, , indexMode, fileMode, , indexObject] = record.split(' ', 8);
-      const { path: name } = entry(record, 8) ?? {};
-      if (!name) continue;
-      // A repository inside this one: what it says of itself stands for it.
-      if (sub.startsWith('S')) files.set(name, `${sub} ${indexObject}`);
-      else if (xy[1] === '.') {
-        if (indexMode === NO_FILE) files.delete(name);
-        else files.set(name, indexObject);
-      } else if (fileMode === NO_FILE) files.delete(name);
-      else unread.push(name);
-    } else if (record.startsWith('u ')) {
-      // "u <XY> <sub> <mode 1> <mode 2> <mode 3> <mode file> ... <path>": a file git could not merge.
-      const fileMode = record.split(' ', 7)[6];
-      const { path: name } = entry(record, 10) ?? {};
-      if (!name) continue;
-      if (fileMode === NO_FILE) files.delete(name);
-      else unread.push(name);
+    if (record.startsWith('? ')) {
+      unread.push(record.slice(2));
+      continue;
     }
+    // "1 <XY> <sub> <mode HEAD> <mode index> <mode file> <object HEAD> <object index> <path>", and for a file git
+    // could not merge "u <XY> <sub> <mode 1> <mode 2> <mode 3> <mode file> ... <path>".
+    const ordinary = record.startsWith('1 ');
+    const name = (ordinary || record.startsWith('u ')) && entry(record, ordinary ? 8 : 10)?.path;
+    if (!name) continue;
+    const words = record.split(' ', 8);
+    const [, xy, sub] = words;
+    // A repository inside this one: what it says of itself stands for it.
+    if (ordinary && sub.startsWith('S')) files.set(name, `${sub} ${words[7]}`);
+    else if (words[ordinary ? 5 : 6] === NO_FILE) files.delete(name);
+    // Just as git holds it, to be committed.
+    else if (ordinary && xy[1] === '.') files.set(name, words[7]);
+    else unread.push(name);
   }
   await readInto(files, dir, unread, run);
   const hash = crypto.createHash('sha1');
@@ -694,16 +686,17 @@ async function standing(dir, run) {
  * @param {Git} run
  */
 async function readInto(files, dir, names, run) {
+  const stats = await Promise.all(names.map((name) => fs.promises.lstat(path.join(dir, name)).catch(() => null)));
   const read = [];
   let bytes = HASHED_BYTES;
-  for (const name of names) {
-    const stat = await fs.promises.lstat(path.join(dir, name)).catch(() => null);
+  names.forEach((name, i) => {
+    const stat = stats[i];
     if (!stat) files.delete(name);
-    else if (stat.isFile() && read.length < HASHED_AT_MOST && stat.size <= bytes) {
+    else if (stat.isFile() && read.length < MAX_FILES && stat.size <= bytes) {
       read.push(name);
       bytes -= stat.size;
     } else files.set(name, `${stat.mode} ${stat.size} ${stat.mtimeMs}`);
-  }
+  });
   for (let at = 0; at < read.length; at += HASHED_AT_ONCE) {
     const some = read.slice(at, at + HASHED_AT_ONCE);
     const { stdout } = await run(dir, ['hash-object', '--', ...some]);
