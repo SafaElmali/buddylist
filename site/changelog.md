@@ -11,6 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
+## v0.7.11
+
+- **Adding a manager from Add a Contact no longer looks unfinished** — Picking **Add a manager...** in Add a Contact’s **Under** and pressing **Add manager** brought you back to the form with only **Add** and **Cancel**, so **Add** looked like it would confirm the manager, when it added an empty contact under it. Now the form says the manager joined, such as _shop manager joined shop_, its button says **Add contact**, and **Done** closes it with the manager and no contact under it. Add a Contact’s button says **Add contact** everywhere.
+
 ## v0.7.10 — 2026-11-20
 
 - **Find in a conversation marks every match** — ⌘F (Ctrl+F) in a conversation opened a small box over the message box, and its **Next** only moved a selection you could hardly see, with no count. Now a bar under the To: line marks every match in your messages, the replies and the activity lines, the one you are at more strongly, and says where you are, such as **3 of 12**. Enter or ↓ goes to the next and Shift+Enter or ↑ back, wrapping at either end, and **Aa** matches case. Matches in a folded run of tool calls count too, and going to one opens it. As new lines come in, the count follows and you stay where you were. **Esc** closes it and takes the marks away. On a dark page, the match you are at in a file’s Find is now the bright one too.

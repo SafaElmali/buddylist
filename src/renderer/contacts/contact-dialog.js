@@ -57,6 +57,8 @@ const NO_REPOSITORY =
 const inWorktree = (sameProject) =>
   `Works in its own git worktree, so ${sameProject ? "other contacts' files are" : 'the folder itself is'} never touched.`;
 const NEW_BRANCH = 'New branch';
+// What Cancel says once a manager was added from Under: it ends there, with the manager and no new contact.
+const DONE = 'Done';
 // Said under the mode that asks nothing, as a conversation says before switching to it.
 const RISKY = "It runs commands and changes files without asking. Only pick this for a folder you don't mind breaking.";
 // What the GitHub field is for, said when the mouse is on it: the line under it is for what was found.
@@ -648,7 +650,7 @@ export function contactDialog({
     title: titleFor(),
     form,
     signal: lifetime.signal,
-    ok: existing ? 'OK' : 'Add',
+    ok: existing ? 'OK' : 'Add contact',
     save: async (signal) => {
       if (addingManager) return undefined;
       busyText.textContent = ADDING;
@@ -782,6 +784,24 @@ export function contactDialog({
   }
   // Add a manager..., or Add another manager..., opens the dialog the project's menu does. The one added is chosen
   // in Under, and the new contact goes under it once it is added. Cancelled, Under stays as it was.
+  // Back in the form, a line at its top says the manager joined, and Cancel says Done: the manager is there already,
+  // and Add contact makes a new contact, which is not needed. The line stays when Under changes, as the manager does.
+  /** @param {string} id  the manager added */
+  function showJoined(id) {
+    const manager = managersAtWork(project).find((one) => one.id === id);
+    if (!manager) return;
+    const line = el(
+      html`<p class="dialog-message joined-note" role="status" tabindex="-1">
+        <b>${manager.name}</b> joined ${project.name}. Add a contact to work under it, or <b>${DONE}</b> to finish
+        without one.
+      </p>`
+    );
+    form.querySelector('.joined-note')?.remove();
+    form.prepend(line);
+    const cancelButton = form.closest('.dialog')?.querySelector('.buttons .btn:not(.default)');
+    if (cancelButton) cancelButton.textContent = DONE;
+    line.focus();
+  }
   let addingManager = false;
   async function addUnder() {
     fields.under.value = underChosen;
@@ -800,7 +820,7 @@ export function contactDialog({
       project = asked ?? on;
       underPicked = true;
       showUnder(added);
-      fields.under.focus();
+      showJoined(added);
     } finally {
       addingManager = false;
     }
