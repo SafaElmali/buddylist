@@ -14,6 +14,7 @@ version into package.json and package-lock.json in the release prep PR.
 ## v0.7.11
 
 - **Adding a manager from Add a Contact no longer looks unfinished** — Picking **Add a manager...** in Add a Contact’s **Under** and pressing **Add manager** brought you back to the form with only **Add** and **Cancel**, so **Add** looked like it would confirm the manager, when it added an empty contact under it. Now the form says the manager joined, such as _shop manager joined shop_, its button says **Add contact**, and **Done** closes it with the manager and no contact under it. Add a Contact’s button says **Add contact** everywhere.
+- **A reviewer looks over every change, however it was made** — A role that answers **After another agent changed files**, such as **Reviewer**, only noticed files an agent wrote or edited with its own edit tools. When Claude changed a file with a command, such as `sed`, a formatter or `git apply`, or a helper it asked changed it, the reviewer sat the message out. Now, in a git repository, it goes by what the files hold: whatever changed one, it gets its turn once the others are done. A round that changed nothing, or only committed or pushed what it already looked at, still goes without it.
 
 ## v0.7.10 — 2026-11-20
 
