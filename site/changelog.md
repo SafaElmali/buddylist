@@ -11,10 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
-## v0.7.11
+## v0.7.11 — 2026-11-21
 
-- **Adding a manager from Add a Contact no longer looks unfinished** — Picking **Add a manager...** in Add a Contact’s **Under** and pressing **Add manager** brought you back to the form with only **Add** and **Cancel**, so **Add** looked like it would confirm the manager, when it added an empty contact under it. Now the form says the manager joined, such as _shop manager joined shop_, its button says **Add contact**, and **Done** closes it with the manager and no contact under it. Add a Contact’s button says **Add contact** everywhere.
-- **A reviewer looks over every change, however it was made** — A role that answers **After another agent changed files**, such as **Reviewer**, only noticed files an agent wrote or edited with its own edit tools. When Claude changed a file with a command, such as `sed`, a formatter or `git apply`, or a helper it asked changed it, the reviewer sat the message out. Now, in a git repository, it goes by what the files hold: whatever changed one, it gets its turn once the others are done. A round that changed nothing, or only committed or pushed what it already looked at, still goes without it.
+- **A reviewer looks over every change, however it was made** — A role that answers **After another agent changed files**, such as **Reviewer**, noticed only the files an agent wrote or edited with its own edit tools. When an agent changed a file with a command, such as `sed`, a formatter or `git apply`, or a helper it asked changed one, the reviewer sat the message out. Now it gets its turn once the others are done, whatever changed the file. In a git repository it goes by what the files hold, so a round that changed nothing, or only committed or pushed what it already looked at, still goes without it.
+- **Adding a manager from Add a Contact no longer looks unfinished** — Picking **Add a manager...** in Add a Contact’s **Under** and pressing **Add manager** brought you back to the form with only **Add** and **Cancel**, so **Add** looked like it would confirm the manager, when it added a new contact under it. Now the form says the manager joined, such as _shop manager joined shop_, its button says **Add contact**, and **Done** closes it with the manager and no contact under it. Add a Contact’s button says **Add contact** everywhere.
 
 ## v0.7.10 — 2026-11-20
 
