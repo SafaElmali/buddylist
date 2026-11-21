@@ -650,6 +650,39 @@ test('what an agent changed itself is no news to it, and changes before it joine
   assert.equal(new Relay().changedFor(c.entries, codex.id, claude.id), true);
 });
 
+test('a file a helper wrote or edited is a change too, though the others are not told the helper’s steps', () => {
+  const c = conversation();
+  c.joins(codex);
+  c.user('fix the login');
+  c.does(claude, { kind: 'delegate', label: 'fix the login' });
+  c.does(claude, { kind: 'read', path: 'src/login.js' }, { sub: true });
+  assert.equal(c.relay.changedFor(c.entries, codex.id, claude.id), false);
+  c.does(claude, { kind: 'edit', path: 'src/login.js', changes: [] }, { sub: true });
+  assert.equal(c.relay.changedFor(c.entries, codex.id, claude.id), true);
+  assert.doesNotMatch(c.compose(codex).text, /login\.js/, 'only what Claude did itself is told');
+  assert.equal(c.relay.changedFor(c.entries, codex.id, claude.id), false, 'told, it is news no more');
+});
+
+test('whether another agent, or a helper of one, did anything in the folder since an agent was last told', () => {
+  const c = conversation();
+  const acted = () => c.relay.actedFor(c.entries, codex.id, claude.id);
+  c.joins(codex);
+  c.user('fix the login');
+  c.says(claude, 'On it.');
+  assert.equal(acted(), false, 'saying something is no step in the folder');
+  c.does(claude, { kind: 'command', command: 'rm -r build' }, { declined: true });
+  assert.equal(acted(), false, 'nor is a step that was declined');
+  c.does(codex, { kind: 'command', command: 'npm test' });
+  assert.equal(acted(), false, 'nor one it took itself');
+  c.does(claude, { kind: 'command', command: "sed -i '' 's/a/b/' src/login.js" });
+  assert.equal(acted(), true, 'a command may have changed any file');
+  assert.equal(c.relay.changedFor(c.entries, codex.id, claude.id), false, 'though the history does not say so');
+  c.compose(codex);
+  assert.equal(acted(), false);
+  c.does(claude, { kind: 'command', command: 'npm run format' }, { sub: true });
+  assert.equal(acted(), true, 'a helper’s step counts too');
+});
+
 // ---- a worker's manager tagged in its conversation ---------------------------------------------------------------
 
 const MANAGER = { id: 'boss', name: 'shop manager' };

@@ -4,7 +4,9 @@
 // branch without commits of its own is compared with the last commit, and so is
 // what is not committed yet. This is what the Changes tab of a conversation
 // shows. It only ever reads: nothing is staged, committed or written, and git is
-// told to leave its own files alone.
+// told to leave its own files alone. And where a folder's files stand, to tell later whether any of
+// them changed (see folderState).
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { UNCOMMITTED } from '../shared/changes.js';
@@ -589,6 +591,125 @@ export async function commitFiles(cwd, commit, { run = git } = {}) {
   if (!repo) throw new Error(NO_REPOSITORY);
   if (!isSha(commit)) throw new Error(NO_SUCH_COMMIT);
   return filesOf(repo, commit, run);
+}
+
+// ---- where a folder's files stand ---------------------------------------------------------------
+
+/** How many changed files `folderState` has git read; past that, each is told by its size and when it changed. */
+export const HASHED_AT_MOST = MAX_FILES;
+// And how much of them in all.
+const HASHED_BYTES = 32 * 1024 * 1024;
+// How many names go on one git command line.
+const HASHED_AT_ONCE = 100;
+// What git's mode says of a file that is not there.
+const NO_FILE = '000000';
+
+/**
+ * Whether a folder is in a git repository, as the folders up from it tell, without asking git.
+ * @param {string} cwd
+ */
+export function inRepository(cwd) {
+  if (!cwd) return false;
+  for (let dir = path.resolve(cwd); ; dir = path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, '.git'))) return true;
+    if (dir === path.dirname(dir)) return false;
+  }
+}
+
+/**
+ * Where the files of a folder's repository stand, as one string: the same as long as every file holds what it held,
+ * whatever changed one, an agent's edit, a command, a helper or the user. Committing is no change, nor is another
+ * branch with the same files, nor a file written again as it was. Files git ignores are none of it. Git is only asked
+ * to look, as `listChanges` does: nothing is staged or written.
+ * @param {string} cwd
+ * @param {{ run?: Git }} [opts]  a stand-in for tests
+ * @returns {Promise<string | null>}  null outside a repository, and when there is no telling
+ */
+export async function folderState(cwd, { run = git } = {}) {
+  try {
+    const repo = await repositoryOf(cwd, run);
+    return repo && (await standing(repo.dir, run));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Every file in the repository with what it holds, as one string: the last commit's, as `git status` says they differ.
+ * @param {string} dir  the top of the repository
+ * @param {Git} run
+ */
+async function standing(dir, run) {
+  /** @type {Map<string, string>} path -> its object, as git names what it holds */
+  const files = new Map();
+  const head = await run(dir, ['rev-parse', '--verify', '--quiet', 'HEAD'], { ok: [1] });
+  if (head.stdout.trim()) {
+    const tree = await run(dir, ['ls-tree', '-r', '-z', '--full-tree', 'HEAD']);
+    if (tree.cut) return null;
+    // "<mode> <type> <object><TAB><path>"
+    for (const record of tree.stdout.split('\0')) {
+      const tab = record.indexOf('\t');
+      if (tab !== -1) files.set(record.slice(tab + 1), record.slice(0, tab).split(' ')[2]);
+    }
+  }
+  // Content, not times: `git status` reads a file only touched again, and lists none of those.
+  const status = await run(dir, ['status', '--porcelain=v2', '-z', '--untracked-files=all', '--no-renames']);
+  if (status.cut) return null;
+  const unread = [];
+  for (const record of status.stdout.split('\0')) {
+    if (record.startsWith('? ')) unread.push(record.slice(2));
+    else if (record.startsWith('1 ')) {
+      // "1 <XY> <sub> <mode HEAD> <mode index> <mode file> <object HEAD> <object index> <path>"
+      const [, xy, sub, , indexMode, fileMode, , indexObject] = record.split(' ', 8);
+      const { path: name } = entry(record, 8) ?? {};
+      if (!name) continue;
+      // A repository inside this one: what it says of itself stands for it.
+      if (sub.startsWith('S')) files.set(name, `${sub} ${indexObject}`);
+      else if (xy[1] === '.') {
+        if (indexMode === NO_FILE) files.delete(name);
+        else files.set(name, indexObject);
+      } else if (fileMode === NO_FILE) files.delete(name);
+      else unread.push(name);
+    } else if (record.startsWith('u ')) {
+      // "u <XY> <sub> <mode 1> <mode 2> <mode 3> <mode file> ... <path>": a file git could not merge.
+      const fileMode = record.split(' ', 7)[6];
+      const { path: name } = entry(record, 10) ?? {};
+      if (!name) continue;
+      if (fileMode === NO_FILE) files.delete(name);
+      else unread.push(name);
+    }
+  }
+  await readInto(files, dir, unread, run);
+  const hash = crypto.createHash('sha1');
+  for (const name of [...files.keys()].sort()) hash.update(`${name}\0${files.get(name)}\0`);
+  return hash.digest('hex');
+}
+
+/**
+ * What the files git can't name an object for hold: git reads them as `git add` would, without keeping anything. A
+ * folder, a link, and a file past what is read in all, are told by their size and when they changed instead.
+ * @param {Map<string, string>} files  where each one is put
+ * @param {string} dir
+ * @param {string[]} names
+ * @param {Git} run
+ */
+async function readInto(files, dir, names, run) {
+  const read = [];
+  let bytes = HASHED_BYTES;
+  for (const name of names) {
+    const stat = await fs.promises.lstat(path.join(dir, name)).catch(() => null);
+    if (!stat) files.delete(name);
+    else if (stat.isFile() && read.length < HASHED_AT_MOST && stat.size <= bytes) {
+      read.push(name);
+      bytes -= stat.size;
+    } else files.set(name, `${stat.mode} ${stat.size} ${stat.mtimeMs}`);
+  }
+  for (let at = 0; at < read.length; at += HASHED_AT_ONCE) {
+    const some = read.slice(at, at + HASHED_AT_ONCE);
+    const { stdout } = await run(dir, ['hash-object', '--', ...some]);
+    const objects = stdout.trim().split('\n');
+    some.forEach((name, i) => files.set(name, objects[i]));
+  }
 }
 
 /** Whether `name`, a path from the top of a repository, names something in it. */

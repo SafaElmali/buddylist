@@ -8,7 +8,10 @@ import {
   commitFiles,
   diffOf,
   fileOf,
+  folderState,
   gitRunner,
+  HASHED_AT_MOST,
+  inRepository,
   listChanges,
   MAX_COMMITS,
   MAX_FILES,
@@ -1593,4 +1596,108 @@ test('git is only ever asked to look: status, diff and rev-parse, never anything
     // Names come after "--", where none of them can be read as an option.
     if (!args.includes('--numstat')) assert.ok(args.includes('--'), args.join(' '));
   }
+});
+
+// ---- where a folder's files stand -------------------------------------------------------------------
+
+test('a folder’s files stand as they were until one changes, whatever changed it', opts, async () => {
+  const dir = repository({ 'a.txt': 'one\n', 'src/b.txt': 'two\n' });
+  const first = await folderState(dir);
+  assert.match(first, /^[0-9a-f]{40}$/);
+  assert.equal(await folderState(dir), first, 'nothing changed');
+  // Written again just as it was, as a formatter with nothing to do does: only its time changed.
+  const later = new Date(Date.now() + 60_000);
+  fs.utimesSync(path.join(dir, 'a.txt'), later, later);
+  assert.equal(await folderState(dir), first, 'a file only touched');
+  assert.equal(await folderState(path.join(dir, 'src')), first, 'from a folder inside the repository too');
+
+  // A command changes a file, as `sed -i` does.
+  write(dir, 'a.txt', 'one!\n');
+  const edited = await folderState(dir);
+  assert.notEqual(edited, first);
+  git(dir, 'add', 'a.txt');
+  assert.equal(await folderState(dir), edited, 'staged, it holds the same');
+  git(dir, 'commit', '--quiet', '-m', 'edit');
+  assert.equal(await folderState(dir), edited, 'and committed');
+
+  write(dir, 'new.txt', 'new\n');
+  const added = await folderState(dir);
+  assert.notEqual(added, edited, 'a new file');
+  commit(dir, 'add new.txt');
+  assert.equal(await folderState(dir), added, 'a new file committed holds the same too');
+  git(dir, 'checkout', '--quiet', '-b', 'other');
+  assert.equal(await folderState(dir), added, 'another branch with the same files');
+
+  fs.rmSync(path.join(dir, 'src/b.txt'));
+  const removed = await folderState(dir);
+  assert.notEqual(removed, added, 'a file removed');
+  write(dir, 'src/b.txt', 'two\n');
+  assert.equal(await folderState(dir), added, 'and put back as it was');
+  git(dir, 'mv', 'new.txt', 'renamed.txt');
+  assert.notEqual(await folderState(dir), added, 'a file renamed');
+  git(dir, 'mv', 'renamed.txt', 'new.txt');
+  assert.equal(await folderState(dir), added);
+
+  write(dir, '.gitignore', 'build/\n');
+  const ignoring = await folderState(dir);
+  write(dir, 'build/out.js', 'made\n');
+  assert.equal(await folderState(dir), ignoring, 'files git ignores are none of it');
+});
+
+test('a repository without a commit yet has files that stand somewhere too', opts, async () => {
+  const dir = repository(null);
+  const empty = await folderState(dir);
+  write(dir, 'a.txt', 'one\n');
+  const written = await folderState(dir);
+  assert.notEqual(written, empty);
+  commit(dir, 'first');
+  assert.equal(await folderState(dir), written);
+});
+
+test('a folder outside any repository, or gone, has no state to tell', opts, async () => {
+  assert.equal(await folderState(tmp()), null);
+  assert.equal(await folderState(path.join(tmp(), 'gone')), null);
+  assert.equal(inRepository(tmp()), false);
+  const dir = repository();
+  assert.equal(inRepository(dir), true);
+  fs.mkdirSync(path.join(dir, 'deep/er'), { recursive: true });
+  assert.equal(inRepository(path.join(dir, 'deep/er')), true);
+});
+
+test('past the files it reads, a changed file is told by its size and time instead', opts, async () => {
+  const dir = repository();
+  for (let i = 0; i <= HASHED_AT_MOST; i += 1) write(dir, `many/${i}.txt`, `${i}\n`);
+  const many = await folderState(dir);
+  assert.equal(await folderState(dir), many);
+  write(dir, 'many/0.txt', 'changed and longer\n');
+  assert.notEqual(await folderState(dir), many);
+});
+
+test('git is only asked to look when it tells where a folder stands: nothing is written', opts, async () => {
+  const dir = repository({ 'a.txt': 'one\n', 'b.txt': 'two\n' });
+  write(dir, 'a.txt', 'changed\n');
+  write(dir, 'new.txt', 'new\n');
+  git(dir, 'rm', '--quiet', 'b.txt');
+  const index = fs.statSync(path.join(dir, '.git/index')).mtimeMs;
+  const objects = () => git(dir, 'count-objects').trim();
+  const before = objects();
+  const real = gitRunner();
+  const asked = [];
+  const run = (cwd, args, o) => {
+    asked.push(args);
+    return real(cwd, args, o);
+  };
+  assert.ok(await folderState(dir, { run }));
+  assert.deepEqual([...new Set(asked.map((args) => args[0]))].sort(), [
+    'hash-object',
+    'ls-tree',
+    'rev-parse',
+    'status',
+  ]);
+  for (const args of asked.filter((a) => a[0] === 'hash-object')) {
+    assert.ok(!args.includes('-w'), args.join(' '));
+    assert.ok(args.includes('--'), args.join(' '));
+  }
+  assert.equal(fs.statSync(path.join(dir, '.git/index')).mtimeMs, index, 'the index is left alone');
+  assert.equal(objects(), before, 'and so are the objects');
 });

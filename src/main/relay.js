@@ -17,9 +17,11 @@ export const FROM_A_SESSION = ['assistant', 'tool', 'permission', 'result', 'err
 // A slash command was the host's alone, and is no part of what was said.
 const fromUser = (entry) => entry.kind === 'user' && !entry.text.startsWith('/');
 const isMessage = (entry) => fromUser(entry) || entry.kind === 'assistant';
+// A step in the folder that went through: an agent's, or a helper's that it asked.
+const isStep = (entry) => entry.kind === 'tool' && !entry.declined;
 // Something an agent did itself, and went through with.
-const isAction = (entry) => entry.kind === 'tool' && !entry.sub && !entry.declined;
-// What changes the files: a file written or edited.
+const isAction = (entry) => isStep(entry) && !entry.sub;
+// What changes the files, as the history tells it: a file written or edited.
 const CHANGES = ['write', 'edit'];
 
 const pictures = ({ images }) => (images ? ` (with ${images === 1 ? 'a picture' : `${images} pictures`})` : '');
@@ -319,15 +321,26 @@ export class Relay {
   }
 
   /**
-   * Whether another agent wrote or edited a file since `id` was last told what went on.
+   * Whether another agent, or a helper it asked, wrote or edited a file since `id` was last told what went on.
    * @param {HistoryEntry[]} entries  the conversation so far
    * @param {string} id
    * @param {string} hostId
    */
   changedFor(entries, id, hostId) {
-    return this.#news(entries, id, hostId).news.some(
-      (entry) => isAction(entry) && CHANGES.includes(entry.activity?.kind)
+    return this.#since(entries, id, hostId).others.some(
+      (entry) => isStep(entry) && CHANGES.includes(entry.activity?.kind)
     );
+  }
+
+  /**
+   * Whether another agent, or a helper it asked, took any step in the folder since `id` was last told what went on:
+   * ran a command, say. Only then can a file have changed that the history doesn't show changing (see changedFor).
+   * @param {HistoryEntry[]} entries  the conversation so far
+   * @param {string} id
+   * @param {string} hostId
+   */
+  actedFor(entries, id, hostId) {
+    return this.#since(entries, id, hostId).others.some(isStep);
   }
 
   /**
@@ -337,15 +350,24 @@ export class Relay {
    * @param {string} hostId
    */
   #news(entries, id, hostId) {
+    const { start, others } = this.#since(entries, id, hostId);
+    return { start, news: others.filter((entry) => isMessage(entry) || isAction(entry)) };
+  }
+
+  /**
+   * Everything in the history since `id` was last told what went on, but for what it did itself. And where that starts.
+   * @param {HistoryEntry[]} entries
+   * @param {string} id
+   * @param {string} hostId
+   */
+  #since(entries, id, hostId) {
     const own = (entry) => FROM_A_SESSION.includes(entry.kind) && (entry.speaker ?? hostId) === id;
     // Where it left off. Without a note of that (the app was restarted, or it has only just
     // joined), that is after the last thing it did itself, or after the line that says it was added.
     const told = entries.findIndex((entry) => entry.id === this.#told.get(id));
     const start = (told === -1 ? entries.findLastIndex((entry) => own(entry) || entry.joined === id) : told) + 1;
     const later = this.#toldLater.get(id);
-    const news = entries
-      .slice(start)
-      .filter((entry) => !own(entry) && !later?.has(entry.id) && (isMessage(entry) || isAction(entry)));
-    return { start, news };
+    const others = entries.slice(start).filter((entry) => !own(entry) && !later?.has(entry.id));
+    return { start, others };
   }
 }

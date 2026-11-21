@@ -6303,17 +6303,58 @@ function withTeam(roles = [REVIEWER], members = roles.map((role) => role.id)) {
   return { ...app, guest };
 }
 
-/** `who` edits a file in its turn, then says `text` and finishes it. */
-function editsAndAnswers(app, who, file, text = 'Done.') {
+/**
+ * `who` takes one step in its turn, and `does` what that step does to the folder, then says `text` and finishes it.
+ * With `sub`, a helper it asked takes the step.
+ */
+function stepsAndAnswers(app, who, activity, { sub = false, does = () => {}, text = 'Done.' } = {}) {
   const session = app.session(who);
   if (!session.ready) {
     session.emit({ type: 'ready', sessionId: `s-${who.id}`, model: '', permissionMode: 'default', commands: [] });
   }
   session.emit({ type: 'state', state: 'working' });
-  const activity = { kind: 'edit', path: file, changes: [] };
-  session.emit({ type: 'tool', toolId: `t-${file}-${Math.random()}`, activity, sub: false });
+  session.emit({ type: 'tool', toolId: `t-${Math.random()}`, activity, sub });
+  does();
   app.answer(who, text);
 }
+
+/** `who` edits a file in its turn, then says `text` and finishes it. */
+function editsAndAnswers(app, who, file, text = 'Done.') {
+  stepsAndAnswers(app, who, { kind: 'edit', path: file, changes: [] }, { text });
+}
+
+/**
+ * Claude's folder made a repository with one commit, of src/login.js: what changes in it, git can tell. Answers with
+ * a way to write a file there, as a command would, and one to run git there.
+ */
+function asRepository(app) {
+  const { cwd } = app.claude;
+  const git = (...args) =>
+    execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', ...args], {
+      cwd,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  const write = (file, text) => {
+    fs.mkdirSync(path.dirname(path.join(cwd, file)), { recursive: true });
+    fs.writeFileSync(path.join(cwd, file), text);
+  };
+  git('init', '--quiet', '-b', 'main');
+  write('src/login.js', 'login\n');
+  git('add', '.');
+  git('-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'first');
+  return { git, write };
+}
+
+/** Until `check` holds: git is asked where the folder stands, in a process of its own. */
+async function until(check) {
+  for (let waited = 0; !check(); waited += 10) {
+    if (waited > 5000) throw new Error('it never happened');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+/** Claude's conversation is idle, as its window was last told. */
+const idle = (app) => app.events('state').at(-1)?.overall === 'idle';
 
 test('a team’s roles join a contact’s conversation, each its own guest, under its name, with its service and model', () => {
   const app = withTeam([REVIEWER, TESTER, SCRIBE]);
@@ -6701,6 +6742,127 @@ test('the reviewer does not follow up on a round the user stopped, nor while it 
   app.answer(claude, 'Done, nothing to change.');
   assert.deepEqual(app.turns, ['Claude', 'Claude', 'Claude', 'Reviewer']);
   assert.match(app.sentTo(reviewer).text, /a\.js[\s\S]*b\.js/);
+});
+
+test('the reviewer looks over files a command changed, and those a helper changed', { skip: !HAS_GIT }, async () => {
+  const app = withTeam([REVIEWER]);
+  const { claude } = app;
+  const { write } = asRepository(app);
+  const reviewer = app.guest('Reviewer');
+  app.say('fix the login');
+  await until(() => app.turns.length === 1);
+  const sed = { kind: 'command', command: "sed -i '' 's/login/sign in/' src/login.js" };
+  stepsAndAnswers(app, claude, sed, { does: () => write('src/login.js', 'sign in\n'), text: 'Fixed.' });
+  await until(() => app.turns.length === 2);
+  assert.deepEqual(app.turns, ['Claude', 'Reviewer']);
+  assert.match(app.sentTo(reviewer).text, /sed -i/);
+
+  // It hands back what has to change, and looks again once a command changed it.
+  app.answer(reviewer, '@Claude the redirect still drops the query string');
+  await until(() => app.turns.length === 3);
+  assert.deepEqual(app.turns, ['Claude', 'Reviewer', 'Claude']);
+  const patch = { kind: 'command', command: 'git apply fix.patch' };
+  stepsAndAnswers(app, claude, patch, { does: () => write('src/login.js', 'sign in?query\n') });
+  await until(() => app.turns.length === 4);
+  assert.deepEqual(app.turns, ['Claude', 'Reviewer', 'Claude', 'Reviewer']);
+  app.answer(reviewer, 'Looks right now.');
+  await until(() => idle(app));
+
+  // A helper Claude asked runs the formatter, which changes a file.
+  app.say('format it');
+  await until(() => app.turns.length === 5);
+  const format = { kind: 'command', command: 'npm run format' };
+  stepsAndAnswers(app, claude, format, { sub: true, does: () => write('src/login.js', 'sign in ?query\n') });
+  await until(() => app.turns.length === 6);
+  assert.deepEqual(app.turns.slice(4), ['Claude', 'Reviewer']);
+});
+
+test(
+  'the reviewer sits out a round that changed no file, also one that only committed, and never looks at the same change twice',
+  {
+    skip: !HAS_GIT,
+  },
+  async () => {
+    const app = withTeam([REVIEWER]);
+    const { claude } = app;
+    const { git, write } = asRepository(app);
+    const reviewer = app.guest('Reviewer');
+    app.say('run the tests');
+    await until(() => app.turns.length === 1);
+    const tests = { kind: 'command', command: 'npm test' };
+    stepsAndAnswers(app, claude, tests, { text: 'All pass.' });
+    await until(() => idle(app));
+    assert.deepEqual(app.turns, ['Claude'], 'a command that changed nothing');
+
+    // Edited, and committed in the same turn.
+    app.say('fix the login and commit it');
+    await until(() => app.turns.length === 2);
+    const edit = { kind: 'edit', path: 'src/login.js', changes: [] };
+    stepsAndAnswers(app, claude, edit, {
+      does: () => {
+        write('src/login.js', 'sign in\n');
+        git('-c', 'commit.gpgsign=false', 'commit', '--quiet', '-am', 'fix');
+      },
+    });
+    await until(() => app.turns.length === 3);
+    assert.deepEqual(app.turns.slice(1), ['Claude', 'Reviewer']);
+    app.answer(reviewer, 'Looks right.');
+    await until(() => idle(app));
+
+    // What it looked at already, pushed or committed again, is nothing new.
+    app.say('push it');
+    await until(() => app.turns.length === 4);
+    const push = { kind: 'command', command: 'git commit --amend --no-edit && git push' };
+    stepsAndAnswers(app, claude, push, {
+      does: () => git('-c', 'commit.gpgsign=false', 'commit', '--quiet', '--amend', '--no-edit'),
+    });
+    await until(() => idle(app));
+    app.say('thanks!');
+    await until(() => app.turns.length === 5);
+    app.answer(claude, 'Any time.');
+    await until(() => idle(app));
+    assert.deepEqual(app.turns, ['Claude', 'Claude', 'Reviewer', 'Claude', 'Claude']);
+    assert.equal(app.session(reviewer).sent.length, 1, 'the reviewer was asked once');
+  }
+);
+
+test(
+  'what an agent that answers after changes changed itself is no change for it to look at',
+  {
+    skip: !HAS_GIT,
+  },
+  async () => {
+    const TIDY = { ...REVIEWER, id: 'tidy', name: 'Tidy', readOnly: false, rules: 'Format what changed.' };
+    const app = withTeam([TIDY]);
+    const { claude } = app;
+    const { write } = asRepository(app);
+    const tidy = app.guest('Tidy');
+    app.say('fix the login');
+    await until(() => app.turns.length === 1);
+    editsAndAnswers(app, claude, 'src/login.js');
+    await until(() => app.turns.length === 2);
+    assert.deepEqual(app.turns, ['Claude', 'Tidy']);
+    const format = { kind: 'command', command: 'npx prettier --write src' };
+    stepsAndAnswers(app, tidy, format, { does: () => write('src/login.js', 'login;\n') });
+    await until(() => idle(app));
+
+    app.say('what changed?');
+    await until(() => app.turns.length === 3);
+    stepsAndAnswers(app, claude, { kind: 'command', command: 'git diff --stat' }, { text: 'One file.' });
+    await until(() => idle(app));
+    assert.deepEqual(app.turns, ['Claude', 'Tidy', 'Claude']);
+  }
+);
+
+test('outside a repository, what a helper wrote or edited is a change too', () => {
+  const app = withTeam([REVIEWER]);
+  const { claude } = app;
+  app.say('fix the login');
+  stepsAndAnswers(app, claude, { kind: 'command', command: 'npm test' });
+  assert.deepEqual(app.turns, ['Claude'], 'without git, a command alone says nothing of files');
+  app.say('fix it then');
+  stepsAndAnswers(app, claude, { kind: 'write', path: 'src/login.js', changes: [] }, { sub: true });
+  assert.deepEqual(app.turns, ['Claude', 'Claude', 'Reviewer']);
 });
 
 test('selected group Send now isolates that message from earlier queued text and pictures', async () => {
