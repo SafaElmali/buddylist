@@ -4,13 +4,16 @@
 // branch without commits of its own is compared with the last commit, and so is
 // what is not committed yet. This is what the Changes tab of a conversation
 // shows. It only ever reads: nothing is staged, committed or written, and git is
-// told to leave its own files alone.
+// told to leave its own files alone. And where a folder's files stand, to tell later whether any of
+// them changed (see folderState).
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { UNCOMMITTED } from '../shared/changes.js';
 import { CONTEXT_LINES, cutOff, hunksOf, isBinaryDiff } from '../shared/unified-diff.js';
 import { branchLabel } from './contact-card.js';
 import { execTool } from './git-command.js';
+import { foldersFromTop } from '../providers/checkout.js';
 import { readText, SHOWN_AT_MOST } from './files.js';
 import { defaultBranch, isInside } from './worktrees.js';
 
@@ -589,6 +592,117 @@ export async function commitFiles(cwd, commit, { run = git } = {}) {
   if (!repo) throw new Error(NO_REPOSITORY);
   if (!isSha(commit)) throw new Error(NO_SUCH_COMMIT);
   return filesOf(repo, commit, run);
+}
+
+// ---- where a folder's files stand ---------------------------------------------------------------
+
+// How much of the changed files `folderState` has git read, MAX_FILES of them at most. Past that, each is told by
+// its size and when it changed.
+const HASHED_BYTES = 32 * 1024 * 1024;
+// How many names go on one git command line.
+const HASHED_AT_ONCE = 100;
+// What git's mode says of a file that is not there.
+const NO_FILE = '000000';
+
+/**
+ * Whether a folder is in a git repository, as the folders up from it tell, without asking git.
+ * @param {string} cwd
+ */
+export function inRepository(cwd) {
+  return Boolean(cwd) && fs.existsSync(path.join(foldersFromTop(cwd)[0], '.git'));
+}
+
+/**
+ * Where the files of a folder's repository stand, as one string: the same as long as every file holds what it held,
+ * whatever changed one, an agent's edit, a command, a helper or the user. Committing is no change, nor is another
+ * branch with the same files, nor a file written again as it was. Files git ignores are none of it. Git is only asked
+ * to look, as `listChanges` does: nothing is staged or written.
+ * @param {string} cwd
+ * @param {{ run?: Git }} [opts]  a stand-in for tests
+ * @returns {Promise<string | null>}  null outside a repository, and when there is no telling
+ */
+export async function folderState(cwd, { run = git } = {}) {
+  try {
+    const repo = await repositoryOf(cwd, run);
+    return repo && (await standing(repo.dir, run));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Every file in the repository with what it holds, as one string: the last commit's, as `git status` says they differ.
+ * @param {string} dir  the top of the repository
+ * @param {Git} run
+ */
+async function standing(dir, run) {
+  /** @type {Map<string, string>} path -> its object, as git names what it holds */
+  const files = new Map();
+  const head = await run(dir, ['rev-parse', '--verify', '--quiet', 'HEAD'], { ok: [1] });
+  if (head.stdout.trim()) {
+    const tree = await run(dir, ['ls-tree', '-r', '-z', '--full-tree', 'HEAD']);
+    if (tree.cut) return null;
+    // "<mode> <type> <object><TAB><path>"
+    for (const record of tree.stdout.split('\0')) {
+      const tab = record.indexOf('\t');
+      if (tab !== -1) files.set(record.slice(tab + 1), record.slice(0, tab).split(' ')[2]);
+    }
+  }
+  // Content, not times: `git status` reads a file only touched again, and lists none of those.
+  const status = await run(dir, ['status', '--porcelain=v2', '-z', '--untracked-files=all', '--no-renames']);
+  if (status.cut) return null;
+  const unread = [];
+  for (const record of status.stdout.split('\0')) {
+    if (record.startsWith('? ')) {
+      unread.push(record.slice(2));
+      continue;
+    }
+    // "1 <XY> <sub> <mode HEAD> <mode index> <mode file> <object HEAD> <object index> <path>", and for a file git
+    // could not merge "u <XY> <sub> <mode 1> <mode 2> <mode 3> <mode file> ... <path>".
+    const ordinary = record.startsWith('1 ');
+    const name = (ordinary || record.startsWith('u ')) && entry(record, ordinary ? 8 : 10)?.path;
+    if (!name) continue;
+    const words = record.split(' ', 8);
+    const [, xy, sub] = words;
+    // A repository inside this one: what it says of itself stands for it.
+    if (ordinary && sub.startsWith('S')) files.set(name, `${sub} ${words[7]}`);
+    else if (words[ordinary ? 5 : 6] === NO_FILE) files.delete(name);
+    // Just as git holds it, to be committed.
+    else if (ordinary && xy[1] === '.') files.set(name, words[7]);
+    else unread.push(name);
+  }
+  await readInto(files, dir, unread, run);
+  const hash = crypto.createHash('sha1');
+  for (const name of [...files.keys()].sort()) hash.update(`${name}\0${files.get(name)}\0`);
+  return hash.digest('hex');
+}
+
+/**
+ * What the files git can't name an object for hold: git reads them as `git add` would, without keeping anything. A
+ * folder, a link, and a file past what is read in all, are told by their size and when they changed instead.
+ * @param {Map<string, string>} files  where each one is put
+ * @param {string} dir
+ * @param {string[]} names
+ * @param {Git} run
+ */
+async function readInto(files, dir, names, run) {
+  const stats = await Promise.all(names.map((name) => fs.promises.lstat(path.join(dir, name)).catch(() => null)));
+  const read = [];
+  let bytes = HASHED_BYTES;
+  names.forEach((name, i) => {
+    const stat = stats[i];
+    if (!stat) files.delete(name);
+    else if (stat.isFile() && read.length < MAX_FILES && stat.size <= bytes) {
+      read.push(name);
+      bytes -= stat.size;
+    } else files.set(name, `${stat.mode} ${stat.size} ${stat.mtimeMs}`);
+  });
+  for (let at = 0; at < read.length; at += HASHED_AT_ONCE) {
+    const some = read.slice(at, at + HASHED_AT_ONCE);
+    const { stdout } = await run(dir, ['hash-object', '--', ...some]);
+    const objects = stdout.trim().split('\n');
+    some.forEach((name, i) => files.set(name, objects[i]));
+  }
 }
 
 /** Whether `name`, a path from the top of a repository, names something in it. */

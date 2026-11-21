@@ -203,6 +203,11 @@ export function promptView(prompt) {
  * @property {Set<string>} stale  the participants whose session is not on the level it answers with here,
  *   and is put on it when its turn starts
  * @property {Promise<unknown> | null} picking  the levels a reply gave, while they are being looked up
+ * @property {Map<string, { state: string | null, own: boolean }>} seen  where the folder's files stood (see
+ *   Conversations#folders) when each agent here that answers after changes last heard what went on, by id. `own`: it had a turn
+ *   since, so what it changed itself is taken in once it heard what the others did (see #lookFirst)
+ * @property {Promise<void> | null} looking  the folder is being read as a round ends (see #followUp): until it is
+ *   read, the round goes on
  */
 
 /**
@@ -491,6 +496,9 @@ export class Conversations {
    *   nobody is on This computer when left out
    * @param {(cwd: string) => Promise<string | null>} [deps.branchOf]  the branch a folder is on now (see worktrees.js);
    *   none when left out
+   * @param {{ inRepository: (cwd: string) => boolean, state: (cwd: string) => Promise<string | null> }} [deps.folders]
+   *   whether a folder is in a git repository, and where its files stand (see changes.js folderState); in none when left
+   *   out, so only the history tells what changed
    * @param {(cwd: string) => { env?: Record<string, string>, instructions?: string, mainFolder?: string }} [deps.forAgent]
    *   what the project of a folder starts its agents with (see Projects.forAgent); nothing when left out
    * @param {(contact: Contact, reply: string, opts: { asks: boolean }) => Promise<string[]>} [deps.suggestReplies]
@@ -516,6 +524,7 @@ export class Conversations {
     inWorktree = () => false,
     computerHome = '',
     branchOf = async () => null,
+    folders = { inRepository: () => false, state: async () => null },
     forAgent = () => ({}),
     suggestReplies = async () => [],
     loginOf = () => '',
@@ -540,6 +549,7 @@ export class Conversations {
     this.inWorktree = inWorktree;
     this.computerHome = computerHome;
     this.branchOf = branchOf;
+    this.folders = folders;
     this.forAgent = forAgent;
     this.suggestReplies = suggestReplies;
     this.loginOf = loginOf;
@@ -1124,7 +1134,8 @@ export class Conversations {
       return this.#prompts.get(hostId)?.size ? 'waiting' : 'connecting';
     const states = [...(this.#status.get(hostId)?.values() || [])].map((status) => status.state);
     if (states.includes('waiting')) return 'waiting';
-    if (states.includes('working') || this.#groups.get(hostId)?.turns.active) return 'working';
+    const group = this.#groups.get(hostId);
+    if (states.includes('working') || group?.turns.active || group?.looking) return 'working';
     return ['connecting', 'idle'].find((state) => states.includes(state)) || 'offline';
   }
 
@@ -1981,6 +1992,8 @@ export class Conversations {
       efforts: new Map(),
       stale: new Set(),
       picking: null,
+      seen: new Map(),
+      looking: null,
     };
     this.#groups.set(hostId, started);
     return started;
@@ -2618,18 +2631,77 @@ export class Conversations {
   }
 
   /**
-   * The round is over: an agent that answers after changes gets a turn now, when another agent wrote or
-   * edited a file since it was last told what went on. It goes after the round, so it looks at all of it.
+   * The round is over: an agent that answers after changes gets a turn now, when a file changed since it was last
+   * told what went on, other than by itself. It goes after the round, so it looks at all of it. The history tells of
+   * a file another agent, or a helper it asked, wrote or edited. A command or any other step may have changed one as
+   * well: in a repository the folder tells, next to where it stood when that agent last heard (see #lookFirst), and
+   * the round goes on until it is read.
    * @param {string} hostId
    * @param {Group} group
    */
   #followUp(hostId, group) {
+    if (group.looking) return;
     const waiting = this.participants(hostId).filter((agent) => agent.afterChanges && !agent.paused);
     if (!waiting.length) return;
     const entries = this.history.read(hostId);
-    group.turns.followUp(
-      waiting.filter((agent) => group.relay.changedFor(entries, agent.id, hostId)).map((agent) => agent.id)
+    const ids = waiting.map(({ id }) => id);
+    const changed = ids.filter((id) => group.relay.changedFor(entries, id, hostId));
+    const unsure = ids.filter(
+      (id) => !changed.includes(id) && group.seen.get(id)?.state && group.relay.actedFor(entries, id, hostId)
     );
+    if (!unsure.length) {
+      group.turns.followUp(changed);
+      return;
+    }
+    const host = this.store.getContact(hostId);
+    group.looking = this.folders.state(host.cwd).then((state) => {
+      group.looking = null;
+      if (this.#groups.get(hostId) !== group) return;
+      const due = new Set([...changed, ...unsure.filter((id) => state && state !== group.seen.get(id)?.state)]);
+      // Paused, or gone, meanwhile.
+      const still = this.participants(hostId).filter((agent) => !agent.paused && due.has(agent.id));
+      if (group.turns.followUp(still.map(({ id }) => id)).length) return this.#nextTurn(hostId);
+      // Nobody answers after the round: it is over, as its sessions said already.
+      this.#tellState(hostId, hostId);
+      this.#free(host);
+      this.onContactsChanged();
+    });
+  }
+
+  /**
+   * Before a turn, in a repository: where the folder's files stand is noted for each agent here that answers after
+   * changes (see #followUp) and hears all that went on as it stands now. That is the one whose turn it is, about to be
+   * told; one with nothing noted yet, as on its first round, or the first since the app started; and one that had a
+   * turn since it was noted and heard all the others did since, so that what it changed itself is no change for it.
+   * @param {string} hostId
+   * @param {Group} group
+   * @param {string} id  whose turn it is
+   * @returns {Promise<void> | null}  null with nothing to note: the turn starts right away
+   */
+  #lookFirst(hostId, group, id) {
+    const cwd = this.store.getContact(hostId)?.cwd;
+    const after = this.participants(hostId).filter((agent) => agent.afterChanges);
+    if (!after.length || !this.folders.inRepository(cwd)) return null;
+    let entries;
+    const heardAll = (agent) => !group.relay.actedFor((entries ??= this.history.read(hostId)), agent, hostId);
+    const noting = after
+      .map((agent) => agent.id)
+      .filter((agent) => agent === id || !group.seen.has(agent) || (group.seen.get(agent).own && heardAll(agent)));
+    if (!noting.length) return null;
+    return this.folders.state(cwd).then((state) => {
+      for (const agent of noting) group.seen.set(agent, { state, own: agent === id });
+    });
+  }
+
+  /**
+   * With nobody at work in the conversation any more, its round is over, and the notes that came in meanwhile are read.
+   * @param {Contact} host
+   */
+  #free(host) {
+    if (this.#state(host.id) !== 'idle') return;
+    this.#roundOver(host);
+    this.#flushReport(host);
+    this.#readNotes(host.id);
   }
 
   /**
@@ -2739,9 +2811,11 @@ export class Conversations {
         .catch(() => null)
         .then((check) => (turn.check && !check ? pass() : guarded(check)));
     };
+    const looking = this.#lookFirst(hostId, group, turn.id);
+    if (looking) looking.then(start);
     // Whoever is next after itself is first left to finish the turn before: its session
     // says where it stands right after the result, and that is not about the new turn.
-    if (turn.id === justSpoke) queueMicrotask(start);
+    else if (turn.id === justSpoke) queueMicrotask(start);
     else start();
   }
 
@@ -5073,12 +5147,7 @@ export class Conversations {
           this.#dropHelpers(hostId, speaker);
           this.#flushReport(host);
         }
-        if (this.#state(hostId) === 'idle' && !closing) {
-          this.#roundOver(host);
-          this.#flushReport(host);
-          // Free again: the notes that came in meanwhile are read now.
-          this.#readNotes(hostId);
-        }
+        if (!closing) this.#free(host);
         this.onContactsChanged();
         break;
       }

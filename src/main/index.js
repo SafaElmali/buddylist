@@ -61,6 +61,7 @@ import { AppMenu } from './app-menu.js';
 import { THIS_COMPUTER, inWorktree, madeForComputer, onComputer, projectName } from '../shared/projects.js';
 import { lookOf, paletteOf, schemeOf } from '../shared/theme.js';
 import { OLD_WORKTREES_HOME, WORKTREES_HOME, branchOf } from './worktrees.js';
+import { folderState, inRepository } from './changes.js';
 import { checkWorktreesIn } from './git-command.js';
 import { COMPUTER_HOME } from './computer.js';
 import { adoptOldData } from './renamed.js';
@@ -451,6 +452,7 @@ function startApp(errorReports, electronUpdater) {
     inWorktree: (cwd) => inWorktree(cwd, worktreesHome, oldWorktreesHome),
     computerHome,
     branchOf,
+    folders: { inRepository, state: folderState },
     forAgent: (cwd) => projects.forAgent(cwd),
     suggestReplies: (contact, reply, opts) =>
       providers.suggestReplies(contact.provider, reply, { ...opts, model: contact.model }),
