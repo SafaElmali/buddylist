@@ -99,6 +99,22 @@ function setup(t, look = 'professional') {
   return { document, calls, project, repo, open, cancel, contact, joined };
 }
 const submit = (form) => form.fire('submit');
+const buttonsOf = (form) => form.closest('.dialog').querySelectorAll('.buttons .btn');
+const labels = (form) => buttonsOf(form).map((button) => button.textContent.trim());
+const joinedLine = (form) => form.querySelector('.joined-note');
+// What a screen reader reads: the markup's line breaks are spaces.
+const said = (node) => node.textContent.replace(/\s+/g, ' ').trim();
+const JOINED = 'shop manager joined shop. Add a contact to work under it, or Done to finish without one.';
+/** Under > Add a manager... (or Add another manager...), then Add manager in its dialog. */
+async function addManagerUnder(s, form, name) {
+  form.elements.under.value = ADDS_MANAGER;
+  form.elements.under.fire('change');
+  await tick();
+  const manager = s.document.body.querySelector('.manager-form');
+  if (name) manager.elements.name.value = name;
+  submit(manager);
+  await tick();
+}
 
 for (const look of ['professional', 'messenger']) {
   test(`${look}: standalone manager replaces an unfinished contact and opens only the manager`, async (t) => {
@@ -131,7 +147,7 @@ for (const look of ['professional', 'messenger']) {
     );
   });
 
-  test(`${look}: Under preserves the full contact draft and waits for a separate Add`, async (t) => {
+  test(`${look}: Under preserves the full contact draft and waits for a separate Add contact`, async (t) => {
     const s = setup(t, look);
     const result = s.contact();
     const form = s.document.body.querySelector('.contact-form');
@@ -171,7 +187,97 @@ for (const look of ['professional', 'messenger']) {
     assert.equal(s.calls[1][1].under, 'manager-1');
     assert.equal(s.calls[1][1].worktree.branch, 'feature/kept');
   });
+
+  test(`${look}: once Add manager returns, the draft says the manager joined, and Done ends without a worker`, async (t) => {
+    const s = setup(t, look);
+    const result = s.contact();
+    const form = s.document.body.querySelector('.contact-form');
+    // Add a Contact's button names what it makes, before any manager too.
+    assert.deepEqual(labels(form), ['Add contact', 'Cancel']);
+    assert.equal(joinedLine(form), null);
+    await addManagerUnder(s, form);
+    const line = joinedLine(form);
+    assert.equal(said(line), JOINED);
+    assert.equal(line.querySelector('b').textContent, 'shop manager');
+    // A screen reader hears it: it is a status, and the focus is on it, not on Add contact.
+    assert.equal(line.getAttribute('role'), 'status');
+    assert.equal(s.document.activeElement, line);
+    assert.equal(form.firstElementChild, line);
+    assert.deepEqual(labels(form), ['Add contact', 'Done']);
+    buttonsOf(form).at(-1).click();
+    assert.equal(await result, null);
+    assert.deepEqual(
+      s.calls.map(([kind]) => kind),
+      ['manager']
+    );
+    assert.equal(s.project.managers.length, 1);
+    assert.equal(s.document.body.querySelector('.modal'), null);
+  });
 }
+
+test('Enter does what the primary button says: Add contact is the form’s submit, and adds the contact under the manager', async (t) => {
+  const s = setup(t);
+  const result = s.contact();
+  const form = s.document.body.querySelector('.contact-form');
+  await addManagerUnder(s, form);
+  const primary = form.closest('.dialog').querySelector('.buttons .btn.default');
+  assert.equal(primary.textContent.trim(), 'Add contact');
+  assert.equal(primary.type, 'submit');
+  assert.equal(primary.getAttribute('form'), form.id);
+  // Enter in a field submits the form, as Add contact does.
+  submit(form);
+  assert.equal((await result).id, 'worker');
+  assert.deepEqual(
+    s.calls.map(([kind]) => kind),
+    ['manager', 'contact']
+  );
+  assert.equal(s.calls[1][1].under, 'manager-1');
+});
+
+test('the joined line stays as Under changes, and names the newest manager added', async (t) => {
+  const s = setup(t);
+  const result = s.contact();
+  const form = s.document.body.querySelector('.contact-form');
+  const { under } = form.elements;
+  await addManagerUnder(s, form);
+  // The manager joined whatever Under says now: the line and Done stay.
+  under.value = '';
+  under.fire('change');
+  assert.equal(said(joinedLine(form)), JOINED);
+  assert.deepEqual(labels(form), ['Add contact', 'Done']);
+  assert.match(form.querySelector('.under-hint').textContent, /^Nobody oversees it/);
+  await addManagerUnder(s, form, 'release manager');
+  assert.equal(form.querySelectorAll('.joined-note').length, 1);
+  assert.equal(
+    said(joinedLine(form)),
+    'release manager joined shop. Add a contact to work under it, or Done to finish without one.'
+  );
+  assert.equal(under.value, 'manager-2');
+  assert.deepEqual(labels(form), ['Add contact', 'Done']);
+  // Escape, or a click outside, still ends it as Done does.
+  s.cancel();
+  assert.equal(await result, null);
+  assert.deepEqual(
+    s.calls.map(([kind]) => kind),
+    ['manager', 'another']
+  );
+});
+
+test('a manager dialog cancelled from Under adds no line, and Cancel stays Cancel', async (t) => {
+  const s = setup(t);
+  const result = s.contact();
+  const form = s.document.body.querySelector('.contact-form');
+  form.elements.under.value = ADDS_MANAGER;
+  form.elements.under.fire('change');
+  await tick();
+  s.cancel();
+  await tick();
+  assert.equal(joinedLine(form), null);
+  assert.deepEqual(labels(form), ['Add contact', 'Cancel']);
+  s.cancel();
+  assert.equal(await result, null);
+  assert.deepEqual(s.calls, []);
+});
 
 test('cancel nested manager, reopen, then cancel contact: no stale continuation or worker', async (t) => {
   const s = setup(t);
