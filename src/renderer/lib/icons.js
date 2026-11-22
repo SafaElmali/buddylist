@@ -663,6 +663,9 @@ export const smallIcon = named('sm', {
   /** Quick messages: a speech balloon with a bolt in it, for words that go in the box at once. */
   quickMessage: () =>
     `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 3h15v10H9.6l-4 3.6V13H2.5z" fill="#fff6cf" stroke="#b07d12" stroke-linejoin="round"/><path d="M10.9 4.6 7.3 9h2.6l-.8 3.2 3.6-4.5h-2.6z" fill="#f0a020" stroke="#b86b10" stroke-width=".6" stroke-linejoin="round"/></svg>`,
+  /** Download: an arrow down onto a tray, as what is shared goes to a file of yours. */
+  download: () =>
+    `<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 9.6v2.4h10V9.6" fill="none" stroke="${INK}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 1.6v7.1M4.3 6.1 7 8.8l2.7-2.7" fill="none" stroke="#2a78d8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   /** Fork chat from here: one conversation going on two ways. */
   fork: () =>
     `<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3.5 4.4v.8c0 1.3 3.5 1.5 3.5 3.3v1M10.5 4.4v.8c0 1.3-3.5 1.5-3.5 3.3" fill="none" stroke="${INK}" stroke-width="1.2" stroke-linecap="round"/><circle cx="3.5" cy="2.9" r="1.7" fill="#bfe0ff" stroke="#2a68c8" stroke-width=".9"/><circle cx="10.5" cy="2.9" r="1.7" fill="#c9f2b8" stroke="#2f8a22" stroke-width=".9"/><circle cx="7" cy="11.1" r="1.7" fill="#bfe0ff" stroke="#2a68c8" stroke-width=".9"/></svg>`,

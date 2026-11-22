@@ -43,6 +43,7 @@ export const REQUESTS = Object.freeze({
   pickFolder: 'dialog:pick-folder',
   pickFile: 'dialog:pick-file',
   mediaDownload: 'media:download',
+  mediaDownloadAll: 'media:download-all',
   pictureRead: 'picture:read',
   contactAdd: 'contact:add',
   contactCancelAdd: 'contact:cancel-add',

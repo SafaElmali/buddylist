@@ -21,6 +21,7 @@ import { tabsOf } from '../shared/chat-tabs.js';
 import { cleanGroupName, knownGroupId } from '../shared/groups.js';
 import { cleanListView } from '../shared/list-view.js';
 import { cleanManager } from '../shared/managers.js';
+import { mediaKind } from '../shared/media.js';
 import { sameName } from '../shared/mentions.js';
 import { EVENTS, REQUESTS } from '../shared/ipc-channels.js';
 import { cleanModelSettings } from '../shared/models.js';
@@ -57,7 +58,7 @@ import { commitFiles, diffOf, fileOf, listChanges, placeOf } from './changes.js'
 import { NothingToWaitFor, setAutoMerge } from './auto-merge.js';
 import { pullRequestChecks, rerunFailedChecks, stackPage } from './checks.js';
 import { listFolder, placeToOpen, readText, toSend } from './files.js';
-import { mediaToDownload } from './media.js';
+import { mediaToDownload, saveAll } from './media.js';
 import { FileSuggestions } from './file-suggestions.js';
 import { pullRequestPage } from './pull-request-page.js';
 import { pullRequestStack } from './pr-stack.js';
@@ -536,10 +537,11 @@ export function registerIpc({
     return canceled ? null : filePaths[0];
   });
 
-  // Download image... and its like, from a right-click on a picture in a conversation or on a link to a video:
-  // saved as it was sent or written, to a file you name. One called off in the save dialog answers false.
-  handle(REQUESTS.mediaDownload, async (event, address) => {
-    const media = mediaToDownload(address);
+  // Download on a picture in a conversation, after a link to a video, in the picture viewer, or in a right-click
+  // menu: saved as it was sent or written, to a file you name, which starts as `name` says (see mediaToDownload).
+  // One called off in the save dialog answers false.
+  handle(REQUESTS.mediaDownload, async (event, address, name) => {
+    const media = mediaToDownload(address, name);
     if (!media) return false;
     if ('path' in media && !fs.existsSync(media.path)) throw new Error(`${media.name} is not there any more.`);
     const { canceled, filePath } = await dialog.showSaveDialog(senderWindow(event), {
@@ -551,6 +553,23 @@ export function registerIpc({
     // Saved over itself, it is already there: a copy would empty it first.
     else if (path.resolve(filePath) !== path.resolve(media.path)) await fs.promises.copyFile(media.path, filePath);
     return true;
+  });
+
+  // Download all, under a row of a call's pictures: each saved as it was handed back, in a folder asked for once,
+  // never over a file there (see saveAll). Answers how many were saved and how many could not be, with the name of
+  // the folder to say so; null when there is nothing to save or the folder dialog is called off.
+  handle(REQUESTS.mediaDownloadAll, async (event, items) => {
+    const pictures = Array.isArray(items) ? items : [];
+    if (!pictures.some((item) => mediaKind(item?.address))) return null;
+    const { canceled, filePaths } = await dialog.showOpenDialog(senderWindow(event), {
+      title: `Download ${pictures.length} pictures`,
+      buttonLabel: 'Download',
+      defaultPath: app.getPath('downloads'),
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    const [folder] = filePaths ?? [];
+    if (canceled || !folder) return null;
+    return { ...(await saveAll(pictures, folder)), folder: path.basename(folder) };
   });
 
   // Content-addressed original attachments only; this cannot read arbitrary local files.

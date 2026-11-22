@@ -474,12 +474,25 @@ export class Files {
   linkMenu(file) {
     const path = pathFrom(this.ctx.contact.cwd, file);
     if (!/^(\/|\.\.\/)/.test(path)) return this.#items(path);
-    const whole = path.startsWith('/') ? path : `${this.ctx.contact.cwd}/${path}`;
+    const whole = this.#whole(path);
     const media = mediaItems(fileAddress(whole));
     return [
       { label: 'Copy path', action: () => navigator.clipboard.writeText(whole) },
       ...(media.length ? [{ separator: true }, ...media] : []),
     ];
+  }
+
+  /**
+   * The file: address of a file a link leads to, as Download after a link to a video saves it from.
+   * @param {string} file  from the top of the folder, or of the disk
+   */
+  linkedAddress(file) {
+    return fileAddress(this.#whole(pathFrom(this.ctx.contact.cwd, file)));
+  }
+
+  /** A path from the top of the folder, or of the disk, from the top of the disk. @param {string} path */
+  #whole(path) {
+    return path.startsWith('/') ? path : `${this.ctx.contact.cwd}/${path}`;
   }
 
   /**

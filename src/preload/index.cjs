@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('messenger', {
     used: invoke('app:used'),
     pickFile: invoke('dialog:pick-file'),
     download: invoke('media:download'),
+    downloadAll: invoke('media:download-all'),
     readPicture: invoke('picture:read'),
     pathForFile: (file) => webUtils.getPathForFile(file),
   },

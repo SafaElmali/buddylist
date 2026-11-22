@@ -1,7 +1,7 @@
 // Replying with a picture of the conversation: one an agent showed in its reply, a screenshot one of its calls
-// handed back, a diagram it drew, or one you sent. Reply with this picture, on the picture while you point at it or
-// Tab to it, in its right-click menu, or over the whole window, puts it in the message box as it was shared, under a
-// quote that names it. A click on it there opens it to draw on (see composer.js), and Send sends both.
+// handed back, a diagram it drew, or one you sent. Reply with this picture, in the picture's corner while you point
+// at it or Tab to it, in its right-click menu, or over the whole window, puts it in the message box as it was shared,
+// under a quote that names it. A click on it there opens it to draw on (see composer.js), and Send sends both.
 import { el, html, raw } from '../lib/dom.js';
 import { smallIcon } from '../lib/icons.js';
 import { pictureCanvas, REPLY_WITH_PICTURE, SVG } from '../lib/media-menu.js';
@@ -12,7 +12,7 @@ import { sourceOf } from './conversation.js';
 import { bytesOf, writingsFor } from './screenshot-notes.js';
 
 /** The pictures of the conversation: sent under a message, in a reply (a diagram too), and handed back by a call. */
-const PICTURES = '.msg .pictures img, .msg .md img, .tool-picture img';
+export const PICTURES = '.msg .pictures img, .msg .md img, .tool-picture img';
 
 /** The names the window gives a picture itself, which say nothing of it, as a reply's own alt text does. */
 const WINDOW_NAMES = ['Picture', 'Diagram', 'View picture', 'View diagram', 'Open the picture'];
@@ -36,6 +36,29 @@ export const NOT_ATTACHED = Object.freeze({
 export function pictureIn(target) {
   const img = target?.closest?.('.tool-picture')?.querySelector('img') ?? target;
   return img?.matches?.(PICTURES) && !img.classList.contains('emoticon') ? img : null;
+}
+
+/**
+ * Where a picture's buttons stand, Download and then Reply (see media-downloads.js): in its corner, while you point at
+ * the picture or Tab to one of them, made the first time it is asked for. Around the picture, or around the thumbnail
+ * a call's picture is, right after it, for Tab and a screen reader; a diagram's beside Copy source.
+ * @param {HTMLImageElement} img
+ * @returns {HTMLElement}
+ */
+export function cornerOf(img) {
+  const diagram = img.closest('figure.diagram');
+  if (diagram) {
+    if (!diagram.querySelector('.picture-actions'))
+      diagram.querySelector('.diagram-copy').before(el('<span class="picture-actions"></span>'));
+    return diagram.querySelector('.picture-actions');
+  }
+  const picture = img.closest('.tool-picture') ?? img;
+  if (!picture.parentElement?.classList.contains('picture-reply-at')) {
+    const at = el('<span class="picture-reply-at"></span>');
+    picture.replaceWith(at);
+    at.append(picture, el('<span class="picture-actions"></span>'));
+  }
+  return picture.parentElement.querySelector('.picture-actions');
 }
 
 /**
@@ -138,25 +161,15 @@ export class PictureReplies {
   }
 
   /**
-   * The button on each picture in `node`, in its corner while you point at the picture or Tab to the button. A
-   * diagram has it beside Copy source. A picture's button is right after it, for Tab and a screen reader.
+   * The button on each picture in `node`, last in its corner (see cornerOf).
    * @param {any} node
    */
   #offer(node) {
     if (!node.querySelectorAll) return;
     for (const img of node.matches(PICTURES) ? [node] : node.querySelectorAll(PICTURES)) {
       if (!pictureIn(img)) continue;
-      const diagram = img.closest('figure.diagram');
-      if (diagram) {
-        if (!diagram.querySelector('.picture-reply')) diagram.querySelector('.diagram-copy').before(this.#button(img));
-        continue;
-      }
-      // Around the picture, or the thumbnail a call's picture is: the button has its corner to stand in.
-      const picture = img.closest('.tool-picture') ?? img;
-      if (picture.parentElement?.classList.contains('picture-reply-at')) continue;
-      const at = el(html`<span class="picture-reply-at"></span>`);
-      picture.replaceWith(at);
-      at.append(picture, this.#button(img));
+      const corner = cornerOf(img);
+      if (!corner.querySelector('.picture-reply')) corner.append(this.#button(img));
     }
   }
 

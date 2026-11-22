@@ -105,6 +105,28 @@ test('a picture in its data: address is downloaded as its bytes, named for its k
   assert.equal(mediaToDownload('data:image/webp;charset=binary;base64,AAAA').name, 'image.webp');
 });
 
+test('a picture in its data: address can be given a name: its own extension, and no folder', () => {
+  const png = `data:image/png;base64,${PNG.toString('base64')}`;
+  assert.equal(mediaToDownload(png, 'products.png').name, 'products.png');
+  // The name a call's file had, with the extension of what it handed back.
+  assert.equal(mediaToDownload('data:image/jpeg;base64,AAAA', 'products.png').name, 'products.jpg');
+  assert.equal(mediaToDownload(png, 'screenshot-3').name, 'screenshot-3.png');
+  assert.equal(mediaToDownload('data:image/svg+xml,%3Csvg%3E', 'diagram').name, 'diagram.svg');
+  // Never a folder of its own, nor a name a file can't have.
+  assert.equal(mediaToDownload(png, '../../Library/evil.png').name, 'evil.png');
+  assert.equal(mediaToDownload(png, 'C:\\shots\\cart.png').name, 'cart.png');
+  assert.equal(mediaToDownload(png, 'a:b*c?.png').name, 'a-b-c-.png');
+  for (const nothing of ['', '..', '.png', '   ', undefined, null, 7]) {
+    assert.equal(mediaToDownload(png, /** @type {any} */ (nothing)).name, 'image.png', String(nothing));
+  }
+  assert.equal(mediaToDownload(png, 'x'.repeat(300)).name, `${'x'.repeat(120)}.png`);
+});
+
+test('a file keeps its own name, whatever it is given', () => {
+  const file = path.join(tmp(), 'My Proof.mp4');
+  assert.equal(mediaToDownload(pathToFileURL(file).href, 'something else.mp4').name, 'My Proof.mp4');
+});
+
 test('a diagram, written into its address as escaped text, is downloaded as that text', () => {
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><text>a → b</text></svg>';
   const diagram = mediaToDownload(`data:image/svg+xml,${encodeURIComponent(svg)}`);
@@ -142,7 +164,14 @@ function downloads(t, answers) {
     asked.push(options);
     return answers.shift() ?? { canceled: true };
   };
-  t.after(() => delete dialog.showSaveDialog);
+  dialog.showOpenDialog = async (_win, options) => {
+    asked.push(options);
+    return answers.shift() ?? { canceled: true, filePaths: [] };
+  };
+  t.after(() => {
+    delete dialog.showSaveDialog;
+    delete dialog.showOpenDialog;
+  });
   const systemVersion = process.getSystemVersion;
   process.getSystemVersion = () => 'test';
   try {
@@ -151,8 +180,9 @@ function downloads(t, answers) {
     if (systemVersion) process.getSystemVersion = systemVersion;
     else delete process.getSystemVersion;
   }
-  const download = (address) => handlers.get(REQUESTS.mediaDownload)({ sender: {} }, address);
-  return { asked, download };
+  const download = (address, name) => handlers.get(REQUESTS.mediaDownload)({ sender: {} }, address, name);
+  const downloadAll = (items) => handlers.get(REQUESTS.mediaDownloadAll)({ sender: {} }, items);
+  return { asked, download, downloadAll };
 }
 
 test('Download saves a picture sent to the file the save dialog names, in Downloads to start with', opts, async (t) => {
@@ -201,6 +231,71 @@ test('a file that is gone says so before any dialog, and what is no media asks n
   assert.deepEqual(asked, []);
 });
 
+test('Download names a picture as it was asked, in the save dialog', opts, async (t) => {
+  const to = path.join(tmp(), 'kept.png');
+  const { asked, download } = downloads(t, [{ canceled: false, filePath: to }]);
+  assert.equal(await download(`data:image/png;base64,${PNG.toString('base64')}`, 'products.png'), true);
+  assert.equal(asked[0].defaultPath, path.join('/Users/me/downloads', 'products.png'));
+  assert.deepEqual(fs.readFileSync(to), PNG);
+});
+
+/** The pictures of a call's row, as the window asks for them all. */
+const row = (...names) => names.map((name) => ({ address: `data:image/png;base64,${PNG.toString('base64')}`, name }));
+
+test('Download all asks for a folder once, and saves every picture in it as it was handed back', opts, async (t) => {
+  const folder = tmp();
+  const { asked, downloadAll } = downloads(t, [{ canceled: false, filePaths: [folder] }]);
+  const answer = await downloadAll(row('home.png', 'products.png', 'screenshot-3'));
+  assert.deepEqual(answer, { saved: 3, failed: 0, folder: path.basename(folder) });
+  assert.deepEqual(fs.readdirSync(folder).sort(), ['home.png', 'products.png', 'screenshot-3.png']);
+  for (const name of fs.readdirSync(folder)) assert.deepEqual(fs.readFileSync(path.join(folder, name)), PNG);
+  assert.equal(asked.length, 1, 'one dialog for them all');
+  assert.equal(asked[0].title, 'Download 3 pictures');
+  assert.equal(asked[0].defaultPath, '/Users/me/downloads');
+  assert.deepEqual(asked[0].properties, ['openDirectory', 'createDirectory']);
+});
+
+test('Download all never saves over a file: one of the same name is the next "name 2"', opts, async (t) => {
+  const folder = tmp();
+  fs.writeFileSync(path.join(folder, 'home.png'), 'kept');
+  const { downloadAll } = downloads(t, [{ canceled: false, filePaths: [folder] }]);
+  // Two calls that read the same file, and one already in the folder.
+  const answer = await downloadAll(row('home.png', 'home.png', 'cart.png'));
+  assert.deepEqual(answer, { saved: 3, failed: 0, folder: path.basename(folder) });
+  assert.equal(fs.readFileSync(path.join(folder, 'home.png'), 'utf8'), 'kept');
+  assert.deepEqual(fs.readdirSync(folder).sort(), ['cart.png', 'home 2.png', 'home 3.png', 'home.png']);
+});
+
+test('Download all says how many could not be saved, and saves the rest', opts, async (t) => {
+  const folder = tmp();
+  const gone = pathToFileURL(path.join(tmp(), 'gone.png')).href;
+  const { downloadAll } = downloads(t, [{ canceled: false, filePaths: [folder] }]);
+  const answer = await downloadAll([
+    ...row('home.png'),
+    { address: gone, name: 'gone.png' },
+    { address: 'https://example.com/badge.png', name: 'badge.png' },
+    null,
+  ]);
+  assert.deepEqual(answer, { saved: 1, failed: 3, folder: path.basename(folder) });
+  assert.deepEqual(fs.readdirSync(folder), ['home.png']);
+});
+
+test(
+  'Download all called off in the folder dialog saves nothing, and nothing to save asks nothing',
+  opts,
+  async (t) => {
+    const folder = tmp();
+    const { asked, downloadAll } = downloads(t, [{ canceled: true, filePaths: [folder] }]);
+    assert.equal(await downloadAll(row('home.png', 'cart.png')), null);
+    assert.deepEqual(fs.readdirSync(folder), []);
+    assert.equal(asked.length, 1);
+    for (const nothing of [[], null, 'home.png', [{ address: 'file:///tmp/notes.md' }]]) {
+      assert.equal(await downloadAll(nothing), null);
+    }
+    assert.equal(asked.length, 1, 'no dialog for what holds no picture');
+  }
+);
+
 // ---- what a right-click offers ------------------------------------------------------------------------
 
 test('a picture can be copied and downloaded, a video or a sound downloaded, and anything else offers neither', () => {
@@ -225,6 +320,21 @@ test('a picture of the conversation offers Reply with this picture first, and on
   assert.deepEqual(labels(mediaItems('data:image/png;base64,AAAA', { reply: null })), [
     'Copy image',
     'Download image...',
+  ]);
+});
+
+test('a picture’s Download in the menu downloads it under the name it is given', async (t) => {
+  const downloaded = [];
+  globalThis.window = { messenger: { app: { download: async (...asked) => downloaded.push(asked) } } };
+  t.after(() => delete globalThis.window);
+  const png = 'data:image/png;base64,AAAA';
+  await mediaItems(png, { name: 'products.png' })
+    .find(({ label }) => label === 'Download image...')
+    .action();
+  await mediaItems('file:///tmp/proof.mp4').at(-1).action();
+  assert.deepEqual(downloaded, [
+    [png, 'products.png'],
+    ['file:///tmp/proof.mp4', undefined],
   ]);
 });
 
