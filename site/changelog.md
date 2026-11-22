@@ -11,9 +11,9 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
-## v0.7.12
+## v0.7.12 — 2026-11-22
 
-- **A manager hears every time a Codex worker finishes** — When Codex went on by itself, such as once a helper it started was done, its manager never heard how that turn ended, and the worker didn't show as at work. Now that turn reports to the manager like any other. A manager also hears of the files a worker changed with a command or a helper, not only with its own edit tools, and a reply held back while the worker's background work runs gets through once its round changed files.
+- **A manager hears every time a Codex worker finishes** — When Codex went on by itself, such as once a helper it started was done, its manager never heard how that turn ended, and the worker didn't show as at work. Now that turn reports to the manager like any other. In a git repository, a manager also hears of the files a worker changed with a command or a helper, not only with its own edit tools, and a reply held back while the worker's background work runs gets through once its round changed files.
 
 ## v0.7.11 — 2026-11-21
 
