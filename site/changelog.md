@@ -11,6 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
+## v0.7.13
+
+- **Download what an agent shares, in one click** — A picture in a conversation has **⤓** in its corner beside **Reply**, there when you point at it or `Tab` to it, and the picture viewer has **Download** in its bar, or `D`. A link to a video or a sound an agent made has a **⤓** after it. Under a row of pictures a call handed back, such as 8 screenshots, **Download all 8** saves them all in a folder you pick, each under the name of the file it came from, and never over a file already there. Every download is the picture or file as it was shared, at its full size.
+
 ## v0.7.12 — 2026-11-22
 
 - **A manager hears every time a Codex worker finishes** — When Codex went on by itself, such as once a helper it started was done, its manager never heard how that turn ended, and the worker didn't show as at work. Now that turn reports to the manager like any other. In a git repository, a manager also hears of the files a worker changed with a command or a helper, not only with its own edit tools, and a reply held back while the worker's background work runs gets through once its round changed files.

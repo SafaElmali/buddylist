@@ -542,6 +542,11 @@ export const COUNTED = Object.freeze({
   [REQUESTS.copied]: { event: 'text copied', about: copied },
   // Download image..., video... or audio... on one in a conversation, or on a link to one.
   [REQUESTS.mediaDownload]: { event: 'media downloaded', about: downloaded },
+  // Download all, under a row of a call's pictures: how many were saved. Called off, or none saved, is not counted.
+  [REQUESTS.mediaDownloadAll]: {
+    event: 'pictures downloaded',
+    about: ({ answer }) => (answer?.saved > 0 ? { count: answer.saved } : null),
+  },
   // From the +, the toolbar, the View menu or a shortcut. What the window opens by itself is not said.
   [REQUESTS.tabOpened]: { event: 'side tab opened', about: paneTabOpened },
   [REQUESTS.voiceTranscribe]: { event: 'voice clip recorded' },

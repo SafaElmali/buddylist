@@ -1,7 +1,8 @@
 // What a right-click on a picture, a video or a sound offers: Copy image for a picture, and Download for any of
 // them, to a file as it was sent or written (see main/media.js). On a picture in a conversation or over the whole
 // window, on a row of the Shared tab, and on a file, in All files, the Changes tab or a link to it. On a picture of
-// the conversation, Reply with this picture comes first (see chat/picture-reply.js).
+// the conversation, Reply with this picture comes first (see chat/picture-reply.js). The buttons that download what
+// an agent shares, where it is seen, download the same way (see chat/media-downloads.js and picture-viewer.js).
 import { mediaKind } from '../../shared/media.js';
 import { infoDialog, messageBody } from './dialog.js';
 import { errorText } from './dom.js';
@@ -49,25 +50,50 @@ export async function copyImage(src) {
 const failed = (err) => infoDialog('buddylist', messageBody(errorText(err)));
 
 /**
+ * Downloads a picture, a video or a sound as it was sent or written, to a file the save dialog names. One that can't
+ * be says why.
+ * @param {string} address  a data: or file: address, or a reference to an original kept with the history
+ * @param {string} [name]  what its file is called to start with, where its address doesn't say (see pictureName)
+ */
+export const download = (address, name) =>
+  pictureSource(address)
+    .then((source) => window.messenger.app.download(source, name))
+    .catch(failed);
+
+/**
+ * Downloads pictures all at once, each as it was handed back, to a folder asked for once (see main/media.js).
+ * @param {{ address: string, name?: string }[]} pictures
+ * @returns {Promise<{ saved: number, failed: number, folder: string } | null | undefined>}  how it went; null when
+ *   the folder dialog was called off, undefined when it could not be done, which is said
+ */
+export const downloadAll = (pictures) =>
+  Promise.all(pictures.map(async ({ address, name }) => ({ address: await pictureSource(address), name })))
+    .then((items) => window.messenger.app.downloadAll(items))
+    .catch(failed);
+
+/**
+ * What a picture of the conversation is called once downloaded, where its address doesn't say: the name its row gave
+ * a call's picture (see thumbnails in activity.js), or a diagram as one. Undefined for the rest, which are called for
+ * their file or their kind (see main/media.js).
+ * @param {HTMLImageElement | null | undefined} img
+ * @returns {string | undefined}
+ */
+export const pictureName = (img) => img?.dataset?.name || (img?.closest?.('figure.diagram') ? 'diagram' : undefined);
+
+/**
  * What a right-click on a picture, a video or a sound offers. Nothing for anything else, as a text file.
  * @param {string} address  where it is: a data: or a file: address
- * @param {{ disabled?: boolean, reply?: (() => void) | null }} [opts]  `disabled`: it is not there to copy, as a file
- *   deleted in the Changes tab. `reply`: what Reply with this picture does, for a picture of the conversation
+ * @param {{ disabled?: boolean, reply?: (() => void) | null, name?: string }} [opts]  `disabled`: it is not there to
+ *   copy, as a file deleted in the Changes tab. `reply`: what Reply with this picture does, for a picture of the
+ *   conversation. `name`: what Download calls it to start with (see pictureName)
  * @returns {import('./menu.js').MenuItem[]}
  */
-export function mediaItems(address, { disabled = false, reply = null } = {}) {
+export function mediaItems(address, { disabled = false, reply = null, name } = {}) {
   const kind = mediaKind(address);
   if (!kind) return [];
   return [
     ...(kind === 'image' && reply ? [{ label: REPLY_WITH_PICTURE, icon: smallIcon.comment(), action: reply }] : []),
     ...(kind === 'image' ? [{ label: 'Copy image', disabled, action: () => copyImage(address).catch(failed) }] : []),
-    {
-      label: `Download ${kind}...`,
-      disabled,
-      action: () =>
-        pictureSource(address)
-          .then((source) => window.messenger.app.download(source))
-          .catch(failed),
-    },
+    { label: `Download ${kind}...`, disabled, action: () => download(address, name) },
   ];
 }

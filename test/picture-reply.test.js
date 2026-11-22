@@ -118,16 +118,17 @@ test('each picture of the conversation gets Reply with this picture, right after
   const { cart, emoticon, diagram, screenshot } = conversationOf(document);
   const reply = (img) => img.parentElement.querySelector('.picture-reply');
 
-  // The picture in a reply: its button beside it, in a corner of their own.
+  // The picture in a reply: its button right after it, in a corner of their own.
   assert.ok(cart.parentElement.classList.contains('picture-reply-at'));
-  assert.equal(cart.nextElementSibling, reply(cart));
+  assert.equal(cart.nextElementSibling, reply(cart).parentElement);
+  assert.ok(cart.nextElementSibling.matches('.picture-actions'));
   // A screenshot a call handed back: around its thumbnail, which is a button of its own.
   const thumb = screenshot.closest('.tool-picture');
   assert.ok(thumb.parentElement.classList.contains('picture-reply-at'));
-  assert.ok(thumb.nextElementSibling.matches('.picture-reply'));
+  assert.ok(thumb.nextElementSibling.querySelector('.picture-reply'));
   // A diagram: beside Copy source, in its corner.
   const diagramReply = diagram.closest('figure').querySelector('.picture-reply');
-  assert.equal(diagramReply.nextElementSibling, diagram.closest('figure').querySelector('.diagram-copy'));
+  assert.equal(diagramReply.parentElement.nextElementSibling, diagram.closest('figure').querySelector('.diagram-copy'));
   assert.equal(emoticon.parentElement.tagName, 'P', 'an emoticon is no picture to reply with');
   assert.equal(document.body.querySelectorAll('.picture-reply').length, 3);
 

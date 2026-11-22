@@ -995,6 +995,11 @@ const handlers = {
     showToast({ title: 'Download', body: 'Downloading to a file works in the desktop app.', avatar: 'default' });
     return false;
   },
+  // Called off, as the folder dialog would be: the conversation says nothing.
+  [REQUESTS.mediaDownloadAll]: () => {
+    showToast({ title: 'Download', body: 'Downloading to a folder works in the desktop app.', avatar: 'default' });
+    return null;
+  },
   [REQUESTS.profileUpdate]: (_win, patch) => {
     const previous = store.profile.status;
     const profile = store.updateProfile(pick(patch, ['name', 'status', 'personalMessage']));

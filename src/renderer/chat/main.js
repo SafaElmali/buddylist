@@ -16,7 +16,7 @@ import { voiceDialog } from '../lib/voice-dialog.js';
 import { smallIcon } from '../lib/icons.js';
 import { avatarSvg } from '../lib/pictures.js';
 import { sentPictures } from '../../shared/pictures.js';
-import { mediaItems } from '../lib/media-menu.js';
+import { mediaItems, pictureName } from '../lib/media-menu.js';
 import { closeMenu, isMenuOpen, openMenu } from '../lib/menu.js';
 import { togglePalette } from '../lib/palette.js';
 import { setPack } from '../lib/pack.js';
@@ -136,7 +136,8 @@ import { messageItems, PinBar } from './pins.js';
 import { Plans } from './plans.js';
 import { OpenInButton } from './open-in.js';
 import { PullRequestButton } from './pull-request.js';
-import { PictureReplies } from './picture-reply.js';
+import { MediaDownloads } from './media-downloads.js';
+import { PictureReplies, pictureIn } from './picture-reply.js';
 import { QuoteReply } from './quote-reply.js';
 import { sentMessages } from './recall.js';
 import { removeGuestDialog } from './remove-guest-dialog.js';
@@ -2788,6 +2789,11 @@ function mountControls() {
     add: (picture, quote) => composer.replyWith(picture, quote),
     notice: (text) => conversation.addNotice(text),
   });
+  // Download on what an agent shares, an archived contact's conversation too: downloading changes nothing there.
+  new MediaDownloads($('#conversation'), {
+    fileAddress: ctx.web ? null : (file) => files.linkedAddress(file),
+    notice: (text) => conversation.addNotice(text),
+  });
   // On words selected in a message, a right-click offers to reply to them, or to copy them. On a link, to open it as a
   // click does and to copy it: a web page beside the conversation or in your own browser, whichever a click opens it
   // in, a file of the folder as a right-click on it in All files does, an e-mail address to copy. On a message that is
@@ -2801,7 +2807,11 @@ function mountControls() {
     if (picture) {
       e.preventDefault();
       const reply = pictureReplies.replying(target, 'menu');
-      openMenu({ x: e.clientX, y: e.clientY }, messageItems([mediaItems(picture, { reply })], pinnable, pinMessage));
+      const name = pictureName(pictureIn(target));
+      openMenu(
+        { x: e.clientX, y: e.clientY },
+        messageItems([mediaItems(picture, { reply, name })], pinnable, pinMessage)
+      );
       return;
     }
     const link = /** @type {HTMLAnchorElement | null} */ (target.closest('a[href]'));

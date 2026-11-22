@@ -1471,8 +1471,8 @@
   font-size: 12px;
 }
 
-/* Reply with this picture, last: apart from the rest, as Copy source is. */
-.picture-viewer .picture-viewer-reply {
+/* Download, and Reply with this picture last: each apart from the rest, as Copy source is. */
+.picture-viewer :is(.picture-viewer-download, .picture-viewer-reply) {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -1482,11 +1482,11 @@
   font-size: 12px;
 }
 
-.picture-viewer .picture-viewer-reply[hidden] {
+.picture-viewer :is(.picture-viewer-download, .picture-viewer-reply)[hidden] {
   display: none;
 }
 
-.picture-viewer-reply svg {
+:is(.picture-viewer-download, .picture-viewer-reply) svg {
   width: 14px;
   height: 14px;
 }
@@ -1632,8 +1632,8 @@
   height: 14px;
 }
 
-/* A picture of the conversation, with Reply with this picture in its corner (see picture-reply.js): as big as the
-   picture, which it stands in for where the picture stood. */
+/* A picture of the conversation, with Download and Reply with this picture in its corner (see cornerOf in
+   picture-reply.js): as big as the picture, which it stands in for where the picture stood. */
 .picture-reply-at {
   position: relative;
   display: inline-block;
@@ -1641,12 +1641,25 @@
   line-height: 0;
 }
 
-/* That Reply: the one by words selected in a message, smaller, there while the pointer is on the picture or Tab is
-   on it, as a diagram's Copy source is. */
-.picture-reply {
+/* That corner: there while the pointer is on the picture or Tab is on one of its buttons, as a diagram's Copy source
+   is. Download takes no more room than its drawing, and Reply is where it always was. */
+.picture-actions {
   position: absolute;
   top: 4px;
   right: 4px;
+  display: flex;
+  gap: 3px;
+  opacity: 0;
+}
+
+.picture-reply-at:hover > .picture-actions,
+.diagram:hover .picture-actions,
+.picture-actions:has(:focus-visible) {
+  opacity: 1;
+}
+
+/* Its buttons: the Reply by words selected in a message, smaller. */
+.picture-actions > button {
   display: flex;
   align-items: center;
   gap: 3px;
@@ -1660,29 +1673,61 @@
   font: 11px var(--font-ui);
   line-height: 1;
   white-space: nowrap;
-  opacity: 0;
   cursor: pointer;
 }
 
-.picture-reply-at:hover > .picture-reply,
-.diagram:hover .picture-reply,
-.picture-reply:focus-visible {
-  opacity: 1;
+.picture-actions > .picture-download,
+.tool-pictures .picture-actions > .picture-reply {
+  padding: 0 3px;
 }
 
-.picture-reply:hover {
+.picture-actions > button:hover {
   border-color: var(--hover-border);
   background: var(--hover-bg);
 }
 
-.picture-reply svg {
+.picture-actions svg {
   width: 12px;
   height: 12px;
 }
 
 /* On a diagram, beside Copy source. */
-.diagram .picture-reply {
+.diagram .picture-actions {
   right: 30px;
+}
+
+/* On a call's thumbnail, small as it is, Reply is its drawing alone too (padded as Download is, above): the two
+   cover less of it than Reply's word did. A screen reader and its tip still call it Reply with this picture. */
+.tool-pictures .picture-reply span {
+  display: none;
+}
+
+/* Download after a link in a reply to a video or a sound (see media-downloads.js): its drawing alone, quiet until
+   pointed at. */
+.link-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 3px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  vertical-align: -4px;
+  cursor: pointer;
+}
+
+.link-download:hover,
+.link-download:focus-visible {
+  border-color: var(--hover-border);
+  background: var(--hover-bg);
+}
+
+.link-download svg {
+  width: 13px;
+  height: 13px;
 }
 
 /* The row under a message (see message-actions.js): when it was said, and what can be done with it. It
@@ -2390,6 +2435,40 @@
 .tool-picture img {
   max-width: 160px;
   max-height: 90px;
+}
+
+/* Download all, right under a row of two or more of them, and hidden with it (see media-downloads.js). */
+.tool-pictures-all {
+  margin: 5px 0 0 19px;
+}
+
+.tool-pictures[hidden] + .tool-pictures-all {
+  display: none;
+}
+
+.pictures-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px 0 6px;
+  border: 1px solid var(--xp-border);
+  border-radius: 3px;
+  background: var(--btn-bg, linear-gradient(180deg, #ffffff 0%, #f3f2ec 40%, #ebe9e0 85%, #d8d3c6 100%));
+  color: var(--text-strong, #10244a);
+  font: 11px var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pictures-download:hover {
+  border-color: var(--hover-border);
+  background: var(--hover-bg);
+}
+
+.pictures-download svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* A plan a run's calls wrote to a file, with the way to it, while the calls are put away. */

@@ -10,10 +10,11 @@ import { fileTitle } from './files.js';
 import { speakerOf } from './participants.js';
 import { planFileOf } from './plans.js';
 import { draftCard, paintDraftCard } from './draft-card.js';
-import { activityStatus, clipLines, isDoing } from '../../shared/activity-text.js';
+import { activityStatus, basename, clipLines, isDoing } from '../../shared/activity-text.js';
 import { describeActivity, outcomeOf } from '../lib/activity-line.js';
 import { searchTerms } from '../../shared/search.js';
 import { knownTodos } from '../../shared/todo-handoff.js';
+import { mediaKind } from '../../shared/media.js';
 import { startedConversation } from '../../shared/app-tools.js';
 
 // What a call is said as, by the phone too (see lib/activity-line.js).
@@ -123,11 +124,25 @@ export const foldPictures = (steps) => steps.flatMap((step) => step.pictures ?? 
 export const foldPlans = (steps) => [...new Set(steps.flatMap((step) => step.plan ?? []))];
 
 /**
+ * What a picture a call handed back is called once downloaded: the file it read, when that is a picture file (see
+ * pictureName in media-menu.js). Empty for any other call, as a command that took a screenshot.
+ * @param {Activity | undefined} activity
+ */
+const readName = (activity) =>
+  activity?.kind === 'read' && mediaKind(activity.path) === 'image' ? basename(activity.path) : '';
+
+/**
  * Small pictures of what calls handed back, each opening over the window with the others of its row to go through.
  * @param {string[]} sources  the pictures of the row
+ * @param {string[]} names  what each is called once downloaded, where its call says (see readName); otherwise it is
+ *   the screenshot it is, by its place in the row
  */
-function thumbnails(sources) {
-  const pictures = sources.map((src) => Object.assign(new Image(), { src, alt: 'Picture' }));
+function thumbnails(sources, names) {
+  const pictures = sources.map((src, i) => {
+    const img = Object.assign(new Image(), { src, alt: 'Picture' });
+    img.dataset.name = names[i] || `screenshot-${i + 1}`;
+    return img;
+  });
   return pictures.map((img, index) => {
     const button = el(html`<button class="tool-picture" type="button" title="Open the picture"></button>`);
     button.appendChild(img);
@@ -172,6 +187,7 @@ export class ActivityLine {
    */
   constructor({ activity, sub = false, toolId }, { actor, cwd, around = (change) => change() }) {
     this.around = around;
+    this.activity = activity;
     // Under the line of a run of calls, a command reads as why it was run, where it says why.
     const why = activity.kind === 'command' && activity.description;
     this.node = el(
@@ -240,7 +256,12 @@ export class ActivityLine {
     // What it handed back to look at, such as a screenshot, is on show right under the line.
     if (pictures?.length) {
       const row = el(html`<div class="tool-pictures"></div>`);
-      row.append(...thumbnails(pictures));
+      row.append(
+        ...thumbnails(
+          pictures,
+          pictures.map(() => readName(this.activity))
+        )
+      );
       this.node.querySelector('.line').after(row);
     }
   }
@@ -344,7 +365,10 @@ class Fold {
     // With its calls put away, the pictures they handed back are on show under its line. A call's
     // result only ever adds some, so a row with as many as there are is up to date.
     const pictures = foldPictures(this.steps);
-    if (pictures.length !== this.pictures.childElementCount) this.pictures.replaceChildren(...thumbnails(pictures));
+    if (pictures.length !== this.pictures.childElementCount) {
+      const names = this.steps.flatMap((step) => (step.pictures ?? []).map(() => readName(step.activity)));
+      this.pictures.replaceChildren(...thumbnails(pictures, names));
+    }
     this.pictures.hidden = single || this.open || !pictures.length;
     // So is a plan they wrote, with the way to it: no plan kept in a file goes unseen in a run put away.
     const plans = foldPlans(this.steps);

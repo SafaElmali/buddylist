@@ -632,6 +632,7 @@ test('no other counted request passes on anything it was asked with', async () =
     REQUESTS.openExternal,
     REQUESTS.copied,
     REQUESTS.mediaDownload,
+    REQUESTS.mediaDownloadAll,
     REQUESTS.schedulesSetOn,
     REQUESTS.remoteUpdate,
     REQUESTS.remoteDeviceAccess,
@@ -1005,6 +1006,23 @@ test('a download is counted with what it was, only once it was saved, and never 
     ['media downloaded', 'video'],
     ['media downloaded', 'image'],
     ['media downloaded', 'audio'],
+  ]);
+  assert.ok(!JSON.stringify(posts).includes('secret'));
+});
+
+test('Download all is counted with how many pictures were saved, once some were, and never where to', async () => {
+  const { analytics, posts } = setup();
+  const all = (answer, items) => analytics.counting(REQUESTS.mediaDownloadAll, () => answer)({}, items);
+  const items = [{ address: 'file:///Users/me/secret/a.png', name: 'secret.png' }];
+  await all({ saved: 8, failed: 0, folder: 'secret folder' }, items);
+  await all({ saved: 2, failed: 1, folder: 'secret folder' }, items);
+  // Called off in the folder dialog, and none saved.
+  await all(null, items);
+  await all({ saved: 0, failed: 3, folder: 'secret folder' }, items);
+  await analytics.flush();
+  assert.deepEqual(countedWith(posts, 'count'), [
+    ['pictures downloaded', 8],
+    ['pictures downloaded', 2],
   ]);
   assert.ok(!JSON.stringify(posts).includes('secret'));
 });

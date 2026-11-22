@@ -2,10 +2,13 @@
 // window at first, then zoomed with the wheel, a pinch, a double-click, the keys or the buttons,
 // and dragged about once it is bigger than the window. ← and → go through the others sent here.
 // A diagram in a reply is looked at the same way (see diagrams.js). A picture of the conversation can be
-// replied with from here too, where the window offers it (see offerReplies).
+// replied with from here too, where the window offers it (see offerReplies). Any picture on this computer
+// can be downloaded, as it was shared, with Download or D.
 import { el, html, raw } from './dom.js';
 import { smallIcon } from './icons.js';
-import { mediaItems, REPLY_WITH_PICTURE } from './media-menu.js';
+import { isWebAddress } from '../../shared/browser.js';
+import { mediaKind } from '../../shared/media.js';
+import { download, mediaItems, pictureName, REPLY_WITH_PICTURE } from './media-menu.js';
 import { isMenuOpen, openMenu } from './menu.js';
 import { loadPicture } from './picture-source.js';
 
@@ -134,6 +137,15 @@ export function viewPictures(sources, index, { kind = 'Picture', copy } = {}) {
         ${copy && html`<button type="button" class="picture-viewer-copy" data-do="copy">${copy.label}</button>`}
         <button
           type="button"
+          class="picture-viewer-download"
+          data-do="download"
+          title="Download picture (D)"
+          aria-label="Download picture"
+        >
+          ${raw(smallIcon.download())}<span>Download</span>
+        </button>
+        <button
+          type="button"
           class="picture-viewer-reply"
           data-do="reply"
           title="${REPLY_WITH_PICTURE} (R)"
@@ -150,6 +162,7 @@ export function viewPictures(sources, index, { kind = 'Picture', copy } = {}) {
   const count = node.querySelector('.picture-viewer-count');
   const status = node.querySelector('.picture-viewer-status');
   const replyButton = /** @type {HTMLButtonElement} */ (node.querySelector('.picture-viewer-reply'));
+  const downloadButton = /** @type {HTMLButtonElement} */ (node.querySelector('.picture-viewer-download'));
   node.querySelector('.picture-viewer-nav').hidden = sources.length < 2;
 
   /** @type {Size} */
@@ -189,13 +202,29 @@ export function viewPictures(sources, index, { kind = 'Picture', copy } = {}) {
     };
   };
 
+  /** What the one on show is called once downloaded (see pictureName). */
+  const nameOf = () => (typeof sources[shown] === 'object' ? pictureName(sources[shown].img) : undefined);
+
+  /**
+   * Download, for the one on show, as it was shared: what it was loaded from (its original, or its preview where only
+   * that was kept), or where it is while it loads. Null for one on the web, which is not on this computer.
+   */
+  const downloading = () => {
+    const source = sources[shown];
+    const address =
+      img.getAttribute('src') || (typeof source === 'string' ? source : (source.src ?? source.preview ?? ''));
+    if (!mediaKind(address) || isWebAddress(address)) return null;
+    return () => download(address, nameOf());
+  };
+
   const show = async (i) => {
     const wanted = (i + sources.length) % sources.length;
     const current = ++request;
     shown = wanted;
     count.textContent = `${wanted + 1} of ${sources.length}`;
-    replyButton.hidden = !replying();
     img.removeAttribute('src');
+    replyButton.hidden = !replying();
+    downloadButton.hidden = !downloading();
     status.textContent = 'Loading picture…';
     let loaded;
     let next;
@@ -227,6 +256,7 @@ export function viewPictures(sources, index, { kind = 'Picture', copy } = {}) {
     actual: () => zoomTo(1, undefined, { smooth: true }),
     fit: () => fit({ smooth: true }),
     reply: () => replying()?.(),
+    download: () => downloading()?.(),
     // It says for a moment that it was copied.
     copy: async () => {
       await copy.run();
@@ -245,6 +275,7 @@ export function viewPictures(sources, index, { kind = 'Picture', copy } = {}) {
     1: 'actual',
     0: 'fit',
     r: 'reply',
+    d: 'download',
   };
 
   const returnTo = document.activeElement;
@@ -300,7 +331,7 @@ export function viewPictures(sources, index, { kind = 'Picture', copy } = {}) {
   // reply with it.
   img.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    if (img.src) openMenu({ x: e.clientX, y: e.clientY }, mediaItems(img.src, { reply: replying() }));
+    if (img.src) openMenu({ x: e.clientX, y: e.clientY }, mediaItems(img.src, { reply: replying(), name: nameOf() }));
   });
 
   img.addEventListener('dblclick', (e) => {
