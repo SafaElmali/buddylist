@@ -1020,6 +1020,36 @@ test('messages sent while signing in or mid-turn wait in order for separate turn
   assert.equal(session.state, 'idle');
 });
 
+test('a turn Codex starts by itself is at work until it ends, and a message sent meanwhile waits for it', async () => {
+  const { server, session, events } = await started();
+  server.endTurn();
+  await tick();
+  assert.equal(session.state, 'idle');
+  const from = events.length;
+  // A helper it started is done, or a goal goes on: Codex takes another turn without being sent anything.
+  server.notify('turn/started', { turn: { id: 'turn-own' } });
+  assert.equal(session.state, 'working');
+  session.send({ text: 'and the tax' });
+  await tick();
+  assert.equal(session.waiting, 1, 'it waits as behind any turn');
+  assert.equal(server.params('turn/steer').length, 0);
+  server.notify('item/completed', { item: { type: 'agentMessage', id: 'm-own', text: 'The helper is done.' } });
+  server.notify('turn/completed', { turn: { id: 'turn-own', status: 'completed', error: null } });
+  // As for any turn: at work, its result, then idle, for whoever waits on the turn to be over.
+  assert.deepEqual(
+    events
+      .slice(from)
+      .filter((event) => ['state', 'result'].includes(event.type))
+      .map((event) => event.state ?? event.type),
+    ['working', 'result', 'idle']
+  );
+  await tick();
+  assert.deepEqual(
+    server.params('turn/start').map((params) => params.input[0].text),
+    ['hi', 'and the tax']
+  );
+});
+
 test('queued pictures and skills are sent intact with the settings in effect when their turn starts', async () => {
   const { server, session } = await started({ replies: skills(skill('skill-creator')) });
   session.send({ text: '/skill-creator one for flaky tests', images: [{ mediaType: 'image/png', data: 'AAAA' }] });

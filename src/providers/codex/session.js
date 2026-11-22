@@ -438,6 +438,9 @@ export class CodexSession extends BaseSession {
     switch (method) {
       case 'turn/started':
         this.turnId = params.turn.id;
+        // One it started by itself, as when a helper it started is done or a goal goes on: it is at work until that
+        // turn is over too, and a message sent meanwhile waits for it.
+        if (!this.inTurn) this.setState('working');
         if (this.hurried) void this.#interruptTurn();
         return;
       case 'item/started':
