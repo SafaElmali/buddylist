@@ -448,6 +448,13 @@ export class Conversations {
   #news = new Map();
   /** The conversations where an agent wrote or edited a file since the last round of turns there was over */
   #changed = new Set();
+  /**
+   * hostId -> where the files of its folder stood as its last round ended, or as this one started (see `folders.state`),
+   * for a conversation another started or a manager oversees: a command, a helper or any other step changes files as
+   * well (see `#roundChanged`)
+   * @type {Map<string, Promise<string | null>>}
+   */
+  #roundFolder = new Map();
   /** The conversations where a turn went through since then: neither stopped nor gone wrong */
   #finished = new Set();
   /** The conversations whose last turn since then was stopped or went wrong */
@@ -4031,6 +4038,7 @@ export class Conversations {
       this.#askedReports,
       this.#news,
       this.#changed,
+      this.#roundFolder,
       this.#finished,
       this.#cut,
       this.#toldAlone,
@@ -4670,7 +4678,8 @@ export class Conversations {
    * said. A project's manager that started it hears once the round is over, as it may hear of the
    * round anyway: one note says both (see `#roundOver`). One it was moved away from hears nothing more of it.
    * Ordinary progress waits while background work is running. First turns, questions, approvals,
-   * file changes and unsuccessful turns still report without waiting for that work.
+   * file changes and unsuccessful turns still report without waiting for that work: a file a command
+   * or a helper changed lets it go once the round is over, as only the folder tells (see `#roundOver`).
    * @param {import('./storage/store.js').Contact} contact
    * @param {string} reply  what it said last, as it said it
    * @param {object} result  how the turn ended
@@ -4725,13 +4734,23 @@ export class Conversations {
    */
   #flushReport(contact) {
     queueMicrotask(() => {
-      const reply = this.#heldReports.get(contact.id);
-      if (!reply || this.#backgroundRunning(contact.id) || !['idle', 'offline'].includes(this.#state(contact.id)))
-        return;
-      this.#heldReports.delete(contact.id);
-      this.#reported.set(contact.id, reply);
-      this.#passReport(contact, reply);
+      if (this.#backgroundRunning(contact.id) || !['idle', 'offline'].includes(this.#state(contact.id))) return;
+      const reply = this.#takeHeld(contact.id);
+      if (reply) this.#passReport(contact, reply);
     });
+  }
+
+  /**
+   * The reply held back for a contact, taken to be passed on now: it is what it last passed on from then.
+   * @param {string} contactId
+   * @returns {string | undefined}
+   */
+  #takeHeld(contactId) {
+    const reply = this.#heldReports.get(contactId);
+    if (!reply) return undefined;
+    this.#heldReports.delete(contactId);
+    this.#reported.set(contactId, reply);
+    return reply;
   }
 
   /**
@@ -4793,25 +4812,57 @@ export class Conversations {
   #roundOver(host) {
     const finished = this.#finished.delete(host.id);
     const cut = this.#cut.delete(host.id);
-    const news = this.#news.get(host.id);
+    let news = this.#news.get(host.id);
     this.#news.delete(host.id);
     // The notes read are the round's that ran: a session is idle as it starts, before the turn that reads them.
     const read = finished || cut ? (this.#read.get(host.id) ?? []) : [];
     if (finished || cut) this.#read.delete(host.id);
-    const told = finished
-      ? this.managing.roundOver(host.id, {
-          changed: this.#changed.delete(host.id),
-          context: this.#context.get(host.id)?.get(host.id) || null,
-          waiting: this.#waiting(host.id),
-          read,
-        })
-      : false;
+    const round = { context: this.#context.get(host.id)?.get(host.id) || null, waiting: this.#waiting(host.id), read };
+    /** @param {boolean} changed */
+    const over = (changed) => {
+      // Progress it held back while background work runs is no progress where files changed: it goes now, with that.
+      if (changed) news = this.#takeHeld(host.id) ?? news;
+      return this.managing.roundOver(host.id, { changed, ...round });
+    };
+    const changed = finished || cut ? this.#roundChanged(host, finished) : false;
+    const told = finished ? (typeof changed === 'boolean' ? over(changed) : changed.then(over)) : false;
     // Stopped or gone wrong after reading notes: whoever sent them may need to hear that nothing came of them yet.
     if (cut && !finished && read.length) this.managing.roundCut?.(host.id, { read });
-    if (!news) return;
     Promise.resolve(told)
       .catch(() => false)
-      .then((heard) => heard || this.#passReport(host, news));
+      .then((heard) => news && !heard && this.#passReport(host, news));
+  }
+
+  /**
+   * A round starts in a conversation another one started, or that a manager oversees, in a repository: where the files
+   * of its folder stand is noted, unless where the last round left them is (see #roundChanged).
+   * @param {Contact} host
+   */
+  #roundStarts(host) {
+    if (this.#roundFolder.has(host.id) || host.manages) return;
+    if (!host.startedBy && !this.managing.managerOf(host)) return;
+    if (!this.folders.inRepository(host.cwd)) return;
+    this.#roundFolder.set(host.id, this.folders.state(host.cwd));
+  }
+
+  /**
+   * A round is over: whether it went through and changed files. The history tells of a file an agent wrote or edited.
+   * A command, a helper or any other step may have changed one as well, also while its turn was over, as a helper
+   * Codex started does: in a repository the folder tells, next to where it stood as the last round ended, or else as
+   * this one started (see #roundStarts), as it does for an agent that answers after changes (see #followUp).
+   * @param {Contact} host
+   * @param {boolean} finished  the round went through: one stopped or gone wrong changed nothing to look at
+   * @returns {boolean | Promise<boolean>}  a promise only where the folder is asked
+   */
+  #roundChanged(host, finished) {
+    const known = this.#changed.delete(host.id);
+    const before = this.#roundFolder.get(host.id);
+    if (!before) return known;
+    // Where they stand now is where the next round goes from.
+    const now = this.folders.state(host.cwd);
+    this.#roundFolder.set(host.id, now);
+    if (!finished || known) return known;
+    return Promise.all([before, now]).then(([was, is]) => Boolean(was && is && was !== is));
   }
 
   /**
@@ -5141,7 +5192,10 @@ export class Conversations {
       case 'state': {
         status.get(speaker).state = event.state;
         // A turn nobody sent anything for, as a helper reports: its reply is the one that will be answered.
-        if (event.state === 'working') this.#suggested.delete(hostId);
+        if (event.state === 'working') {
+          this.#suggested.delete(hostId);
+          this.#roundStarts(host);
+        }
         // Its agent is gone, and its helpers with it, whether or not each was said to have ended.
         if (event.state === 'offline') {
           this.#dropHelpers(hostId, speaker);

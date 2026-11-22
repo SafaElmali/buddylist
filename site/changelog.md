@@ -11,6 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
+## v0.7.12
+
+- **A manager hears every time a Codex worker finishes** — When Codex went on by itself, such as once a helper it started was done, its manager never heard how that turn ended, and the worker didn't show as at work. Now that turn reports to the manager like any other. A manager also hears of the files a worker changed with a command or a helper, not only with its own edit tools, and a reply held back while the worker's background work runs gets through once its round changed files.
+
 ## v0.7.11 — 2026-11-21
 
 - **A reviewer looks over every change, however it was made** — A role that answers **After another agent changed files**, such as **Reviewer**, noticed only the files an agent wrote or edited with its own edit tools. When an agent changed a file with a command, such as `sed`, a formatter or `git apply`, or a helper it asked changed one, the reviewer sat the message out. Now it gets its turn once the others are done, whatever changed the file. In a git repository it goes by what the files hold, so a round that changed nothing, or only committed or pushed what it already looked at, still goes without it.

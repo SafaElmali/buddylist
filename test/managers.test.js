@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { folderState, inRepository } from '../src/main/changes.js';
 import { Conversations } from '../src/main/conversations.js';
 import { DIFF_MAX, Managers } from '../src/main/managers.js';
 import { Projects } from '../src/main/project-settings.js';
@@ -11,6 +13,7 @@ import { History } from '../src/main/storage/history.js';
 import { Store } from '../src/main/storage/store.js';
 import { reportNote } from '../src/shared/app-tools.js';
 import { BaseSession } from '../src/providers/base-session.js';
+import { CodexSession } from '../src/providers/codex/session.js';
 import { descriptor as claude } from '../src/providers/claude/index.js';
 import { descriptor as codex } from '../src/providers/codex/descriptor.js';
 import { descriptor as gemini } from '../src/providers/gemini/descriptor.js';
@@ -1849,7 +1852,7 @@ test('a manager turned off while it writes the brief is asked anew once it is tu
  * The conversations and the managers as the app has them, with stand-ins for the sessions, and the shop's
  * manager turned on with `settings`.
  */
-function inTheApp(app, settings = {}, makeSession) {
+function inTheApp(app, settings = {}, makeSession, folders = { inRepository, state: folderState }) {
   const sessions = [];
   const conversations = new Conversations({
     store: app.store,
@@ -1884,6 +1887,8 @@ function inTheApp(app, settings = {}, makeSession) {
     chats: { send: (id, event) => shown.push([id, event]), isFocused: () => false },
     notifier: { notify: () => {}, dismiss: () => {} },
     onContactsChanged: () => {},
+    // As the app has them: git tells where a folder in a repository stands.
+    folders,
     managing: {
       forAgent: (contact, guest) => managers.forAgent(contact, guest),
       roundOver: (id, round) => managers.roundOver(id, round),
@@ -2257,6 +2262,201 @@ test('in the app, a manager hears held progress after background work ends witho
   await turn('', { isError: true, errorText: 'The build failed' });
   assert.equal(managerSession.sent.length, before + 2);
   assert.match(managerSession.sent.at(-1).text, /Turn failed: The build failed/);
+});
+
+/** A stand-in for `codex app-server` that a test plays the part of: it starts what it is asked to, and tells of turns. */
+function codexServer() {
+  const server = { started: [], hooks: null };
+  server.connect = (hooks) => {
+    server.hooks = hooks;
+    return {
+      request: async (method, params) => {
+        if (method === 'thread/start') return { thread: { id: 'th-1' }, model: 'gpt-test' };
+        if (method === 'skills/list') return { data: [] };
+        if (method === 'turn/start') {
+          server.started.push(params.input.at(-1).text);
+          return { turn: { id: `turn-${server.started.length}` } };
+        }
+        return {};
+      },
+      notify: () => {},
+      close: () => {},
+    };
+  };
+  /** The rest of a turn Codex took, `id`: it says `text` and is over. */
+  server.turn = (id, text) => {
+    const notify = (method, params) => server.hooks.onNotification(method, { threadId: 'th-1', ...params });
+    notify('item/completed', { item: { type: 'agentMessage', id: `m-${id}`, text } });
+    notify('turn/completed', { turn: { id, status: 'completed', error: null } });
+  };
+  return server;
+}
+
+test('in the app, a manager hears how a turn a Codex worker started by itself ended, as any turn of its', async (t) => {
+  const app = setup(t);
+  const servers = [];
+  const { conversations, sessions, manager } = inTheApp(app, {}, (contact, emit) => {
+    const server = codexServer();
+    servers.push(server);
+    return new CodexSession({ contact, emit, connect: server.connect });
+  });
+  t.after(() => sessions.forEach((session) => session.close()));
+  const worker = app.worker('Codex (cart)', { provider: 'codex', startedBy: manager.id });
+  const [managerSession] = sessions;
+  const heard = () =>
+    app.history
+      .read(manager.id)
+      .filter((entry) => entry.kind === 'notice' && entry.from !== manager.id && entry.text.startsWith('Codex (cart)'))
+      .map((entry) => entry.text);
+  conversations.send(worker.id, { text: 'Round the cart total before tax.', images: [] });
+  await settled();
+  const [server] = servers;
+  server.turn('turn-1', 'Two helpers are on it; I will say when they are done.');
+  await settled();
+  assert.deepEqual(heard(), ['Codex (cart) finished a turn: Two helpers are on it; I will say when they are done.']);
+  const sent = managerSession.sent.length;
+
+  // Its helpers are done: Codex goes on by itself, and is at work while it does.
+  server.hooks.onNotification('turn/started', { threadId: 'th-1', turn: { id: 'turn-own' } });
+  assert.equal(conversations.view(app.store.getContact(worker.id)).status, 'busy');
+  server.turn('turn-own', 'Both helpers are done: the total rounds before tax.');
+  await settled();
+  assert.equal(heard().at(-1), 'Codex (cart) finished a turn: Both helpers are done: the total rounds before tax.');
+  assert.equal(managerSession.sent.length, sent + 1);
+  assert.equal(
+    managerSession.sent.at(-1).text,
+    reportNote('Codex (cart)', 'Both helpers are done: the total rounds before tax.')
+  );
+});
+
+/** A worker's folder made a repository with one commit: git can tell when a file in it changes, whatever changed it. */
+function repository(cwd) {
+  const git = (...args) =>
+    execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', ...args], {
+      cwd,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  git('init', '--quiet', '-b', 'main');
+  fs.writeFileSync(path.join(cwd, 'cart.js'), 'total\n');
+  git('add', '.');
+  git('-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'first');
+}
+
+/** Until `check` holds: git is asked where a folder stands, in processes of its own. */
+async function until(check) {
+  for (let waited = 0; !check(); waited += 10) {
+    if (waited > 5000) throw new Error('it never happened');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+/**
+ * A worker in a repository, in the app: `turn` has it take a turn that runs a command, which writes `cart.js` when
+ * `writes` is given, and says `reply`. Sent `text` by the user first, where there is any.
+ */
+function workerInRepository(t, name, opts = {}) {
+  const app = setup(t);
+  // The newest look at where a folder stands, for a test to wait on the one a round starts with.
+  let looked = Promise.resolve(null);
+  const look = (cwd) => (looked = folderState(cwd));
+  const { conversations, managers, sessions, manager } = inTheApp(app, {}, undefined, { inRepository, state: look });
+  const worker = app.worker(name, typeof opts === 'function' ? opts(manager) : opts);
+  repository(worker.cwd);
+  const session = () => sessions.find((one) => one.contact.id === worker.id);
+  const turn = async ({ text, writes, reply, background = null }) => {
+    if (text) conversations.send(worker.id, { text, images: [] });
+    const { emit } = session();
+    emit({ type: 'state', state: 'working' });
+    // Where the folder stood as the round started is noted then, before the agent gets to change anything.
+    await looked;
+    if (background) emit({ type: 'background', tasks: background });
+    emit({ type: 'tool', toolId: crypto.randomUUID(), activity: { kind: 'command', command: 'npm run fix' } });
+    if (writes) fs.writeFileSync(path.join(worker.cwd, 'cart.js'), writes);
+    emit({ type: 'text-end', key: 'k', text: reply });
+    emit({ type: 'result', isError: false, stopped: false, errorText: '', durationMs: 1, costUsd: 0 });
+    emit({ type: 'state', state: 'idle' });
+    await settled();
+  };
+  const heard = () =>
+    app.history
+      .read(manager.id)
+      .filter((entry) => entry.kind === 'notice' && entry.text.startsWith(name))
+      .map((entry) => entry.text);
+  return { app, conversations, managers, sessions, manager, worker, session, turn, heard };
+}
+
+test('in the app, a round that changed a file by a command is news for the manager, as one with an edit is', async (t) => {
+  const { app, conversations, worker, turn, heard, sessions } = workerInRepository(t, 'Codex (cart)', (manager) => ({
+    provider: 'codex',
+    startedBy: manager.id,
+  }));
+  const [managerSession] = sessions;
+  // The task it was started with: it says how it ended.
+  conversations.send(worker.id, { text: 'Round the cart total before tax.', images: [] });
+  await turn({ reply: 'Looked at the cart.' });
+  await until(() => heard().length === 1);
+  const sent = managerSession.sent.length;
+
+  // The user asks in its window, and a command it runs changes a file: the manager hears of the change.
+  app.changed.set(worker.cwd, { files: [file('cart.js', 1, 1)] });
+  await turn({ text: 'fix it with the script', writes: 'rounded total\n', reply: 'Ran the fix script.' });
+  await until(() => heard().length === 2);
+  assert.deepEqual(heard(), [
+    'Codex (cart) finished a turn: Looked at the cart.',
+    'Codex (cart) changed 1 file: Ran the fix script.',
+  ]);
+  assert.equal(managerSession.sent.length, sent + 1);
+  assert.match(managerSession.sent.at(-1).text, /^\[Codex \(cart\) changed files\./);
+
+  // One whose commands changed nothing is no news, as before.
+  await turn({ text: 'run the tests', reply: 'Tests pass.' });
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(heard().length, 2);
+});
+
+test('in the app, a worker put under the manager by hand is heard of when a command or helper changed its files', async (t) => {
+  const { app, worker, turn, heard } = workerInRepository(t, 'Codex (cart)', { provider: 'codex' });
+  app.changed.set(worker.cwd, { files: [file('cart.js', 1, 1)] });
+  await turn({
+    text: 'Round the cart total before tax.',
+    writes: 'rounded total\n',
+    reply: 'Rounded it with a script.',
+  });
+  await until(() => heard().length === 1);
+  assert.deepEqual(heard(), ['Codex (cart) changed 1 file: Rounded it with a script.']);
+
+  // A helper Codex started changes a file while its turn is over, and Codex goes on by itself once it is done: that
+  // round is heard of, though nothing in it changed a file.
+  fs.writeFileSync(path.join(worker.cwd, 'cart.js'), 'rounded total, tested\n');
+  app.changed.set(worker.cwd, { files: [file('cart.js', 2, 1)] });
+  await turn({ reply: 'The helper added the tests.' });
+  await until(() => heard().length === 2);
+  assert.equal(heard().at(-1), 'Codex (cart) changed 1 file: The helper added the tests.');
+});
+
+test('in the app, held progress gets through at once when its round changed a file by a command', async (t) => {
+  const { app, conversations, worker, turn, heard, sessions } = workerInRepository(t, 'Claude (cart)', (manager) => ({
+    startedBy: manager.id,
+  }));
+  const [managerSession] = sessions;
+  conversations.send(worker.id, { text: 'Watch CI, and fix what fails.', images: [] });
+  const ci = [{ id: 'ci', kind: 'command', status: 'running' }];
+  await turn({ reply: 'Started watching CI.', background: ci });
+  await until(() => heard().length === 1);
+  // A round of its own while CI runs, that only says how it goes: it waits for the work.
+  await turn({ reply: 'Waiting on the suite.' });
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(heard().length, 1, 'progress waits');
+  // One whose command fixed a file is no progress: it gets through, CI or not.
+  app.changed.set(worker.cwd, { files: [file('cart.js', 1, 1)] });
+  await turn({ reply: 'Fixed the rounding; CI runs again.', writes: 'rounded total\n' });
+  await until(() => heard().length === 2);
+  assert.equal(heard().at(-1), 'Claude (cart) changed 1 file: Fixed the rounding; CI runs again.');
+  // The progress it held is old news once CI ends.
+  sessions.find((one) => one.contact.id === worker.id).emit({ type: 'background', tasks: [] });
+  await settled();
+  assert.equal(heard().length, 2);
+  assert.equal(managerSession.sent.filter((message) => /Waiting on the suite/.test(message.text)).length, 0);
 });
 
 // ---- several managers in one project ----------------------------------------------------------------------
