@@ -78,6 +78,10 @@ export function describeActivity(a, cwd) {
             a.role ? html` as <i>${a.role}</i>` : ''
           }`;
       }
+      // A manager taking a guest out is told by who left which conversation.
+      if (a.action === 'remove' && a.label && a.agent) {
+        return html`removed <b>${a.agent}</b> from <b>${a.label}</b>`;
+      }
       // A manager's answer is told by whose questions it answered, and with what.
       if (a.action === 'answer-question') {
         const said = (a.answers || []).join(' · ');

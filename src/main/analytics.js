@@ -294,13 +294,15 @@ const ANSWERS = Object.freeze(['allow', 'always', 'deny', 'answer', 'skip', 'app
 
 /**
  * What the app itself was asked to do that asks you first (see shared/app-tools.js), as the invitation's answer
- * says: a manager's message to one of its conversations, its answer to a question one waits on, terminals with a
- * command typed into them, and a project's instructions an agent wants to save.
+ * says: a manager's message to one of its conversations, its answer to a question one waits on, an agent it invites
+ * into one or takes out of one, terminals with a command typed into them, and a project's instructions an agent wants
+ * to save.
  */
 const ASKED_OF_APP = Object.freeze([
   'message',
   'answer-question',
   'invite',
+  'remove',
   'terminals',
   'fallback',
   'save-instructions',

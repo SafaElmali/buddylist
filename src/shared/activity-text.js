@@ -52,6 +52,7 @@ export function appDone(activity) {
   if (activity.action === 'save-instructions') return 'saved the project’s instructions';
   if (activity.action === 'message') return 'sent a message';
   if (activity.action === 'invite') return 'invited an agent';
+  if (activity.action === 'remove') return 'removed an agent';
   if (activity.action === 'answer-question') return `answered ${questions(activity)}`;
   if (activity.action === 'look') return activity.label ? 'looked at the changes' : 'looked at the conversations';
   if (activity.action === 'teams') return activity.label ? `looked at ${activity.label}` : 'looked at the teams';
@@ -73,6 +74,7 @@ const APP_STATUS = {
   'save-instructions': 'Saving the project’s instructions',
   message: 'Sending a message',
   invite: 'Inviting an agent',
+  remove: 'Removing an agent',
   'answer-question': 'Answering a question',
   look: 'Looking at the conversations',
   teams: 'Looking at the teams',
@@ -90,6 +92,7 @@ const APP_REQUEST = {
   'save-instructions': 'save the project’s instructions',
   message: 'send a message',
   invite: 'invite an agent',
+  remove: 'remove an agent',
   look: 'look at the conversations',
   teams: 'look at the teams',
   'read-brief': 'read the project’s brief',
@@ -223,6 +226,9 @@ export function activityRequest(activity, showPath = basename) {
       // A manager's invite, by who joins which conversation, and as what.
       if (activity.action === 'invite' && activity.label)
         return `invite ${activity.agent || 'an agent'} into ${activity.label}${activity.role ? ` as ${activity.role}` : ''}`;
+      // A manager taking a guest out, by who leaves which conversation.
+      if (activity.action === 'remove' && activity.label && activity.agent)
+        return `remove ${activity.agent} from ${activity.label}`;
       // A manager's answer, by whose questions.
       if (activity.action === 'answer-question')
         return activity.label

@@ -4,7 +4,7 @@
 // its own, or read and save what its project's agents are told. A project's
 // manager (see shared/managers.js) also messages the conversations it oversees,
 // answers the questions they wait on where the project settles them,
-// invites other agents into them, such as a reviewer for each, looks at what
+// invites other agents into them, such as a reviewer for each, and takes them out again, looks at what
 // they changed, and keeps the project's brief and sources, and
 // reports to its project manager. A project manager messages the managers, hands
 // a worker's job from one to another, and looks at the teams. The main process offers these as tools to a provider that takes any
@@ -30,6 +30,7 @@ export const APP_TOOLS = Object.freeze({
   message: 'message_conversation',
   answer: 'answer_question',
   invite: 'invite_to_conversation',
+  remove: 'remove_from_conversation',
   look: 'project_conversations',
   brief: 'project_brief',
   sources: 'project_sources',
@@ -273,6 +274,15 @@ export function appActivity(tool, input = {}) {
       ...(service && { agent: model ? `${service} (${model})` : service }),
       role: String(input.role ?? '').trim() || REVIEW_ROLE.name,
       ...(message && { prompt: message }),
+    };
+  }
+  // Who leaves which conversation, by its name there.
+  if (tool === APP_TOOLS.remove) {
+    return {
+      kind: 'app',
+      action: 'remove',
+      label: String(input.to ?? '').trim(),
+      agent: String(input.guest ?? '').trim(),
     };
   }
   // Whom it goes to is the app's to say: its project manager (see main/app-tools.js).

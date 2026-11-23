@@ -54,6 +54,14 @@ test('a manager’s invite is said by who joins which conversation, and as what'
   assert.equal(activityRequest({ ...invite, role: undefined }), 'invite Claude (Opus 5.5) into Claude (tags)');
 });
 
+test('a manager taking a guest out is said by who leaves which conversation', () => {
+  const remove = { kind: 'app', action: 'remove', label: 'Claude (tags)', agent: 'Reviewer' };
+  assert.equal(activityRequest(remove), 'remove Reviewer from Claude (tags)');
+  assert.equal(activityStatus(remove), 'Removing an agent');
+  assert.equal(appDone(remove), 'removed an agent');
+  assert.equal(activityRequest({ ...remove, agent: '' }), 'remove an agent');
+});
+
 test('a manager’s answer is said by whose questions it answers, and how many', () => {
   const answer = {
     kind: 'app',

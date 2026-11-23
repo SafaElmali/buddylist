@@ -520,7 +520,7 @@ function linkPullRequest(hostId, links, readOnly = false) {
   };
 }
 
-/** @typedef {Pick<import('./managers.js').Managers, 'oversees' | 'say' | 'refuses' | 'answer' | 'questionsOf' | 'invite' | 'look' | 'brief' | 'sources' | 'leads' | 'leadOf' | 'teams' | 'tellManager' | 'report' | 'startsAtOnce'>} Managing */
+/** @typedef {Pick<import('./managers.js').Managers, 'oversees' | 'say' | 'refuses' | 'answer' | 'questionsOf' | 'invite' | 'remove' | 'look' | 'brief' | 'sources' | 'leads' | 'leadOf' | 'teams' | 'tellManager' | 'report' | 'startsAtOnce'>} Managing */
 
 /**
  * A manager invites another agent into one of its workers' conversations: a guest there, as the user's Invite has
@@ -549,8 +549,9 @@ function inviteToConversation(hostId, managers, agents, userAsks, roles) {
       'teams it does what the role says instead. Say in message what it is to do first, such as what to review ' +
       'and against which ticket: it starts on that once it has the turn. Without one it waits, as its role says. ' +
       'What it says reaches you with the worker’s notes once their round is over. A service that can’t work ' +
-      'read-only can’t review. The same agent asked for again is there already. The user approves an invite ' +
-      'unless they asked for it: then set asked_by_user to true.',
+      'read-only can’t review. One of the same role on the same service is there already, whoever added it and ' +
+      'on whatever model: to replace a guest, such as a reviewer with another role or model, take it out with ' +
+      `${APP_TOOLS.remove} first. The user approves an invite unless they asked for it: then set asked_by_user to true.`,
     input: {
       to: z.string().min(1).describe('The conversation, by its name as the notes and project_conversations give it.'),
       service: z
@@ -590,6 +591,40 @@ function inviteToConversation(hostId, managers, agents, userAsks, roles) {
         role: asked(input.role),
         message: asked(input.message),
       }),
+  };
+}
+
+/**
+ * A manager takes a guest out of one of its workers' conversations, as the Agents tab's Remove does: one it invited or
+ * one the user did, never the worker's own agent. One the user asked for goes unasked; any other the user approves
+ * first, as an invite is.
+ * @param {string} hostId
+ * @param {Managing} managers
+ * @param {(hostId: string) => boolean} userAsks  as for invite_to_conversation
+ * @returns {AppTool}
+ */
+function removeFromConversation(hostId, managers, userAsks) {
+  return {
+    name: APP_TOOLS.remove,
+    description:
+      'Take a guest out of one of the conversations you oversee: an agent in that worker’s own conversation, by ' +
+      'its name as its Agents tab shows it, such as Reviewer, whether you invited it or the user did. It leaves at ' +
+      'once, stopped if it is at work, as the user’s Remove in the Agents tab has it. The worker’s own agent stays. ' +
+      'The user approves it unless they asked for it: then set asked_by_user to true.',
+    input: {
+      to: z.string().min(1).describe('The conversation, by its name as the notes and project_conversations give it.'),
+      guest: z.string().min(1).max(ROLE_NAME_MAX).describe('The guest to take out, by its name in the Agents tab.'),
+      asked_by_user: z
+        .boolean()
+        .optional()
+        .describe(
+          'True when the user asked for this, such as "take the reviewers out": it leaves without asking them ' +
+            'again. Otherwise the user approves it first.'
+        ),
+    },
+    // Another agent's work there ends: the user says whether it does, unless they asked for it.
+    ask: (input) => !(input?.asked_by_user === true && userAsks(hostId)),
+    run: (input) => managers.remove(hostId, { to: asked(input.to), guest: asked(input.guest) }),
   };
 }
 
@@ -663,10 +698,11 @@ function answerQuestion(hostId, managers) {
  * @param {string} hostId
  * @param {Managing} managers
  * @param {() => string} leadName  its project manager at work, by name: '' for none
- * @param {AppTool | null} [invites]  its invite_to_conversation, where there are services to invite
+ * @param {AppTool[]} [guests]  its invite_to_conversation and remove_from_conversation, where there are services to
+ *   invite
  * @returns {AppTool[]}
  */
-function managerTools(hostId, managers, leadName, invites = null) {
+function managerTools(hostId, managers, leadName, guests = []) {
   return [
     {
       name: APP_TOOLS.message,
@@ -693,7 +729,7 @@ function managerTools(hostId, managers, leadName, invites = null) {
       run: ({ to, text, urgent = false }) => managers.say(hostId, to, text, urgent),
     },
     answerQuestion(hostId, managers),
-    ...(invites ? [invites] : []),
+    ...guests,
     {
       name: APP_TOOLS.look,
       description:
@@ -873,6 +909,7 @@ export function appTools({
     answer: async () => '',
     questionsOf: () => [],
     invite: async () => '',
+    remove: async () => '',
     look: async () => '',
     brief: () => '',
     sources: () => '',
@@ -912,11 +949,14 @@ export function appTools({
     // the user asked for at once, as far as the manager may (see Managers.startsAtOnce). Any other read-only agent's
     // word that the user asked isn't taken: what it starts could change files, so it waits for the user to start it.
     const drafts = readOnly && !managers.oversees(contact);
-    // With services there are to invite: only a manager's conversation has them.
-    const invites =
+    // With services there are to invite: only a manager's conversation has them, and the way to take a guest out.
+    const guests =
       agents.length > 0
-        ? inviteToConversation(hostId, managers, agents, userAsks, () => store.settings.roles ?? [])
-        : null;
+        ? [
+            inviteToConversation(hostId, managers, agents, userAsks, () => store.settings.roles ?? []),
+            removeFromConversation(hostId, managers, userAsks),
+          ]
+        : [];
     return [
       openTerminals(hostId, terminals, readOnly),
       startConversation(
@@ -932,7 +972,7 @@ export function appTools({
       ),
       projectInstructions(hostId, instructions),
       ...(links?.offered(hostId) ? [linkPullRequest(hostId, links, readOnly)] : []),
-      ...(managers.oversees(contact) ? managerTools(hostId, managers, leadName, invites) : []),
+      ...(managers.oversees(contact) ? managerTools(hostId, managers, leadName, guests) : []),
     ];
   };
 }

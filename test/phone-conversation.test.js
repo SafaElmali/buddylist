@@ -484,6 +484,10 @@ test('a call still going says what it does now, and what it wants while its card
   assert.equal(said({ kind: 'edit', path: '/shop/a.js' }, { asked: true }), 'wants to edit a.js');
   assert.equal(said({ kind: 'web', url: 'https://x.dev' }, { asked: true }), 'wants to open https://x.dev');
   assert.equal(said({ kind: 'app', action: 'message' }, { asked: true }), 'wants to send a message');
+  const removal = { kind: 'app', action: 'remove', label: 'Claude (tags)', agent: 'Reviewer' };
+  assert.equal(said(removal, { asked: true }), 'wants to remove Reviewer from Claude (tags)');
+  assert.equal(said(removal), 'removing an agent');
+  assert.equal(strip(describeActivity(removal, '/shop')), 'removed Reviewer from Claude (tags)');
   // The conversation window's lines, after the fact, are as they were.
   assert.equal(strip(describeActivity({ kind: 'command', command: 'npm test' }, '/shop')), 'ran npm test');
   assert.equal(strip(describeActivity({ kind: 'read', path: '/shop/src/cart.js' }, '/shop')), 'read src/cart.js');

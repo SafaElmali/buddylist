@@ -1120,6 +1120,7 @@ test('with services to invite, a manager also invites agents into its workers, a
       'message_conversation',
       'answer_question',
       'invite_to_conversation',
+      'remove_from_conversation',
       'project_conversations',
       'project_brief',
       'project_sources',
@@ -1127,6 +1128,7 @@ test('with services to invite, a manager also invites agents into its workers, a
     ]
   );
   assert.ok(!toolsFor('c1').some((tool) => tool.name === APP_TOOLS.invite), 'a contact that is no manager has none');
+  assert.ok(!toolsFor('c1').some((tool) => tool.name === APP_TOOLS.remove));
 });
 
 test('every service the app has can be asked for, Grok too: in a conversation started, and invited in', () => {
@@ -1253,6 +1255,67 @@ test('a manager is told what an agent it invites does unless a role says otherwi
   );
   assert.match(description, /instead of subagents of your own/);
   assert.match(description, /hand-offs stop at the conversation’s limit/);
+});
+
+// ---- a manager taking guests out of its workers -----------------------------------------------------
+
+/** Managers that take `m1` for a manager, whose invites and removals are recorded. */
+const removingFor = (opts) => {
+  const managers = invitingFor(opts);
+  return { ...managers, remove: async (...args) => (managers.calls.push(['remove', ...args]), 'Left.') };
+};
+
+test('a removal takes a conversation and a guest, by name, and whether the user asked', () => {
+  const { tool } = setup({ contacts: [{ id: 'm1' }], managers: removingFor(), agents: AGENTS });
+  const remove = tool('m1', APP_TOOLS.remove);
+  assert.ok(takes(remove, { to: 'Claude (tags)', guest: 'Reviewer' }));
+  assert.ok(takes(remove, { to: 'Claude (tags)', guest: 'Reviewer', asked_by_user: true }));
+  assert.ok(!takes(remove, { to: 'Claude (tags)' }), 'which guest');
+  assert.ok(!takes(remove, { guest: 'Reviewer' }), 'out of which conversation');
+  assert.ok(!takes(remove, { to: 'Claude (tags)', guest: '' }));
+});
+
+test('a removal the user asked for goes unasked, and any other the user approves first, as an invite', () => {
+  const held = new Set();
+  const { tool } = setup({
+    contacts: [{ id: 'm1' }],
+    managers: removingFor({ startsAtOnce: (id) => !held.has(id) }),
+    agents: AGENTS,
+  });
+  const remove = tool('m1', APP_TOOLS.remove);
+  const input = { to: 'Claude (tags)', guest: 'Reviewer' };
+  assert.equal(remove.ask({ ...input, asked_by_user: true }), false);
+  assert.equal(remove.ask(input), true);
+  assert.equal(remove.ask({ ...input, asked_by_user: false }), true);
+  // Acting on a project manager's message the user did not approve, what the agent says the user asked is not so.
+  held.add('m1');
+  assert.equal(remove.ask({ ...input, asked_by_user: true }), true);
+});
+
+test('a removal is shown as who leaves which conversation, and is the manager’s, with the agent’s answer', async () => {
+  const managers = removingFor();
+  const { tool } = setup({ contacts: [{ id: 'm1' }], managers, agents: AGENTS });
+  const remove = tool('m1', APP_TOOLS.remove);
+  assert.deepEqual(appActivity(APP_TOOLS.remove, { to: ' Claude (tags) ', guest: ' Reviewer ' }), {
+    kind: 'app',
+    action: 'remove',
+    label: 'Claude (tags)',
+    agent: 'Reviewer',
+  });
+  assert.equal(await remove.run({ to: ' Claude (tags)', guest: 'Reviewer ', asked_by_user: true }), 'Left.');
+  assert.deepEqual(managers.calls, [['remove', 'm1', { to: 'Claude (tags)', guest: 'Reviewer' }]]);
+});
+
+test('a manager is told an invite replaces nobody, and a guest is replaced by taking it out first', () => {
+  const { tool } = setup({ contacts: [{ id: 'm1' }], managers: removingFor(), agents: AGENTS });
+  assert.match(
+    tool('m1', APP_TOOLS.invite).description,
+    /One of the same role on the same service is there already, whoever added it and on whatever model: to replace a guest, such as a reviewer with another role or model, take it out with remove_from_conversation first\./
+  );
+  const { description } = tool('m1', APP_TOOLS.remove);
+  assert.match(description, /whether you invited it or the user did/);
+  assert.match(description, /stopped if it is at work/);
+  assert.match(description, /The worker’s own agent stays\./);
 });
 
 test('agents in a new conversation can have a model, an effort level and a role, and a service alone still works', async () => {

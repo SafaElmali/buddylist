@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { diffOf, listChanges } from './changes.js';
 import { projectOfKey } from './run-command.js';
+import { APP_TOOLS } from '../shared/app-tools.js';
 import { sameName } from '../shared/mentions.js';
 import {
   BRIEF_MAX,
@@ -147,13 +148,14 @@ export class Managers {
    * @param {Pick<import('./storage/store.js').Store, 'contacts' | 'getContact' | 'addContact' | 'settings' | 'profile'>} deps.store
    * @param {Pick<import('./storage/history.js').History, 'read'>} deps.history
    * @param {Pick<import('./project-settings.js').Projects, 'known' | 'settings' | 'update'>} deps.projects
-   * @param {Pick<import('./conversations.js').Conversations, 'pass' | 'notice' | 'handoffsChanged' | 'view' | 'end' | 'reset' | 'restoreContact' | 'setModel' | 'inviteAsked' | 'waitingOn' | 'answerFor'> & Partial<Pick<import('./conversations.js').Conversations, 'hurryNote' | 'stopped' | 'atPlanLimit' | 'switchProvider' | 'withdraw' | 'managerAnswered'>>} deps.conversations
+   * @param {Pick<import('./conversations.js').Conversations, 'pass' | 'notice' | 'handoffsChanged' | 'view' | 'end' | 'reset' | 'restoreContact' | 'setModel' | 'inviteAsked' | 'participants' | 'uninvite' | 'waitingOn' | 'answerFor'> & Partial<Pick<import('./conversations.js').Conversations, 'hurryNote' | 'stopped' | 'atPlanLimit' | 'switchProvider' | 'withdraw' | 'managerAnswered'>>} deps.conversations
    * @param {(id: string) => import('../providers/contract.js').ProviderDescriptor} deps.descriptor  a service, by id
    * @param {string[]} deps.worktreesHomes  where contacts' worktrees go, and went before: a project's are in a folder of its name
    * @param {() => void} deps.onContactsChanged  a manager was added, put back on the list, or turned off
    * @param {(key: string) => void} deps.onProjectChanged  a manager saved its project's brief
    * @param {() => void} [deps.onInvited]  a manager invited an agent into one of its workers, which joined: for
    *   analytics.js to count
+   * @param {() => void} [deps.onRemoved]  a manager took a guest out of one of its workers: for analytics.js to count
    * @param {() => void} [deps.onAnswered]  a manager answered a card of questions one of its workers waited on: for
    *   analytics.js to count, as the user's answer is
    * @param {{ list: typeof listChanges, diff: typeof diffOf }} [deps.changes]  stand-ins for tests: what a folder
@@ -169,6 +171,7 @@ export class Managers {
     onContactsChanged,
     onProjectChanged,
     onInvited = () => {},
+    onRemoved = () => {},
     onAnswered = () => {},
     changes = { list: listChanges, diff: diffOf },
   }) {
@@ -181,6 +184,7 @@ export class Managers {
     this.onContactsChanged = onContactsChanged;
     this.onProjectChanged = onProjectChanged;
     this.onInvited = onInvited;
+    this.onRemoved = onRemoved;
     this.onAnswered = onAnswered;
     this.changes = changes;
   }
@@ -1366,7 +1370,12 @@ export class Managers {
       message: said,
     });
     const where = `${worker.name}’s conversation`;
-    if (joined.already) return `${joined.agent} is in ${where} already, as ${joined.name}. Nobody else joined.`;
+    if (joined.already) {
+      return (
+        `${joined.agent} is in ${where} already, as ${joined.name}. Nobody else joined. To have it on another model ` +
+        `or effort level, take it out with ${APP_TOOLS.remove}, then invite it again.`
+      );
+    }
     this.onInvited();
     const answers = (role ?? REVIEW_ROLE).answers;
     const when = joined.starts
@@ -1383,6 +1392,35 @@ export class Managers {
       `${joined.agent} has joined ${where} as ${joined.name}. ${when} ` +
       `What it says there reaches you in ${worker.name}’s notes, once its round is over.`
     );
+  }
+
+  /**
+   * A manager takes a guest out of one of its workers' conversations (see remove_from_conversation in
+   * main/app-tools.js), by its name as the Agents tab shows it: one it invited, or one the user did. It leaves as the
+   * Agents tab's Remove has it leave (see Conversations.uninvite): stopped where it is at work. Throws, for the manager,
+   * for a conversation it doesn't oversee, the worker's own agent, and a guest that isn't there.
+   * @param {string} managerId
+   * @param {{ to: string, guest: string }} asked
+   * @returns {Promise<string>}  what the manager is told
+   */
+  async remove(managerId, { to, guest: name }) {
+    const { manager, project } = this.#asking(managerId);
+    const worker = this.#worker(manager, project, to);
+    const wanted = String(name ?? '').trim();
+    const guests = this.conversations.participants(worker.id).filter((one) => !one.host);
+    const guest = guests.find((one) => sameName(one.name, wanted));
+    if (!guest && sameName(worker.name, wanted)) {
+      throw new Error(`${worker.name} is its own agent, not a guest: only its guests can be taken out.`);
+    }
+    const where = `${worker.name}’s conversation`;
+    if (!guest) {
+      const there = guests.length ? `Its guests are ${listed(guests.map((one) => one.name))}.` : 'It has no guests.';
+      throw new Error(`${wanted} isn’t in ${where}. ${there}`);
+    }
+    const busy = ['connecting', 'working', 'waiting'].includes(guest.state);
+    await this.conversations.uninvite(worker.id, guest.id);
+    this.onRemoved();
+    return `${guest.name} has left ${where}.${busy ? ' It was at work there, and was stopped.' : ''}`;
   }
 
   /**

@@ -490,6 +490,8 @@ function startApp(errorReports, electronUpdater) {
     onProjectChanged: (key) => broadcast(EVENTS.projectChanged, { key, settings: projects.settings(key) }),
     // As an agent the user invites is counted, from where it came: who it was stays here.
     onInvited: () => analytics.capture('agent invited', { from: 'manager' }),
+    // And one it takes out, as one the user takes out is.
+    onRemoved: () => analytics.capture('agent removed', { host: false, from: 'manager' }),
     // As the user's answer to a question is counted, with who gave it: what it answered stays here.
     onAnswered: () => analytics.capture('invitation answered', { answer: 'answer', by: 'manager' }),
   });

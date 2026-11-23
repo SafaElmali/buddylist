@@ -1476,9 +1476,10 @@ export class Conversations {
    * with the role's model and effort where none was asked for of the role's service, and the role's mode on its
    * service (see roleMode). A manager's without a role is a
    * reviewer (REVIEW_ROLE); any other is a new agent as Invite's New tab makes one. One that is to change no files
-   * and has no way not to, such as Hermes, can't join. The same agent asked for again by the same manager is there
-   * already. With `message`, a manager's joins with a turn of its own for it, after anyone in line. Throws a sentence
-   * for the agent if it can't join, and nothing is kept of it then.
+   * and has no way not to, such as Hermes, can't join. A manager's is there already where a guest of the same role on
+   * the same service is, whoever added that one and on whatever model. With `message`, a manager's joins with a turn
+   * of its own for it, after anyone in line. Throws a sentence for the agent if it can't join, and nothing is kept of
+   * it then.
    * @param {string} contactId  the host
    * @param {object} asked
    * @param {string} asked.provider  its service, by id
@@ -1505,20 +1506,21 @@ export class Conversations {
         `${provider.name} can’t work read-only, so it can’t join as ${as.name}. Pick a service that can, such as Claude or Codex.`
       );
     }
+    const agentOf = (label) => `${provider.name}${label ? ` (${label})` : ''}`;
+    // The same role on the same service is there already, whoever added it and on whatever model or effort level: a
+    // second would only be its namesake with a number. One the manager wants on another model it takes out first.
+    const there =
+      by &&
+      this.#guests(host).find(({ contact }) => contact.role === as?.id && contact.provider === provider.id)?.contact;
+    if (there) {
+      const agent = agentOf(this.modelLabel(provider.id, there.model));
+      return { id: there.id, name: there.name, agent, already: true, starts: false };
+    }
     // The role's own model and effort, where none was asked for of the role's service: the nearest level its model
     // takes, as a role invited by hand gets.
     const own = role && role.provider === provider.id && !String(model).trim() && !String(effort).trim();
     const chosen = own ? await this.#roleModel(provider, role) : await this.#askedModel(provider, model, effort);
-    const agent = `${provider.name}${chosen.label ? ` (${chosen.label})` : ''}`;
-    const there = this.#guests(host).find(
-      ({ contact }) =>
-        by &&
-        contact.invitedBy === by.id &&
-        contact.provider === provider.id &&
-        contact.model === chosen.model &&
-        contact.role === as?.id
-    );
-    if (there) return { id: there.contact.id, name: there.contact.name, agent, already: true, starts: false };
+    const agent = agentOf(chosen.label);
     if ((host.guests?.length ?? 0) >= MOST_AT_ONCE) {
       throw new Error(`${host.name} has ${MOST_AT_ONCE} agents in it besides its own, as many as an agent can invite.`);
     }
