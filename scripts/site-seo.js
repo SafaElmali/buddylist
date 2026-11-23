@@ -204,11 +204,10 @@ export function llmsTxt(url, { description, sections, faq }, docs = []) {
 
 /**
  * llms.txt with every guide after it, in full, for a model that reads one file rather than
- * following its links.
- * @param {{ file: string, title: string, about: string, path: string }[]} docs  the guides (scripts/site-docs.js)
- * @param {(file: string) => string} read  a guide's Markdown, by its name in docs/
+ * following its links. Each guide is its Markdown copy, which links where its page does.
+ * @param {{ file: string, title: string, about: string, path: string, markdown: string }[]} docs  the guides (scripts/site-docs.js)
  */
-export function llmsFullTxt(url, facts, docs, read) {
-  const guides = docs.map(({ file, path }) => `---\n\nFrom ${url}${path}\n\n${read(file).trim()}\n`);
+export function llmsFullTxt(url, facts, docs) {
+  const guides = docs.map(({ path, markdown }) => `---\n\nFrom ${url}${path}\n\n${markdown.trim()}\n`);
   return [llmsTxt(url, facts, docs), ...guides].join('\n');
 }
