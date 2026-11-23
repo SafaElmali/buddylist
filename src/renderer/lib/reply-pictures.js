@@ -5,7 +5,7 @@
 // and the same card.
 import { el, html, raw } from './dom.js';
 import { basename } from '../../shared/activity-text.js';
-import { githubPicture, isWebPicture, NOT_SHOWN } from '../../shared/web-pictures.js';
+import { githubPicture, isWebPicture, NOT_SHOWN, onGithubHost } from '../../shared/web-pictures.js';
 
 /** A picture in a frame: a hill and the sun. */
 const ICON =
@@ -164,7 +164,9 @@ export function showReplyPictures(root, { load = null, github = null } = {}) {
       const picture = { alt, address, inLink: Boolean(img.closest('a[href]')), load };
       const onGithub = Boolean(githubPicture(address));
       if (onGithub && github) img.replaceWith(github(address, alt));
-      else if (!onGithub || !load) img.replaceWith(pictureCard({ ...picture, reason: 'web' }));
+      // One gh can't read, as an uploaded attachment, opens in your browser, where you are signed in to GitHub.
+      else if (!onGithub || !load)
+        img.replaceWith(pictureCard({ ...picture, reason: onGithubHost(address) ? 'github' : 'web' }));
       else if (cameTo(load, address)) show(img, /** @type {Answer} */ (cameTo(load, address)), picture);
       else {
         const waiting = pictureCard({ ...picture, reason: 'loading' });

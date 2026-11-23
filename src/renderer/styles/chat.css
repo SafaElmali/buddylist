@@ -1641,6 +1641,11 @@
   line-height: 0;
 }
 
+/* What a picture that couldn't load says in its place is drawn in its own line-height, not squashed into the corner's. */
+.picture-reply-at > img {
+  line-height: normal;
+}
+
 /* That corner: there while the pointer is on the picture or Tab is on one of its buttons, as a diagram's Copy source
    is. Download takes no more room than its drawing, and Reply is where it always was. */
 .picture-actions {

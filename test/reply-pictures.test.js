@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { page } from './fixtures/dom.js';
 import { el, html, raw } from '../src/renderer/lib/dom.js';
 import { pictureCard, showReplyPictures } from '../src/renderer/lib/reply-pictures.js';
@@ -182,13 +183,13 @@ test('a picture on another computer, or a file that isn’t there, is a card too
   );
 });
 
-test('with no way to load it, as in a file a tab shows, a GitHub picture is a card like any on the web', (t) => {
+test('with no way to load it, as in a file a tab shows, a GitHub picture is a card that says it needs a GitHub sign-in', (t) => {
   page(t);
   const node = reply(`<p><img alt="cart page" data-web="${CART}" /></p>`);
   showReplyPictures(node);
   assert.deepEqual(said(node.querySelector('.picture-card')), {
     alt: 'cart page',
-    why: `${NOT_SHOWN.web} · github.com`,
+    why: `${NOT_SHOWN.github} · github.com`,
     open: CART,
     load: null,
   });
@@ -206,4 +207,32 @@ test('a GitHub picture is put in place by `github` where it is given, as the pho
   assert.deepEqual(made, [[CART, 'cart page']]);
   assert.equal(node.querySelectorAll('.ph-reply-pic').length, 1);
   assert.equal(said(node.querySelector('.picture-card')).alt, 'receipt', 'one on another site is a card as ever');
+});
+
+test('a GitHub link gh can’t read, as an uploaded attachment, says it needs a GitHub sign-in, with Open link and no Load', async (t) => {
+  page(t);
+  const { asked, load } = loader(() => assert.fail('asked'));
+  const attachment = 'https://github.com/user-attachments/assets/0f0e6b2c-1111-2222-3333-444455556666';
+  const signed = 'https://private-user-images.githubusercontent.com/1/2.png?jwt=x';
+  const node = reply(
+    `<p><img alt="cart page" data-web="${attachment}" /></p><p><img alt="coupon" data-web="${signed}" /></p>`
+  );
+  showReplyPictures(node, { load });
+  assert.deepEqual(node.querySelectorAll('.picture-card').map(said), [
+    { alt: 'cart page', why: `${NOT_SHOWN.github} · github.com`, open: attachment, load: null },
+    { alt: 'coupon', why: `${NOT_SHOWN.github} · private-user-images.githubusercontent.com`, open: signed, load: null },
+  ]);
+  await settle();
+  assert.deepEqual(asked, [], 'nothing is asked of gh for it');
+});
+
+test('a picture that couldn’t load inside its corner keeps its words readable: the corner’s line-height is not theirs', () => {
+  const css = fs.readFileSync(new URL('../src/renderer/styles/chat.css', import.meta.url), 'utf8');
+  const rule = (selector) => {
+    const at = css.indexOf(`\n${selector} {`);
+    assert.ok(at >= 0, `chat.css has ${selector}`);
+    return css.slice(at, css.indexOf('}', at));
+  };
+  assert.match(rule('.picture-reply-at'), /line-height: 0;/, 'no gap under a picture that loads');
+  assert.match(rule('.picture-reply-at > img'), /line-height: normal;/);
 });

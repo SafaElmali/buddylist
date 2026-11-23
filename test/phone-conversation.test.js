@@ -2295,8 +2295,10 @@ test('a reply’s picture on GitHub is asked of the Mac in a tile; one on anothe
 test('a GitHub picture the Mac won’t load unasked is a card: Load with GitHub asks for it again, asked', async (t) => {
   const document = page(t);
   const kit = 'https://github.com/example/design-kit/blob/main/coupon.png?raw=true';
+  const lfs = 'https://github.com/example/shop/blob/main/big.png';
   const { asked, picture } = pictureAsked(async (_id, which) => {
     if (which.web === kit && !which.asked) throw new Error('ask');
+    if (which.web === lfs) throw new Error('not-picture');
     if (which.web !== kit) throw failed(NOT_SENT);
     return copyOf();
   });
@@ -2305,6 +2307,7 @@ test('a GitHub picture the Mac won’t load unasked is a card: Load with GitHub 
     html`<div class="md">
       <p><img alt="coupon field" data-web="${kit}" /></p>
       <p><img alt="cart" data-web="https://github.com/example/shop/blob/main/cart.png" /></p>
+      <p><img alt="big" data-web="${lfs}" /></p>
     </div>`
   );
   document.body.append(reply);
@@ -2317,14 +2320,16 @@ test('a GitHub picture the Mac won’t load unasked is a card: Load with GitHub 
   showReplyPictures(reply, { github: (address, alt) => githubTile(address, alt, { pictures, who: 'Claude' }) });
   await settle();
   await settle();
-  const card = reply.querySelector('.picture-card');
+  const [card, notPicture] = reply.querySelectorAll('.picture-card');
   assert.equal(card.querySelector('.picture-card-why').textContent, `${NOT_SHOWN.ask} · github.com`);
-  assert.equal(reply.querySelectorAll('.picture-card').length, 1, 'one the connection lost stays a tile, to tap again');
+  assert.equal(notPicture.querySelector('.picture-card-why').textContent, `${NOT_SHOWN['not-picture']} · github.com`);
+  assert.equal(notPicture.querySelector('.picture-card-load'), null, 'loading again would not help');
+  assert.equal(reply.querySelectorAll('.picture-card').length, 2, 'one the connection lost stays a tile, to tap again');
   assert.equal(reply.querySelector('.ph-pic').dataset.state, 'failed');
   card.querySelector('.picture-card-load').click();
   await settle();
   await settle();
-  assert.equal(reply.querySelectorAll('.picture-card').length, 0);
+  assert.equal(reply.querySelectorAll('.picture-card').length, 1);
   const shown = reply.querySelectorAll('.ph-pic').find((tile) => tile.dataset.state === 'shown');
   assert.match(shown.querySelector('img').getAttribute('src'), /^blob:/);
   assert.equal(shown.parentElement.querySelector('.ph-reply-pic-said').textContent, 'coupon field');

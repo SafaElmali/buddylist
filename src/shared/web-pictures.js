@@ -6,6 +6,20 @@
 /** Whether a picture's address is on the web. @param {unknown} address */
 export const isWebPicture = (address) => /^https?:\/\//i.test(String(address ?? '').trim());
 
+/**
+ * Whether a picture's address is on GitHub, readable through gh or not: github.com, or one of its own picture hosts, as an
+ * uploaded attachment's (private-user-images.githubusercontent.com).
+ * @param {unknown} address
+ */
+export function onGithubHost(address) {
+  if (!isWebPicture(address)) return false;
+  try {
+    return /(^|\.)github(usercontent)?\.com$/.test(new URL(String(address).trim()).hostname);
+  } catch {
+    return false;
+  }
+}
+
 /** An owner's or a repository's name, as GitHub has them. */
 const NAME = /^[\w.-]+$/;
 
@@ -47,6 +61,7 @@ export function githubPicture(address) {
  */
 export const NOT_SHOWN = {
   web: 'Couldn’t load: pictures on the web open in your browser',
+  github: 'Couldn’t load: it needs a GitHub sign-in',
   loading: 'Loading from GitHub…',
   ask: 'Couldn’t load: it needs a GitHub sign-in',
   'signed-out': 'Couldn’t load: the GitHub CLI isn’t signed in',

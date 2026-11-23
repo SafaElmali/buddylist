@@ -101,10 +101,26 @@ test('nothing else is a GitHub picture: no other host, no sign-in in the address
     'https://github.com/example/shop/blob/main//a.png',
     'https://github.com/example/sh%2Fop/blob/main/a.png',
     'https://raw.githubusercontent.com/example/shop/main',
+    'https://github.com/login?return_to=https%3A%2F%2Fcdn.example.com%2Fa.png',
+    'https://github.com/example/shop/blob/main/..%2F..%2Fother%2Fa.png',
     'file:///tmp/a.png',
     'not an address',
   ])
     assert.equal(githubPicture(address), null, address);
+});
+
+test('a query or a fragment that names another site goes nowhere: gh is asked github.com for the file the path names', async () => {
+  const { asked, run } = fakeGh();
+  for (const address of [
+    'https://github.com/example/shop/blob/main/a.png?raw=true&redirect=https://cdn.example.com/x.png',
+    'https://github.com/example/shop/blob/main/a.png#https://cdn.example.com/x.png',
+  ])
+    await loadGithubPicture(address, { folder: '/code/shop', gh: run, git: OWN });
+  for (const { args } of asked) {
+    assert.deepEqual(args.slice(0, 3), ['api', '--hostname', 'github.com']);
+    assert.equal(args.at(-1), 'repos/example/shop/contents/a.png?ref=main');
+  }
+  assert.equal(asked.length, 2);
 });
 
 test('each reason a card gives is told from an error that is it, as a phone hears it; any other error is none', () => {
