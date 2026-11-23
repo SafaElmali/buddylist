@@ -214,12 +214,12 @@ copies v0.2.8–v0.2.14    ask SafaElmali/buddylist-releases ─┐ GitHub's red
 copies v0.2.15 and later ask SafaElmali/buddylist ──────────┴→ SafaElmali/buddylist (public source + releases)
 ```
 
-Up to v0.2.14, releases were published to SafaElmali/buddylist-releases while the source was private. From v0.2.15 to v0.2.20 the source was public as SafaElmali/buddylist and published its own releases. On 2026-10-17 the source went private again: it was renamed to SafaElmali/buddylist-app, and buddylist-releases was renamed to SafaElmali/buddylist, with the releases from v0.2.16 to v0.2.20 copied into it. So every name a copy asks for is that public repository, the old one by GitHub's redirect for a renamed repository, and the website's download link never changed.
+Up to v0.2.14, releases were published to SafaElmali/buddylist-releases while the source was private. From v0.2.15 to v0.2.20 the source was public as SafaElmali/buddylist and published its own releases. On 2026-10-17 the source went private again: it was renamed to SafaElmali/buddylist-app, and buddylist-releases was renamed to SafaElmali/buddylist, with the releases from v0.2.16 to v0.2.20 copied into it. So every name a copy asks for is that public repository, the old one by GitHub's redirect for a renamed repository, and the website's download link never changed. SafaElmali/buddylist-app was deleted on 2026-11-23; that changes nothing for updates, since every copy asks for the public SafaElmali/buddylist, by name or through the buddylist-releases redirect.
 
 Two things keep it that way:
 
 - **Never create a repository named buddylist-releases.** It would take the old name and end the redirect that copies up to v0.2.14 follow.
-- **Never push private history or archival media refs to the public repository.** Public development starts with the reviewed source snapshot on the existing public history. Keep old private branches and `pr-media/*` refs in the private repository; do not merge them into a public branch or push all tags.
+- **Never push private history or archival media refs to the public repository.** Public development starts with the reviewed source snapshot on the existing public history. The old private repositories were deleted on 2026-11-23, and their branches and `pr-media/*` refs exist only in a maintainer's local clone; do not merge them into a public branch or push all tags.
 
 ### Copies without the updater: announce and replace the app
 

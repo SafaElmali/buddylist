@@ -8,12 +8,16 @@ where installed applications expect them. Do not create a repository named
 ## Private history
 
 The public source starts with a reviewed snapshot on top of the existing public
-history. Keep `SafaElmali/buddylist-app` and `SafaElmali/buddylist-private` private.
-Do not merge their branches into public development, push their tags, or mirror
-their refs. They contain historical account screenshots and workstation details.
-To resume an old change, review its diff and apply only the intended files on a
-new public branch. Keep the private source repo writable until its outstanding
-pull requests have been handled; archive it only after the transition is verified.
+history. The two private repositories that held the earlier history,
+`SafaElmali/buddylist-app` and `SafaElmali/buddylist-private`, were deleted on
+2026-11-23. Their history and old `pr-media/*` media now exist only in a
+maintainer's local clone, never on GitHub. Their five still-open ideas were
+carried over as public issues #72, #73, #74, #75 and #77.
+
+Never push that history or its tags to the public repository: do not merge its
+branches into public development, push its tags, or mirror its refs. It contains
+historical account screenshots and workstation details. To resume an old change,
+review its diff and apply only the intended files on a new public branch.
 
 A local pre-push hook in a checkout holding both histories must check **all root
 commits** reachable from each outgoing commit, including annotated tags. Merely
@@ -24,7 +28,8 @@ contains private history. Public pushes must have only the existing public root.
 
 Keep automatically deleting merged head branches enabled. Preserve branches with
 open pull requests. Before deleting any other branch, verify its work was merged
-or superseded. Keep historical `pr-media/*` tags in the private repositories.
+or superseded. Historical `pr-media/*` tags from the private history stay in
+that local clone; never push them here.
 
 Public PR screenshots, recordings, CI artifacts and logs are public. Use the
 synthetic-account harnesses; inspect proof for real emails, project names and
