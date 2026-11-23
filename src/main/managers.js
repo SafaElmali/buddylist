@@ -6,8 +6,8 @@
 // at the workers and their diffs, and keeps the project's brief and its sources. Once
 // its context window fills, it writes the brief for a fresh session, which takes over from it.
 //
-// A project can also have a project manager (`leads` on its contact): a manager over the project's managers at work,
-// which oversees no conversation. It acts on what the user asks through the managers, handing a worker's job from one
+// A project can also have project managers (`leads` on a contact): each over the project's managers at work that its
+// list names, or over all of them but the ones the others picked (see leadOfEach), and over no conversation. It acts on what the user asks through the managers, handing a worker's job from one
 // team to another, and hears from the managers alone: their answers to its messages and their reports, never their
 // workers' changes, so that its context stays small. It looks at the teams when it needs to.
 import crypto from 'node:crypto';
@@ -20,6 +20,7 @@ import { sameName } from '../shared/mentions.js';
 import {
   BRIEF_MAX,
   HANDOVER_AT,
+  LEADS_MAX,
   MANAGERS_MAX,
   MESSAGE_MAX,
   REPORT_UP_MAX,
@@ -36,8 +37,11 @@ import {
   handoverNote,
   jobLines,
   jobsDropped,
+  jobsMoved,
   leadMessage,
+  leadOfEach,
   leadStartNote,
+  listedNames,
   managerGuestInstructions,
   managerInstructions,
   managerMessage,
@@ -58,6 +62,7 @@ import {
   startedFrom,
   taggedNote,
   takeoverNote,
+  teamNote,
   turnedOn,
   workerLines,
   workerNote,
@@ -107,9 +112,6 @@ const pullRequestLine = (pr) => {
   const tags = pullRequestTags(pr).map((tag) => tag.text);
   return `#${pr.number}${tags.length ? ` (${tags.join(', ')})` : ''}: ${pr.url}`;
 };
-
-/** The list of names, as a sentence says it: "A, B and C". */
-const listed = (names) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]);
 
 export class Managers {
   /** manager id:worker id -> what that manager was last told the worker said and changed: the same again is no
@@ -217,12 +219,40 @@ export class Managers {
   }
 
   /**
-   * A project's project manager, archived or not, turned on or not. Null for a project that has none.
+   * Which project manager oversees each of a project's managers (see leadOfEach): of the ones at work, or with
+   * `asIfAtWork`, of all of them, as they would be once at work.
    * @param {string} key
-   * @returns {Contact | null}
+   * @param {{ asIfAtWork?: boolean }} [opts]
+   * @returns {Map<string, string>}  manager -> project manager, by id
    */
-  #leadOfKey(key) {
-    return this.#managersOf(key).find((one) => one.leads) ?? null;
+  #ledBy(key, { asIfAtWork = false } = {}) {
+    return leadOfEach(
+      this.#withSettings(key).map(([one, settings]) => {
+        const as = asIfAtWork && !one.leads;
+        return {
+          id: one.id,
+          leads: one.leads,
+          archived: !as && Boolean(one.archived),
+          settings: as ? { ...settings, on: true } : settings,
+        };
+      })
+    );
+  }
+
+  /**
+   * A project's managers as #managersOf has them, each with what it is set up with, the project's settings read once:
+   * the contact list asks this of each manager every time it is drawn.
+   * @param {string} key
+   * @returns {[Contact, ManagerSettings][]}
+   */
+  #withSettings(key) {
+    const { manager, managers } = this.projects.settings(key);
+    const first = this.#managerOfKey(key);
+    const others = managers.flatMap((one) => {
+      const contact = this.store.getContact(one.id ?? '');
+      return contact?.manages === key ? [/** @type {[Contact, ManagerSettings]} */ ([contact, one])] : [];
+    });
+    return first ? [[first, manager], ...others] : others;
   }
 
   /**
@@ -243,17 +273,22 @@ export class Managers {
    */
   leadOf(contact) {
     if (!contact?.manages || contact.leads || contact.archived || !this.oversees(contact)) return null;
-    const lead = this.#leadOfKey(contact.manages);
-    return lead && !lead.archived && this.oversees(lead) ? lead : null;
+    const lead = this.#ledBy(contact.manages).get(contact.id);
+    return lead ? (this.store.getContact(lead) ?? null) : null;
   }
 
   /**
-   * The managers a project manager oversees: its project's at work, itself aside, its first first.
+   * The managers a project manager oversees: the ones at work its list names, or all of them but the ones another's
+   * list names (see leadOfEach), its first first. With `asIfAtWork`, the ones turned off or put away that it would
+   * oversee once at work too.
    * @param {Contact} lead
+   * @param {{ asIfAtWork?: boolean }} [opts]
    * @returns {Contact[]}
    */
-  managersUnder(lead) {
-    return this.leads(lead) ? this.#managersOf(lead.manages).filter((one) => this.leadOf(one)?.id === lead.id) : [];
+  managersUnder(lead, { asIfAtWork = false } = {}) {
+    if (!this.leads(lead)) return [];
+    const ledBy = this.#ledBy(lead.manages, { asIfAtWork });
+    return this.#managersOf(lead.manages).filter((one) => ledBy.get(one.id) === lead.id);
   }
 
   /**
@@ -294,7 +329,7 @@ export class Managers {
 
   /**
    * Keeps what one of a project's managers is set up with: the one `settings` names among the others, or else the
-   * first.
+   * first. A project manager's list of managers stays as it is: Assign managers... changes it (see assignManagers).
    * @param {string} key
    * @param {ManagerSettings} settings
    * @returns {ManagerSettings}  as it is kept
@@ -306,7 +341,7 @@ export class Managers {
     }
     const kept = this.projects.updateManagers(
       key,
-      others.map((one) => (one.id === settings.id ? settings : one))
+      others.map((one) => (one.id === settings.id ? { ...settings, team: one.team } : one))
     );
     return /** @type {ManagerSettings} */ (kept.managers.find((one) => one.id === settings.id));
   }
@@ -517,12 +552,27 @@ export class Managers {
     const { name } = projectOfKey(contact.manages);
     const settings = /** @type {ManagerSettings} */ (this.#settingsOf(contact));
     // The project's other managers at work, each with conversations of its own.
-    const others = this.#managersOf(contact.manages)
-      .filter((one) => one.id !== contact.id && !one.leads && !one.archived && this.oversees(one))
-      .map((one) => one.name);
+    const others = this.#managersOf(contact.manages).filter(
+      (one) => one.id !== contact.id && !one.leads && !one.archived && this.oversees(one)
+    );
+    const names = (list) => list.map((one) => one.name);
+    // The project manager it is, or the one over it, and the others under that one.
+    const ledBy = this.#ledBy(contact.manages);
+    const over = contact.leads ? contact.id : ledBy.get(contact.id);
+    const lead = !contact.leads && over ? this.store.getContact(over) : null;
+    const under = (one) => ledBy.get(one.id) === over;
     const instructions = contact.leads
-      ? projectManagerInstructions(name, settings, { name: contact.name, managers: others })
-      : managerInstructions(name, settings, { name: contact.name, others, lead: this.leadOf(contact)?.name ?? '' });
+      ? projectManagerInstructions(name, settings, {
+          name: contact.name,
+          managers: names(others.filter(under)),
+          others: names(others.filter((one) => !under(one))),
+        })
+      : managerInstructions(name, settings, {
+          name: contact.name,
+          others: names(others),
+          lead: lead?.name ?? '',
+          leadsAll: others.every(under),
+        });
     return {
       instructions: guest
         ? managerGuestInstructions(
@@ -1308,7 +1358,7 @@ export class Managers {
       );
     }
     if (approvals.length && (!card || approvals.some((prompt) => prompt.requestId === card))) {
-      const what = listed(approvals.map((prompt) => APPROVALS[prompt.kind] ?? 'a permission'));
+      const what = listedNames(approvals.map((prompt) => APPROVALS[prompt.kind] ?? 'a permission'));
       const which =
         approvals.length === 1
           ? `an approval (${what}), which is`
@@ -1414,7 +1464,9 @@ export class Managers {
     }
     const where = `${worker.name}’s conversation`;
     if (!guest) {
-      const there = guests.length ? `Its guests are ${listed(guests.map((one) => one.name))}.` : 'It has no guests.';
+      const there = guests.length
+        ? `Its guests are ${listedNames(guests.map((one) => one.name))}.`
+        : 'It has no guests.';
       throw new Error(`${wanted} isn’t in ${where}. ${there}`);
     }
     const busy = ['connecting', 'working', 'waiting'].includes(guest.state);
@@ -1514,8 +1566,28 @@ export class Managers {
   }
 
   /**
+   * Throws, for a project manager to pass on, where `name` is a manager of its project at work that is not its own:
+   * whose it is, its own ones, and how the user puts it under it.
+   * @param {Contact} lead
+   * @param {string} name
+   */
+  #notYours(lead, name) {
+    const manager = this.#managersOf(lead.manages).find(
+      (one) => !one.leads && !one.archived && this.oversees(one) && sameName(one.name, name)
+    );
+    if (!manager) return;
+    const over = this.leadOf(manager);
+    const mine = this.managersUnder(lead).map((one) => one.name);
+    throw new Error(
+      `${manager.name} is ${over ? `${over.name}’s, not yours` : 'under no project manager'}, so you can’t message ` +
+        `it. ${mine.length ? `Your managers are: ${mine.join(', ')}.` : 'You have no manager at work.'} The user can ` +
+        `${over ? 'move' : 'put'} it ${over ? 'to' : 'under'} you with Assign managers...`
+    );
+  }
+
+  /**
    * One of the managers a project manager oversees, by name. Throws, for the project manager to pass on, for one that
-   * is turned off, put away or none of the project's, with the ones at work.
+   * is turned off, put away, another project manager's, or none of the project's, with the ones at work.
    * @param {Contact} lead
    * @param {string} project
    * @param {string} name
@@ -1526,11 +1598,26 @@ export class Managers {
     const found = working.find((one) => sameName(one.name, asked));
     if (found) return found;
     const atWork = working.length ? `The managers at work are: ${working.map((one) => one.name).join(', ')}.` : '';
+    this.#notYours(lead, asked);
     const other = this.#managersOf(lead.manages).find((one) => !one.leads && sameName(one.name, asked));
     if (other) {
       throw new Error(`${other.name} is ${other.archived ? 'put away' : 'turned off'}, so it can’t take it. ${atWork}`);
     }
     throw new Error(`No manager of ${project} is called “${asked}”. ${atWork || 'None is at work yet.'}`);
+  }
+
+  /**
+   * Which of a project's conversations a project manager may hand on or look at: the ones under a manager of its own,
+   * and the ones under no manager at work, which are nobody's team.
+   * @param {Contact} lead
+   * @returns {(worker: Contact) => boolean}
+   */
+  #reaches(lead) {
+    const mine = new Set(this.managersUnder(lead).map((one) => one.id));
+    return (worker) => {
+      const manager = this.managerOf(worker);
+      return !manager || mine.has(manager.id);
+    };
   }
 
   /**
@@ -1547,16 +1634,25 @@ export class Managers {
 
   /**
    * One of a project's conversations, by name, whose job a project manager hands on or looks at. Throws, with the
-   * ones there are, for one that is none of them.
-   * @param {string} key
+   * ones there are, for one that is none of them, and for one under another project manager's team.
+   * @param {Contact} lead
    * @param {string} project
    * @param {string} name
    */
-  async #jobOf(key, project, name) {
+  async #jobOf(lead, project, name) {
     const asked = String(name ?? '').trim();
-    const conversations = await this.#conversationsOf(key);
-    const found = conversations.find((one) => sameName(one.name, asked));
-    if (found) return found;
+    const all = await this.#conversationsOf(lead.manages);
+    const found = all.find((one) => sameName(one.name, asked));
+    const reaches = this.#reaches(lead);
+    if (found && reaches(found)) return found;
+    if (found) {
+      const manager = /** @type {Contact} */ (this.managerOf(found));
+      const over = this.leadOf(manager);
+      throw new Error(
+        `${found.name} is under ${manager.name}, which ${over ? `is ${over.name}’s, not yours` : 'no project manager oversees'}.`
+      );
+    }
+    const conversations = all.filter(reaches);
     const names = conversations.slice(0, TEAMS_LISTED).map((one) => one.name);
     throw new Error(
       `No conversation working on ${project} is called “${asked}”. ` +
@@ -1614,15 +1710,18 @@ export class Managers {
   async teams(leadId, { manager: managerName = '', conversation = '' } = {}) {
     const { lead, key, project } = this.#leading(leadId);
     if (String(conversation ?? '').trim()) {
-      const job = await this.#jobReport(await this.#jobOf(key, project, conversation));
+      const job = await this.#jobReport(await this.#jobOf(lead, project, conversation));
       return [`${job.name} (${job.provider}, ${job.status})`, jobLines(job)].join('\n');
     }
-    const managers = this.#managersOf(key).filter((one) => !one.leads);
-    if (String(managerName ?? '').trim()) {
-      const manager = managers.find((one) => sameName(one.name, String(managerName).trim()));
+    // Its own, the ones turned off or put away too, as it would have them back.
+    const managers = this.managersUnder(lead, { asIfAtWork: true });
+    const asked = String(managerName ?? '').trim();
+    if (asked) {
+      const manager = managers.find((one) => sameName(one.name, asked));
       if (!manager) {
+        this.#notYours(lead, asked);
         throw new Error(
-          `No manager of ${project} is called “${String(managerName).trim()}”. ` +
+          `No manager of ${project} is called “${asked}”. ` +
             (managers.length ? `These are: ${managers.map((one) => one.name).join(', ')}.` : 'It has none yet.')
         );
       }
@@ -1641,9 +1740,9 @@ export class Managers {
           : ['No conversation is under it.']),
       ].join('\n\n');
     }
-    const conversations = (await this.#conversationsOf(key)).sort(
-      (a, b) => (this.history.lastActive(b.id) ?? 0) - (this.history.lastActive(a.id) ?? 0)
-    );
+    const conversations = (await this.#conversationsOf(key))
+      .filter(this.#reaches(lead))
+      .sort((a, b) => (this.history.lastActive(b.id) ?? 0) - (this.history.lastActive(a.id) ?? 0));
     const listed = conversations.slice(0, TEAMS_LISTED);
     const lines = await Promise.all(
       listed.map(async (worker) => {
@@ -1701,9 +1800,9 @@ export class Managers {
     if (said.length > MESSAGE_MAX) throw new Error(`A message is at most ${MESSAGE_MAX} characters.`);
     // Whom it goes to, about which job, and whether it may go at all, are known before the user is asked.
     const check = async () => {
-      const { lead, key, project } = this.#leading(leadId);
+      const { lead, project } = this.#leading(leadId);
       const manager = this.#managerNamedBy(lead, project, to);
-      const worker = String(job ?? '').trim() ? await this.#jobOf(key, project, job) : null;
+      const worker = String(job ?? '').trim() ? await this.#jobOf(lead, project, job) : null;
       const limit = this.#limit();
       if (this.#sentSince(manager.id, lead.id).length >= limit) {
         throw this.#refused(
@@ -1808,8 +1907,7 @@ export class Managers {
       from: manager.id,
       said,
     });
-    const owed = this.#owed.get(manager.id);
-    for (const [noteKey, one] of owed ?? []) if (one.lead === lead.id) owed?.delete(noteKey);
+    this.#settled(manager.id, lead.id);
     return `${lead.name} has your report. Carry on meanwhile, without waiting for its answer.`;
   }
 
@@ -1976,7 +2074,7 @@ export class Managers {
     const parts = changedParts(before, after);
     this.conversations.pass(manager.id, {
       key: 'settings',
-      line: `Its ${listed(parts)} changed in Settings.`,
+      line: `Its ${listedNames(parts)} changed in Settings.`,
       note,
     });
   }
@@ -2079,11 +2177,12 @@ export class Managers {
    * Adds a manager to a project: a contact of the name given, in its main checkout, which oversees the
    * conversations put under it and starts by learning the project. A project without one has it for its first.
    * Another starts from nothing, or from what one of the project's managers is set up with (see startedFrom), with
-   * that one's brief or without. Throws, for the user, for no name or one another of its managers has, for a project
-   * with as many managers as one can have, for one whose main checkout is gone, and for a manager to start from that
-   * is none of the project's.
+   * that one's brief or without. A project manager (`lead`) oversees the managers `team` names, which leave the
+   * others' lists, or with none, or with `all`, all of them but the ones the others' lists name. Throws, for the user, for no name or one another of its managers has,
+   * for a project with as many managers or project managers as one can have, for a second one over all, for one whose
+   * main checkout is gone, and for a manager to start from that is none of the project's.
    * @param {string} key
-   * @param {{ name?: unknown, provider?: string, model?: unknown, link?: unknown, scope?: unknown, from?: unknown, withBrief?: unknown }} picked
+   * @param {{ name?: unknown, provider?: string, model?: unknown, link?: unknown, scope?: unknown, from?: unknown, withBrief?: unknown, lead?: unknown, team?: unknown, all?: unknown }} picked
    *   in "Add another manager": `from` is the manager it starts from, by id
    * @returns {Contact}
    */
@@ -2099,12 +2198,16 @@ export class Managers {
     const managers = this.#managersOf(key);
     const namesake = managers.find((one) => sameName(one.name, name));
     if (namesake) throw new Error(`${project} has a manager called ${namesake.name} already.`);
+    /** @type {{ team: string[] | undefined, ticked: string[] }} the managers it oversees, if a project manager */
+    let chosen = { team: undefined, ticked: [] };
     if (lead) {
-      const there = managers.find((one) => one.leads);
-      if (there) throw new Error(`${project} has a project manager already: ${there.name}.`);
-      if (!managers.some((one) => !one.archived)) {
+      if (managers.filter((one) => one.leads).length >= LEADS_MAX) {
+        throw new Error(`${project} has ${LEADS_MAX} project managers, as many as a project can have.`);
+      }
+      if (!managers.some((one) => !one.archived && !one.leads)) {
         throw new Error(`${project} has no manager yet. Add one first: a project manager oversees the managers.`);
       }
+      chosen = this.#pick(key, picked ?? {});
     } else if (managers.filter((one) => !one.leads).length >= MANAGERS_MAX) {
       throw new Error(`${project} has ${MANAGERS_MAX} managers, as many as a project can have.`);
     }
@@ -2120,6 +2223,7 @@ export class Managers {
     const model = typeof picked?.model === 'string' ? picked.model.trim() : '';
     const link = typeof picked?.link === 'string' ? picked.link : '';
     const provider = this.#provider(picked || {});
+    const before = this.#ledBy(key);
     const manager = this.store.addContact({
       provider: provider.id,
       name,
@@ -2143,15 +2247,146 @@ export class Managers {
       ...turnedOn(base, { model, link, provider: provider.id }),
       // It oversees managers: what it checks, the conversations it starts out over and its workers are none of its.
       ...(picked?.scope !== undefined && !lead && { scope: picked.scope }),
+      ...(chosen.team && { team: chosen.team }),
       id: manager.id,
     });
     if (first) this.projects.update(key, { manager: settings });
-    else this.projects.updateManagers(key, [...this.#others(key), settings]);
+    else this.#keepOthers(key, settings, chosen.ticked);
     this.onProjectChanged(key);
     this.#begin(manager, settings, lead ? {} : { from: from?.name, brief });
+    this.#teamsChanged(key, before, manager.id);
     // Its managers are drawn under it from now on.
     if (lead) this.onContactsChanged();
     return manager;
+  }
+
+  /**
+   * Puts the managers ticked under a project manager, from its Assign managers...: they leave the other project
+   * managers' lists. With `all`, it is over all of them, the ones added later too, but the ones another's list names;
+   * else over the ones ticked alone. The project managers whose managers changed are told, and one a manager left
+   * owing it a report hears where the report goes now. Throws, for the user, for a contact that is no project manager,
+   * for a second one over all, and for one ticked that is none of the project's managers.
+   * @param {string} leadId
+   * @param {{ all?: boolean, team?: unknown }} picked  `team`: the ones ticked, by id
+   * @returns {true}
+   */
+  assignManagers(leadId, { all = false, team = [] } = {}) {
+    const lead = this.store.getContact(leadId);
+    if (!lead || !this.leads(lead)) throw new Error('Only a project manager oversees managers.');
+    const key = lead.manages;
+    const picked = this.#pick(key, { all, team }, lead.id);
+    const before = this.#ledBy(key);
+    this.#keepOthers(
+      key,
+      { .../** @type {ManagerSettings} */ (this.#settingsOf(lead)), team: picked.team },
+      picked.ticked
+    );
+    this.#teamsChanged(key, before);
+    this.onProjectChanged(key);
+    this.onContactsChanged();
+    return true;
+  }
+
+  /**
+   * What a project manager is picked to oversee: `team`, the managers ticked, by id, each once (anything but a list is
+   * none), or with `all`, or no `team` at all, all of them, which another project manager than `besides` mustn't be
+   * over already. Throws, for the user, for that, and for one ticked that is none of the project's managers.
+   * @param {string} key
+   * @param {{ all?: unknown, team?: unknown }} picked
+   * @param {string} [besides]  the project manager it is for, by id, where it is there already
+   * @returns {{ team: string[] | undefined, ticked: string[] }}  `team`: its list, undefined for all; `ticked`: the ones
+   *   that leave the others' lists
+   */
+  #pick(key, { all, team }, besides = '') {
+    const managers = this.#withSettings(key);
+    const ticked = [...new Set(Array.isArray(team) ? team.map(String) : [])];
+    if (ticked.some((id) => !managers.some(([one]) => one.id === id && !one.leads))) {
+      throw new Error(`Only ${projectOfKey(key).name}’s managers can be under its project manager.`);
+    }
+    if (all !== true && team !== undefined) return { team: ticked, ticked };
+    const [overAll] = managers.find(([one, settings]) => one.leads && one.id !== besides && !settings.team) ?? [];
+    if (overAll) {
+      throw new Error(
+        `${projectOfKey(key).name} has a project manager over all of its managers already: ${overAll.name}. ` +
+          'Tick the managers this one oversees.'
+      );
+    }
+    return { team: undefined, ticked };
+  }
+
+  /**
+   * A project's other managers' settings, the project managers' lists without the managers picked for another: a
+   * manager is on one list at most.
+   * @param {ManagerSettings[]} others
+   * @param {string[]} picked
+   */
+  #takenFrom(others, picked) {
+    return others.map((one) => (one.team ? { ...one, team: one.team.filter((id) => !picked.includes(id)) } : one));
+  }
+
+  /**
+   * Keeps what one of a project's other managers is set up with, added or in its place, with the managers ticked for a
+   * project manager off the others' lists (see #takenFrom).
+   * @param {string} key
+   * @param {ManagerSettings} settings
+   * @param {string[]} [ticked]
+   */
+  #keepOthers(key, settings, ticked = []) {
+    const others = this.#takenFrom(this.#others(key), ticked);
+    this.projects.updateManagers(
+      key,
+      others.some((one) => one.id === settings.id)
+        ? others.map((one) => (one.id === settings.id ? settings : one))
+        : [...others, settings]
+    );
+  }
+
+  /**
+   * What a manager owed a project manager a report on, taken: it reported, or it is that one's no more.
+   * @param {string} managerId
+   * @param {string} leadId
+   * @returns {string[]}  each, as the project manager is told it: a worker's job, or a message's beginning
+   */
+  #settled(managerId, leadId) {
+    const owed = this.#owed.get(managerId);
+    return [...(owed ?? [])].flatMap(([noteKey, one]) =>
+      one.lead === leadId ? (owed?.delete(noteKey), [one.about]) : []
+    );
+  }
+
+  /**
+   * The managers of a project went under other project managers: each project manager whose managers changed is told
+   * the ones it has now, and one a manager left owing it a report, where that report goes.
+   * @param {string} key
+   * @param {Map<string, string>} before  manager -> project manager, by id, as it was (see #ledBy)
+   * @param {string} [besides]  a project manager not to tell, by id: one just added, which starts by looking
+   */
+  #teamsChanged(key, before, besides = '') {
+    const after = this.#ledBy(key);
+    const under = (map, leadId) => [...map].filter(([, id]) => id === leadId).map(([managerId]) => managerId);
+    for (const leadId of new Set([...before.values(), ...after.values()])) {
+      const now = under(after, leadId);
+      if (leadId === besides || now.join() === under(before, leadId).join()) continue;
+      const names = now.map((id) => this.store.getContact(id)?.name ?? '');
+      this.conversations.pass(leadId, {
+        key: 'team',
+        line: `Its managers changed: ${names.length ? listedNames(names) : 'none'}.`,
+        note: teamNote(names),
+      });
+    }
+    for (const [managerId, leadId] of before) {
+      if (after.get(managerId) === leadId) continue;
+      const jobs = this.#settled(managerId, leadId);
+      if (!jobs.length) continue;
+      const manager = /** @type {Contact} */ (this.store.getContact(managerId));
+      const to = this.store.getContact(after.get(managerId) ?? '')?.name ?? '';
+      this.conversations.pass(leadId, {
+        key: `gone:${managerId}`,
+        line: `${manager.name} is ${to ? `${to}’s` : 'under no project manager'} now, before it reported back.`,
+        note: jobsMoved(manager.name, to, jobs),
+        from: managerId,
+      });
+    }
   }
 
   /**
@@ -2188,7 +2423,8 @@ export class Managers {
     if (!settings) return;
     const key = contact.manages;
     if (!contact.leads) this.#gone(contact, 'deleted');
-    const others = this.#others(key);
+    // It leaves the project managers' lists.
+    const others = this.#takenFrom(this.#others(key), [contact.id]);
     // The project manager is never the first: the next manager of conversations is.
     const next = others.find((one) => !this.store.getContact(one.id ?? '')?.leads);
     if (this.#managerOfKey(key)?.id !== contact.id) {

@@ -1169,6 +1169,32 @@ test('a project manager leads its section, with its managers under it and their 
   );
 });
 
+test('two project managers each lead their own managers, and a manager under neither is drawn on its own', () => {
+  const second = contact('pm2', { name: 'lead B', oversees: true, leads: true, manages: 'git:/w/shop/.git' });
+  const docs = contact('docs', { name: 'docs manager', oversees: true, manages: 'git:/w/shop/.git', ledBy: 'pm2' });
+  const api = contact('api', { name: 'api manager', oversees: true, manages: 'git:/w/shop/.git', ledBy: null });
+  const members = managersFirst([
+    worker('install-guide', { overseenBy: 'docs' }),
+    api,
+    lead(),
+    docs,
+    coder(),
+    second,
+    worker('rate-limits', { overseenBy: 'api' }),
+    reviewer(),
+  ]);
+  assert.deepEqual(ledDrawn(members), [
+    'pm (2 team)',
+    '» boss',
+    '» rev',
+    'pm2 (1 team)',
+    '» docs (1 team)',
+    '» └ install-guide',
+    'api (1 team)',
+    '└ rate-limits',
+  ]);
+});
+
 test('a project manager folds away all of it, and each manager under it folds on its own', () => {
   const members = managersFirst([lead(), coder(), worker('com-733'), reviewer(), worker('r1', { overseenBy: 'rev' })]);
   assert.deepEqual(ledDrawn(members, new Set(['boss'])), [

@@ -1103,6 +1103,9 @@ const handlers = {
   [REQUESTS.projectAddManager]: () => {
     throw new Error('The preview has no managers.');
   },
+  [REQUESTS.projectAssignManagers]: () => {
+    throw new Error('The preview has no managers.');
+  },
   [REQUESTS.contactSetUnread]: (_win, id, unread) =>
     unread === true ? conversations.markUnread(id) : conversations.markRead(id),
   [REQUESTS.contactCard]: (_win, id) => {

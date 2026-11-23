@@ -798,6 +798,22 @@ test('a project manager has its Manager settings..., and nothing about conversat
   assert.ok(labels(manageItems({ ...lead, id: 'boss', leads: undefined }, on)).includes('Continue workers with...'));
 });
 
+test('a project manager’s menu has Assign managers..., where a manager’s has Assign conversations...', () => {
+  const { on, chosen } = recorder();
+  on.settings = () => {};
+  on.assignTeam = () => {};
+  on.teamChoices = (manager) => (manager.leads ? [] : [claude]);
+  on.assignManagers = (lead) => chosen.push(['assign managers', lead.id]);
+  const lead = { ...claude, id: 'pm', project: 'shop', manages: 'git:/w/shop/.git', leads: true, oversees: true };
+  const items = contactItems(lead, on);
+  assert.equal(labels(items).indexOf('Manager settings...'), labels(items).indexOf('Assign managers...') + 1);
+  items.find((item) => item.label === 'Assign managers...')?.action();
+  assert.deepEqual(chosen.at(-1), ['assign managers', 'pm']);
+  const boss = { ...lead, id: 'boss', leads: undefined };
+  assert.ok(!labels(contactItems(boss, on)).includes('Assign managers...'), 'a manager has its conversations');
+  assert.ok(!labels(contactItems({ ...lead, archived: true }, on)).includes('Assign managers...'));
+});
+
 test('Manager settings... follows Assign conversations..., and with two managers on a project each opens its own', () => {
   const { on, chosen } = recorder();
   on.settings = (contact, section) => chosen.push(['settings', contact.id, section]);
@@ -814,6 +830,25 @@ test('Manager settings... follows Assign conversations..., and with two managers
     ['settings', 'boss', 'manager'],
     ['settings', 'lead', 'manager'],
   ]);
+});
+
+test('beside a conversation, a project manager has Assign managers..., and no workers to continue', () => {
+  const asked = [];
+  const lead = { id: 'pm', status: 'online', manages: 'git:/w/shop/.git', leads: true };
+  const actions = {
+    ...PANE_ACTIONS,
+    assignManagers: (contact) => asked.push(contact.id),
+    continueWorkers: () => {},
+    settings: () => {},
+  };
+  const items = paneMenu(lead, 'c1', actions);
+  assert.equal(labels(items).indexOf('Manager settings...'), labels(items).indexOf('Assign managers...') + 1);
+  assert.equal(labels(items).includes('Continue workers with...'), false);
+  items.find(({ label }) => label === 'Assign managers...').action();
+  assert.deepEqual(asked, ['pm']);
+  const boss = { ...lead, id: 'boss', leads: undefined };
+  assert.equal(labels(paneMenu(boss, 'c1', actions)).includes('Assign managers...'), false);
+  assert.equal(labels(paneMenu(boss, 'c1', actions)).includes('Continue workers with...'), true);
 });
 
 test('beside a conversation, a manager has Manager settings... at its own page, after Assign conversations...', () => {

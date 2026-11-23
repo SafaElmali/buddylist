@@ -95,7 +95,7 @@ import {
   managerOfProject,
   turnOffManager,
 } from '../contacts/manager-dialog.js';
-import { assignDialog, assignDragged, teamDialog } from '../contacts/assign-dialog.js';
+import { assignDialog, assignDragged, assignManagers, teamDialog } from '../contacts/assign-dialog.js';
 import { openModelList } from '../contacts/model-picker.js';
 import { modelsDialog } from '../contacts/models-dialog.js';
 import { askModels, askingModels, setModelSettings } from '../contacts/models.js';
@@ -382,6 +382,8 @@ const contacts = new ContactsPane($('#contacts-pane'), {
               }),
           }),
         ...(teamChoices(contact, ctx.contacts).length && { assignTeam: (one) => teamDialog(one, ctx.contacts) }),
+        // The preview has no managers.
+        ...(!ctx.web && { assignManagers }),
         ...(!ctx.web && {
           continueWorkers: (one) => workerHandoverDialog(one, { providers: adding.providers, settings: ctx.settings }),
         }),
@@ -2443,10 +2445,12 @@ function teamMenu() {
   ];
   // An archived manager oversees nothing until it is restored.
   if (archived()) return reading;
-  // A project manager oversees managers: it has no conversations of its own to continue, assign or delete.
+  // A project manager oversees managers: it has no conversations of its own to continue, assign or delete, and its
+  // managers are assigned instead.
   const lead = Boolean(ctx.contact?.leads);
   return [
     ...reading,
+    ...(!ctx.web && lead ? [{ label: 'Assign managers...', action: () => assignManagers(ctx.contact) }] : []),
     ...(!ctx.web && !lead
       ? [
           {

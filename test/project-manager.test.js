@@ -14,13 +14,17 @@ import { Store } from '../src/main/storage/store.js';
 import { descriptor as claude } from '../src/providers/claude/index.js';
 import { descriptor as codex } from '../src/providers/codex/descriptor.js';
 import {
+  LEADS_MAX,
   MANAGERS_MAX,
   REPORT_UP_MAX,
   TEAMS_LISTED,
   answeredLead,
+  cleanManager,
   cleanManagers,
   draggable,
   dropUnder,
+  leadChoices,
+  leadOfEach,
   ledBy,
   managerInstructions,
   managerNoteOf,
@@ -827,12 +831,12 @@ test('the project manager oversees managers, not conversations: nothing is put u
   assert.equal(managers.managersIn(key).find((one) => one.id === lead.id)?.leads, true);
 });
 
-test('a project has one project manager, once it has a manager, and it is never its first', (t) => {
+test('a project has project managers once it has a manager, at most one over all, and never as its first', (t) => {
   const app = shop(t);
   const { managers, key, lead, coder, store, projects } = app;
   assert.throws(
     () => managers.add(key, { lead: true, name: 'boss' }),
-    /shop has a project manager already: shop project manager\./
+    /shop has a project manager over all of its managers already: shop project manager\. Tick the managers this one oversees\./
   );
   assert.equal(lead.name, 'shop project manager');
   assert.equal(store.getContact(lead.id)?.leads, true);
@@ -851,6 +855,242 @@ test('a project has one project manager, once it has a manager, and it is never 
   assert.equal(managers.managersIn(key).length, MANAGERS_MAX + 1);
   assert.throws(() => managers.add(key, { name: 'one too many' }), /has 8 managers, as many as a project can have/);
   assert.equal(cleanManagers(projects.settings(key).managers).length, MANAGERS_MAX);
+  // And as many project managers as a project can have, besides them: each kept.
+  for (let i = 1; i < LEADS_MAX; i += 1) managers.add(key, { lead: true, name: `lead ${i}`, team: [] });
+  assert.equal(managers.managersIn(key).filter((one) => one.leads).length, LEADS_MAX);
+  assert.throws(
+    () => managers.add(key, { lead: true, name: 'one lead too many', team: [] }),
+    /shop has 4 project managers, as many as a project can have/
+  );
+  assert.equal(cleanManagers(projects.settings(key).managers).length, MANAGERS_MAX - 1 + LEADS_MAX);
+});
+
+// ---- the managers it oversees ---------------------------------------------------------------------------------
+
+const names = (contacts) => contacts.map((one) => one.name);
+/** Turns one of the shop's managers or project managers on or off, as Settings does. */
+const turn = (app, contact, on) => {
+  const its = app.managers.settingsOf(app.key, contact.id);
+  app.managers.set(app.key, { ...its, on });
+  app.managers.settingsChanged(app.key, its, { ...its, on });
+};
+
+test('a project manager kept without a list, as every one before, oversees all the managers, also ones added later', async (t) => {
+  const app = shop(t);
+  const { managers, key, lead, store } = app;
+  assert.equal('team' in managers.settingsOf(key, lead.id), false, 'no list: all of them');
+  const docs = managers.add(key, { name: 'docs manager' });
+  assert.deepEqual(names(managers.managersUnder(lead)), ['shop manager', 'review manager', 'docs manager']);
+  assert.equal(app.conversations.view(store.getContact(docs.id)).ledBy, lead.id);
+  // As the app finds it once it starts again.
+  store.flush?.();
+  const again = new Store(path.join(app.dir, 'data'), { defaultProvider: 'claude' });
+  const reopened = new Managers({
+    store: again,
+    history: app.history,
+    projects: new Projects({
+      store: again,
+      worktreesHome: app.home,
+      describe: async () => ({ key, name: 'shop', root: app.root }),
+    }),
+    conversations: /** @type {any} */ ({ pass: () => true, notice: () => {}, view: () => ({}), end: () => {} }),
+    descriptor,
+    worktreesHomes: [app.home],
+    onContactsChanged: () => {},
+    onProjectChanged: () => {},
+  });
+  assert.deepEqual(names(reopened.managersUnder(/** @type {any} */ (again.getContact(lead.id)))), [
+    'shop manager',
+    'review manager',
+    'docs manager',
+  ]);
+});
+
+test('a project manager oversees the managers picked for it alone, and one added later joins none', async (t) => {
+  const app = shop(t);
+  const { managers, key, lead, coder, reviewer, store } = app;
+  managers.assignManagers(lead.id, { team: [coder.id] });
+  assert.deepEqual(managers.settingsOf(key, lead.id).team, [coder.id]);
+  assert.equal(managers.leadOf(coder)?.id, lead.id);
+  assert.equal(managers.leadOf(reviewer), null, 'left out, it is under no project manager');
+  assert.equal(app.conversations.view(store.getContact(reviewer.id)).ledBy, null, 'nor drawn under one');
+  const docs = managers.add(key, { name: 'docs manager' });
+  assert.equal(managers.leadOf(docs), null, 'a list is picked: one added later isn’t on it');
+  // Over all of them again: the ones added later too.
+  managers.assignManagers(lead.id, { all: true });
+  assert.equal('team' in managers.settingsOf(key, lead.id), false);
+  assert.deepEqual(names(managers.managersUnder(lead)), ['shop manager', 'review manager', 'docs manager']);
+  // Only the project's managers: not a project manager, a conversation, or one that isn't there.
+  const tags = app.worker('Claude (tags)');
+  for (const id of [lead.id, tags.id, 'nobody']) {
+    assert.throws(
+      () => managers.assignManagers(lead.id, { team: [id] }),
+      /Only shop’s managers can be under its project manager\./
+    );
+  }
+  assert.throws(() => managers.assignManagers(coder.id, { all: true }), /Only a project manager oversees managers/);
+});
+
+test('a second project manager takes the managers ticked for it, and the one over all keeps the rest and later ones', async (t) => {
+  const app = shop(t);
+  const { managers, key, lead, coder, reviewer, store } = app;
+  const b = managers.add(key, { lead: true, name: 'lead B', team: [reviewer.id] });
+  assert.equal(managers.leadOf(reviewer)?.id, b.id);
+  assert.equal(managers.leadOf(coder)?.id, lead.id);
+  assert.equal('team' in managers.settingsOf(key, lead.id), false, 'it is still over all the others');
+  const docs = managers.add(key, { name: 'docs manager' });
+  assert.equal(managers.leadOf(docs)?.id, lead.id, 'a manager added later joins the one over all');
+  // Picked lists: a manager ticked for one leaves the other’s.
+  managers.assignManagers(lead.id, { team: [coder.id, docs.id] });
+  managers.assignManagers(b.id, { team: [reviewer.id, docs.id] });
+  assert.deepEqual(managers.settingsOf(key, lead.id).team, [coder.id]);
+  assert.deepEqual(managers.settingsOf(key, b.id).team, [reviewer.id, docs.id]);
+  assert.deepEqual(names(managers.managersUnder(lead)), ['shop manager']);
+  assert.deepEqual(names(managers.managersUnder(b)), ['review manager', 'docs manager']);
+  const qa = managers.add(key, { name: 'qa manager' });
+  assert.equal(managers.leadOf(qa), null, 'with no project manager over all, one added later is under none');
+  // The contact list draws each under its own.
+  const ledBy = (contact) => app.conversations.view(store.getContact(contact.id)).ledBy;
+  assert.deepEqual([coder, reviewer, docs, qa].map(ledBy), [lead.id, b.id, b.id, null]);
+  // Each project manager knows who its managers are, and the managers who is over them.
+  assert.match(
+    managers.forAgent(store.getContact(b.id))?.instructions ?? '',
+    /review manager and docs manager are the managers of shop under you\. shop manager and qa manager are not yours: leave them alone\./
+  );
+  assert.match(
+    managers.forAgent(reviewer)?.instructions ?? '',
+    /lead B is the project manager over you\. It may send you/
+  );
+  assert.doesNotMatch(managers.forAgent(qa)?.instructions ?? '', /project manager over you/);
+});
+
+test('at most one project manager oversees all, and the user is told which one does', (t) => {
+  const app = shop(t);
+  const { managers, key, lead, coder, reviewer } = app;
+  const b = managers.add(key, { lead: true, name: 'lead B', team: [] });
+  assert.deepEqual(managers.managersUnder(b), [], 'an empty list oversees nobody');
+  assert.throws(
+    () => managers.assignManagers(b.id, { all: true }),
+    /shop has a project manager over all of its managers already: shop project manager\./
+  );
+  // Once that one has a list, another can be over all.
+  managers.assignManagers(lead.id, { team: [coder.id] });
+  managers.assignManagers(b.id, { all: true });
+  assert.equal(managers.leadOf(reviewer)?.id, b.id);
+  assert.equal(managers.leadOf(coder)?.id, lead.id, 'all is the ones the others didn’t pick');
+  // One added over all takes the ones ticked for it from the others too.
+  managers.forgotten(/** @type {any} */ (app.store.getContact(b.id)));
+  app.store.removeContact(b.id);
+  const c = managers.add(key, { lead: true, name: 'lead C', all: true, team: [coder.id] });
+  assert.equal('team' in managers.settingsOf(key, c.id), false);
+  assert.deepEqual(managers.settingsOf(key, lead.id).team, []);
+  assert.deepEqual(names(managers.managersUnder(c)), ['shop manager', 'review manager']);
+});
+
+test('a project manager turned off, put away or deleted frees its managers: the one over all takes them, or none', (t) => {
+  const app = shop(t);
+  const { managers, key, lead, coder, reviewer, store } = app;
+  const b = managers.add(key, { lead: true, name: 'lead B', team: [reviewer.id] });
+  turn(app, b, false);
+  assert.equal(managers.leadOf(reviewer)?.id, lead.id, 'back to the one over all');
+  turn(app, b, true);
+  assert.equal(managers.leadOf(reviewer)?.id, b.id, 'its list is kept for when it is on again');
+  store.updateContact(b.id, { archived: true });
+  assert.equal(managers.leadOf(reviewer)?.id, lead.id);
+  store.updateContact(b.id, { archived: false });
+  assert.equal(managers.leadOf(reviewer)?.id, b.id);
+  managers.forgotten(/** @type {any} */ (store.getContact(b.id)));
+  store.removeContact(b.id);
+  assert.equal(managers.leadOf(reviewer)?.id, lead.id);
+  // With none over all, they are under none.
+  const c = managers.add(key, { lead: true, name: 'lead C', team: [reviewer.id] });
+  managers.assignManagers(lead.id, { team: [coder.id] });
+  turn(app, c, false);
+  assert.equal(managers.leadOf(reviewer), null);
+  turn(app, lead, false);
+  assert.equal(managers.leadOf(coder), null);
+  // A manager deleted leaves the lists.
+  turn(app, lead, true);
+  managers.forgotten(/** @type {any} */ (store.getContact(coder.id)));
+  store.removeContact(coder.id);
+  assert.deepEqual(managers.settingsOf(key, lead.id).team, []);
+});
+
+test('message_manager and project_teams reach a project manager’s own managers alone, and say whose the others are', async (t) => {
+  const app = shop(t);
+  const { managers, key, lead, coder, reviewer } = app;
+  const b = managers.add(key, { lead: true, name: 'lead B', team: [reviewer.id] });
+  app.worker('Claude (tags)', { files: [file('src/tags.js')] });
+  app.worker('Claude (docs)', { under: reviewer.id });
+  app.worker('Claude (loose)', { under: null });
+  await app.round(lead.id, 'Ready.');
+  await app.round(b.id, 'Ready.');
+  await assert.rejects(
+    app.tell('review manager', 'Hi.'),
+    /review manager is lead B’s, not yours, so you can’t message it\. Your managers are: shop manager\. The user can move it to you with Assign managers\.\.\./
+  );
+  await assert.rejects(
+    managers.tellManager(b.id, 'shop manager', 'Hi.', { approve: async () => true }),
+    /shop manager is shop project manager’s, not yours/
+  );
+  // Another team's job is not its to hand on; one under no manager is anyone's.
+  await assert.rejects(
+    app.tell('shop manager', 'Review it.', { job: 'Claude (docs)' }),
+    /Claude \(docs\) is under review manager, which is lead B’s, not yours\./
+  );
+  assert.match(await app.tell('shop manager', 'Take it.', { job: 'Claude (loose)' }), /^shop manager has your message/);
+  // Its look at the teams is at its own.
+  const seen = await managers.teams(lead.id);
+  assert.match(seen, /^shop: 1 manager, 2 conversations\./);
+  assert.match(seen, /Managers:\n- shop manager \(/);
+  assert.doesNotMatch(seen, /review manager|Claude \(docs\)/);
+  await assert.rejects(managers.teams(lead.id, { manager: 'review manager' }), /review manager is lead B’s, not yours/);
+  await assert.rejects(
+    managers.teams(lead.id, { conversation: 'Claude (docs)' }),
+    /Claude \(docs\) is under review manager, which is lead B’s, not yours\./
+  );
+  assert.match(await managers.teams(b.id), /^shop: 1 manager, 2 conversations\.[\s\S]*- review manager \(/);
+  // One under no project manager.
+  managers.assignManagers(lead.id, { team: [coder.id] });
+  managers.assignManagers(b.id, { team: [] });
+  await assert.rejects(
+    app.tell('review manager', 'Hi.'),
+    /review manager is under no project manager, so you can’t message it\. Your managers are: shop manager\. The user can put it under you with Assign managers\.\.\./
+  );
+  await assert.rejects(
+    app.tell('shop manager', 'Review it.', { job: 'Claude (docs)' }),
+    /Claude \(docs\) is under review manager, which no project manager oversees\./
+  );
+});
+
+test('a manager reports to the project manager over it now, and the one it left hears of the jobs it owed', async (t) => {
+  const app = shop(t);
+  const { managers, key, lead, reviewer } = app;
+  const b = managers.add(key, { lead: true, name: 'lead B', team: [] });
+  app.worker('Claude (tags)');
+  await app.round(lead.id, 'Ready.');
+  await app.round(b.id, 'Ready.');
+  await app.tell('review manager', 'Review it.', { job: 'Claude (tags)' });
+  await app.round(reviewer.id, 'Started a review.');
+  managers.assignManagers(b.id, { team: [reviewer.id] });
+  assert.ok(app.lines(lead.id).includes('review manager is lead B’s now, before it reported back.'));
+  assert.match(
+    app.sentTo(lead.id),
+    /\[review manager is lead B’s now, before it reported on Claude \(tags\)’s job\. .*\] Its report goes to lead B: tell the user, or hand it to another of your managers\./
+  );
+  // Each is told who its managers are now.
+  assert.ok(app.lines(b.id).includes('Its managers changed: review manager.'));
+  assert.match(
+    app.sentTo(b.id),
+    /\[The user changed what you are set up with: the managers you oversee\. .*\]\nYour managers are now: review manager\./
+  );
+  assert.ok(app.lines(lead.id).includes('Its managers changed: shop manager.'));
+  assert.equal(
+    managers.report(reviewer.id, 'Looks good.'),
+    'lead B has your report. Carry on meanwhile, without waiting for its answer.'
+  );
+  assert.ok(app.lines(b.id).some((line) => line.startsWith('review manager reports: Looks good.')));
+  assert.ok(!app.lines(lead.id).some((line) => line.startsWith('review manager reports')));
 });
 
 test('a project with no manager can’t have a project manager yet', (t) => {
@@ -907,4 +1147,67 @@ test('the windows leave a project manager out of what is about conversations', (
   assert.equal(scopedManager(/** @type {any} */ (listed.managers.toReversed()), { branch: 'x/y' }), '');
   assert.equal(ledBy({ id: 'p1' }, { ledBy: 'p1' }), true);
   assert.equal(ledBy({ id: 'p1' }, { ledBy: 'p1', archived: true }), false);
+});
+
+test('each manager at work is under the project manager whose list has it, or else the one over all, or none', () => {
+  const one = (id, more = {}) => ({ id, name: id, archived: false, settings: { on: true }, ...more });
+  const listed = (...extra) => [
+    one('m1'),
+    one('m2'),
+    one('m3'),
+    one('off', { settings: { on: false } }),
+    one('p1', { leads: true }),
+    one('p2', { leads: true, settings: { on: true, team: ['m2', 'off', 'gone'] } }),
+    ...extra,
+  ];
+  const map = (managers) => Object.fromEntries(leadOfEach(managers));
+  assert.deepEqual(map(listed()), { m1: 'p1', m2: 'p2', m3: 'p1' }, 'one turned off is under none');
+  const without = (id, change) => listed().map((m) => (m.id === id ? { ...m, ...change } : m));
+  assert.deepEqual(map(without('p2', { settings: { on: false, team: ['m2'] } })), { m1: 'p1', m2: 'p1', m3: 'p1' });
+  assert.deepEqual(map(without('p1', { archived: true })), { m2: 'p2' });
+  assert.deepEqual(map(without('p1', { settings: { on: true, team: [] } })), { m2: 'p2' });
+  assert.deepEqual(map([one('m1')]), {}, 'no project manager, nobody over it');
+
+  // What Assign managers... lists: each manager at work, where it is now, ticked where it is under this one. The box
+  // for all of them is offered to the one over all, or to any where none is.
+  const project = { managers: listed() };
+  const [p1, p2] = project.managers.filter((m) => m.leads);
+  assert.deepEqual(leadChoices(p1, project), {
+    all: true,
+    managers: [
+      { id: 'm1', name: 'm1', under: 'p1', where: 'Under p1', ticked: true },
+      { id: 'm2', name: 'm2', under: 'p2', where: 'Under p2', ticked: false },
+      { id: 'm3', name: 'm3', under: 'p1', where: 'Under p1', ticked: true },
+    ],
+  });
+  assert.deepEqual(leadChoices(p2, project).all, null, 'another is over all');
+  assert.deepEqual(
+    leadChoices(p2, project).managers.map((m) => m.ticked),
+    [false, true, false]
+  );
+  // Turned off, its own are still ticked, to change while it is off.
+  const offP2 = { managers: without('p2', { settings: { on: false, team: ['m2'] } }) };
+  assert.deepEqual(
+    leadChoices(offP2.managers.find((m) => m.id === 'p2') ?? null, offP2).managers.map((m) => m.ticked),
+    [false, true, false]
+  );
+  // A new one: nothing ticked, over all only where none is.
+  assert.deepEqual(leadChoices(null, project).all, null);
+  assert.deepEqual(
+    leadChoices(null, project).managers.map((m) => m.ticked),
+    [false, false, false]
+  );
+  const first = leadChoices(null, { managers: [one('m1'), one('m2')] });
+  assert.deepEqual(first, {
+    all: true,
+    managers: [
+      { id: 'm1', name: 'm1', under: '', where: 'No project manager', ticked: false },
+      { id: 'm2', name: 'm2', under: '', where: 'No project manager', ticked: false },
+    ],
+  });
+
+  // A list is kept as ids of contacts, each once; none at all is all of them, and an empty one is nobody.
+  assert.deepEqual(cleanManager({ team: ['a', 'a', 'bad id!', 5, 'b'] }).team, ['a', 'b']);
+  assert.equal('team' in cleanManager({ on: true }), false);
+  assert.deepEqual(cleanManager({ team: [] }).team, []);
 });

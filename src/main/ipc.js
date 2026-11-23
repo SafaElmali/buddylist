@@ -1456,6 +1456,14 @@ export function registerIpc({
     return manager.id;
   });
 
+  // The managers a project manager oversees, from its Assign managers...: the ones ticked, or all of them.
+  handle(REQUESTS.projectAssignManagers, (_e, leadId, picked) =>
+    managers.assignManagers(String(leadId), {
+      all: picked?.all === true,
+      team: Array.isArray(picked?.team) ? picked.team : [],
+    })
+  );
+
   // A conversation put under one of its project's managers, or under none (null): from Assign to manager..., or
   // dragged onto a manager's row or out from under one. `how` says which, for the count (see analytics.js).
   handle(REQUESTS.contactAssign, async (_e, contactId, managerId) => {

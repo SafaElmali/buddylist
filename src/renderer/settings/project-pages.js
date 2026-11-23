@@ -5,6 +5,7 @@ import { fallbacksPage } from './fallbacks.js';
 // them, in whichever worktree.
 import { api } from '../lib/api.js';
 import { el, errorText, html } from '../lib/dom.js';
+import { listNames } from '../lib/format.js';
 import { effortPicker, modelPicker, servicePicker } from '../contacts/model-picker.js';
 import { askModels } from '../contacts/models.js';
 import {
@@ -12,6 +13,7 @@ import {
   NEW_WORKERS,
   WORKER_MODES,
   cleanWorkers,
+  leadChoices,
   managerSettingsOf,
   switchedTo,
 } from '../../shared/managers.js';
@@ -489,18 +491,29 @@ export function newWorkersGroup(providers, kept, onSave, managerService = 'claud
 const settingsOf = (project, id) => managerSettingsOf(project.settings, id);
 
 /**
+ * A project's managers as the main process says them to the other windows (see ProjectManager in
+ * contacts/manager-dialog.js): each with what it is set up with.
+ * @param {import('../../main/project-settings.js').ProjectView} project
+ */
+const withSettings = (project) => ({
+  key: project.key,
+  name: project.name,
+  managers: (project.managers ?? []).map((one) => ({ ...one, settings: settingsOf(project, one.id) })),
+});
+
+/**
  * What a manager's line in the list says of it: whether it is on, its model, how many conversations are under it,
- * and its scope. A project manager's says how many managers it oversees.
+ * and its scope. A project manager's says which managers it oversees, and whether all of them, the ones added later
+ * too (see leadChoices).
  * @param {import('../../main/project-settings.js').ProjectView} project
  * @param {{ id: string, conversations: number, archived: boolean, leads?: boolean }} manager
  */
 function managerSummary(project, manager) {
   const settings = settingsOf(project, manager.id);
-  const managers = (project.managers ?? []).filter(
-    (one) => !one.leads && !one.archived && settingsOf(project, one.id).on
-  );
-  const under = manager.leads
-    ? `Project manager over ${managers.length === 1 ? '1 manager' : `${managers.length || 'no'} managers`}`
+  const team = manager.leads ? leadChoices(manager, withSettings(project)) : null;
+  const names = (team?.managers ?? []).filter((one) => one.ticked).map((one) => one.name);
+  const under = team
+    ? `Project manager over ${team.all ? 'all: ' : ''}${names.length ? listNames(names) : 'no manager'}`
     : manager.conversations === 1
       ? '1 conversation'
       : `${manager.conversations || 'No'} conversations`;
@@ -765,28 +778,36 @@ function addAnotherButton({ project, providers, reload }) {
 }
 
 /**
- * "Add a project manager...", as the project's menu has it: the new one opens in its conversation, and the page
- * lists it, first.
+ * "Add a project manager...", or "Add another project manager...", as the project's menu has it: the new one opens in
+ * its conversation, and the page lists it, first.
  * @param {PageContext} ctx
+ * @param {string} label
  */
-function addLeadButton({ project, providers, reload }) {
-  return button('Add a project manager...', async () => {
-    await addProjectManager({ key: project.key, name: project.name }, { providers, open: (id) => api.chat.open(id) });
+function addLeadButton({ project, providers, reload }, label) {
+  return button(label, async () => {
+    await addProjectManager(withSettings(project), { providers, open: (id) => api.chat.open(id) });
     reload();
   });
 }
 
-/** The way to a project manager, for a project with a manager and none yet. @param {PageContext} ctx */
-const leadGroup = (ctx) =>
-  (ctx.project.managers ?? []).some((one) => one.leads) || !(ctx.project.managers ?? []).some((one) => !one.archived)
-    ? []
-    : [
-        group(
-          'Project manager',
-          `A manager over ${ctx.project.name}’s managers, which hands a worker’s job from one to another as you tell it, and passes the verdict back.`,
-          row(addLeadButton(ctx))
-        ),
-      ];
+/**
+ * The way to a project manager, for a project with a manager, and to another, each over the managers ticked for it.
+ * @param {PageContext} ctx
+ */
+function leadGroup(ctx) {
+  const managers = ctx.project.managers ?? [];
+  if (!managers.some((one) => !one.archived && !one.leads)) return [];
+  const more = managers.some((one) => one.leads);
+  return [
+    group(
+      more ? 'More project managers' : 'Project manager',
+      more
+        ? `Another project manager oversees the managers you tick for it, such as ${ctx.project.name}’s docs and api managers. A manager has one at most.`
+        : `A manager over ${ctx.project.name}’s managers, which hands a worker’s job from one to another as you tell it, and passes the verdict back.`,
+      row(addLeadButton(ctx, more ? 'Add another project manager...' : 'Add a project manager...'))
+    ),
+  ];
+}
 
 /**
  * A project's Manager page. With no manager yet, or one, what it is set up with, and the way to another. With

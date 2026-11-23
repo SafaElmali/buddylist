@@ -84,6 +84,7 @@ export const REQUESTS = Object.freeze({
   projectHandoverWorkers: 'project:handover-workers',
   projectContinueWorker: 'project:continue-worker',
   projectAddManager: 'project:add-manager',
+  projectAssignManagers: 'project:assign-managers',
   projectUpdate: 'project:update',
   projectRemove: 'project:remove',
   projectRemotes: 'project:remotes',

@@ -40,7 +40,7 @@ import {
   turnOffManager,
 } from './manager-dialog.js';
 import { scheduleDialog } from './schedule-dialog.js';
-import { assignDialog, assignDragged, teamDialog } from './assign-dialog.js';
+import { assignDialog, assignDragged, assignManagers, teamDialog } from './assign-dialog.js';
 import { projectWays } from './project-dialogs.js';
 import { mountNav, navRows } from './nav.js';
 import { lastAdded } from './rows.js';
@@ -122,6 +122,10 @@ const on = {
   addManager: (contact) => addManagerFor(contact, managing()),
   teamChoices: (manager) => teamChoices(manager, list.contacts),
   assignTeam: (manager) => teamDialog(manager, list.contacts),
+  // The preview has no managers.
+  get assignManagers() {
+    return state.platform === 'web' ? undefined : assignManagers;
+  },
   get continueWorkers() {
     return state.platform === 'web' ? undefined : (manager) => workerHandoverDialog(manager, state);
   },

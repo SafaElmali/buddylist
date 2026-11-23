@@ -181,6 +181,12 @@ const managerAdded = (_answered, _key, picked) =>
     ? { copied: 'none', lead: true }
     : { copied: picked?.from ? (picked.withBrief === true ? 'settingsAndBrief' : 'settings') : 'none' };
 
+/**
+ * The managers put under a project manager, from its Assign managers...: whether it is over all of them, the ones
+ * added later too. Which project manager and which managers stay here.
+ */
+const managersAssigned = ({ answer }, _leadId, picked) => (answer === true ? { all: picked?.all === true } : null);
+
 /** Auto-merge for a contact's pull request, on or off. */
 const autoMergeToggled = (_answered, _contactId, on) => (typeof on === 'boolean' ? { on } : null);
 const pullRequestShown = (_answered, _contactId, which) =>
@@ -613,6 +619,7 @@ export const COUNTED = Object.freeze({
   [REQUESTS.projectRemove]: { event: 'project removed' },
   // Add another manager...: a project's first is counted as it is turned on (see managerChanged).
   [REQUESTS.projectAddManager]: { event: 'manager added', about: managerAdded },
+  [REQUESTS.projectAssignManagers]: { event: 'managers assigned', about: managersAssigned },
   // In Settings, and the Setup tab beside a conversation.
   [REQUESTS.projectUpdate]: { event: 'project setting changed', about: projectSettingChanged },
   [REQUESTS.projectReveal]: { event: 'project folder shown', about: projectFolderShown },

@@ -67,6 +67,16 @@ test('a project manager tags its managers, then the project’s conversations, w
     ['m', 'cart', 'tags']
   );
   assert.deepEqual(taggable({ ...lead, oversees: false }, listed, []), [], 'turned off, it tags nothing');
+  // Another project manager's managers, and the conversations under them, are not its to tag; one under none is.
+  const theirs = { ...manager, id: 'm2', name: 'review manager', ledBy: 'pm2' };
+  const review = worker('review', { overseenBy: 'm2' });
+  const loose = worker('loose', { overseenBy: null });
+  assert.deepEqual(
+    taggable(lead, [lead, led, theirs, cart, review, loose], [participant('pm', 'shop project manager')]).map(
+      ({ id }) => id
+    ),
+    ['m', 'cart', 'loose']
+  );
 });
 
 test('a worker that is in the manager’s conversation is a participant, to mention, and not a tag', () => {

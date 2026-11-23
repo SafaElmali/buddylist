@@ -1,12 +1,13 @@
 // "Assign to manager...": which of its project's managers oversees a conversation, or none. Dragging its row onto a
 // manager's row, or onto its project's line to go under none, does the same (see list.js). A manager hears from the
 // conversations under it each time they change files, and can message them (see main/managers.js).
-// And "Assign conversations...", of a manager: which of its project's conversations it oversees, many at once.
+// And "Assign conversations...", of a manager: which of its project's conversations it oversees, many at once. And
+// "Assign managers...", of a project manager: which of its project's managers it oversees.
 import { api } from '../lib/api.js';
 import { el, errorText, html } from '../lib/dom.js';
 import { formDialog, infoDialog, messageBody } from '../lib/dialog.js';
 import { plural } from '../lib/format.js';
-import { inTeamOf, managersFor, teamChanges, teamChoices } from '../../shared/managers.js';
+import { inTeamOf, leadChoices, managersFor, teamChanges, teamChoices } from '../../shared/managers.js';
 
 /**
  * What a manager's choice says under its name: how many it oversees, or that it oversees nothing while it is off.
@@ -139,6 +140,93 @@ export function teamDialog(manager, contacts) {
       if (out.length) await api.contacts.assignAll(out, null);
       return true;
     },
+  });
+}
+
+/**
+ * The boxes of a project manager's managers, in Assign managers... and in Add a project manager...: each of the
+ * project's managers at work with where it is now, ticked for the ones under it, and over them the box for all of
+ * them, the ones added later too, where it may be over all (see leadChoices). While that one is ticked, the managers
+ * under no other project manager are under it by that: ticked, and not to untick. One under another can be taken all
+ * the same, as ticking any takes it from the one it is under.
+ * @param {{ id: string } | null} lead  null for one being added
+ * @param {any} project  as the main process says it (see ProjectManager in manager-dialog.js)
+ * @returns {{ node: HTMLElement, picked: () => { all: boolean, team: string[] } }}  `picked`: what is ticked
+ */
+export function managerBoxes(lead, project) {
+  const { all, managers } = leadChoices(lead, project);
+  const node = el(
+    html`<div class="assign-managers">
+      ${
+        all !== null &&
+        html`<label class="choice assign-every"
+          ><input type="checkbox" data-every ${all ? 'checked' : ''} />All of them, and the ones added later</label
+        >`
+      }
+      <ul class="delete-names assign-names">
+        ${managers.map(
+          (one) =>
+            html`<li>
+              <label class="choice"
+                ><input
+                  type="checkbox"
+                  data-manager="${one.id}"
+                  ${one.ticked || !one.under ? 'data-free' : ''}
+                  ${one.ticked ? 'checked' : ''}
+                /><span>${one.name}<span class="hint">${one.where}</span></span></label
+              >
+            </li>`
+        )}
+      </ul>
+    </div>`
+  );
+  /** @type {HTMLInputElement[]} */
+  const boxes = [...node.querySelectorAll('[data-manager]')];
+  const every = /** @type {HTMLInputElement | null} */ (node.querySelector('[data-every]'));
+  const showEvery = () => {
+    for (const box of boxes.filter((one) => one.hasAttribute('data-free'))) {
+      if (every?.checked) box.checked = true;
+      box.disabled = Boolean(every?.checked);
+    }
+  };
+  every?.addEventListener('change', showEvery);
+  showEvery();
+  return {
+    node,
+    picked: () => ({
+      all: Boolean(every?.checked),
+      team: boxes.filter((box) => box.checked).map((box) => /** @type {string} */ (box.dataset.manager)),
+    }),
+  };
+}
+
+/**
+ * The dialog of a project manager's Assign managers...: the managers of its project at work, each with where it is
+ * now, as the main process says them. Assign puts the ones ticked under it, out from under the others, and the ones
+ * unticked out from under it. Cancel leaves them all where they are.
+ * @param {{ id: string, name: string }} lead  as the contact list has it
+ */
+export async function assignManagers(lead) {
+  const project = await api.projects.manager({ contactId: lead.id }).catch(() => null);
+  if (!project) return null;
+  const boxes = managerBoxes(lead, project);
+  const form = /** @type {HTMLFormElement} */ (
+    el(
+      html`<form class="assign-form">
+        <p class="dialog-message">
+          Tick the managers ${lead.name} oversees: it can hand them jobs, and hears their answers and reports. One
+          ticked here leaves the project manager it is under.
+        </p>
+        <div class="error" hidden></div>
+      </form>`
+    )
+  );
+  form.querySelector('.error')?.before(boxes.node);
+  return formDialog({
+    title: 'Assign managers',
+    form,
+    ok: 'Assign',
+    save: () => api.projects.assignManagers(lead.id, boxes.picked()),
   });
 }
 

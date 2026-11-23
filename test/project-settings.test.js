@@ -22,7 +22,7 @@ import {
   withPort,
   withRunCommand,
 } from '../src/shared/project-settings.js';
-import { MANAGERS_MAX } from '../src/shared/managers.js';
+import { LEADS_MAX, MANAGERS_MAX } from '../src/shared/managers.js';
 
 // ---- what a project is set up with -------------------------------------------------------------
 
@@ -109,14 +109,18 @@ test('a project’s other managers are each named by a contact, once, and no mor
       one('a'),
       'x',
       { id: '../x' },
-      ...['c', 'd', 'e', 'f', 'g', 'h', 'i'].map(one),
+      ...['c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm'].map(one),
     ],
   });
   assert.deepEqual(
     managers.map(({ id }) => id),
-    ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+    ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
   );
-  assert.equal(managers.length, MANAGERS_MAX, 'the first is the eighth, and its project manager is among the others');
+  assert.equal(
+    managers.length,
+    MANAGERS_MAX - 1 + LEADS_MAX,
+    'the first is the eighth manager, and its project managers are among the others'
+  );
   assert.deepEqual(projectSettings({ managers: 'nope' }).managers, []);
   assert.equal(PROJECT_SETTINGS.includes('managers'), false, 'no window changes them but through `manager`');
 });

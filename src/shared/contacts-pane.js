@@ -101,7 +101,7 @@ export const paneView = (settings) => ({ ...listView(settings), project: null, h
 
 /**
  * What a right-click on a contact offers.
- * @param {{ id: string, status?: string, archived?: boolean, pinned?: boolean, favorite?: boolean, unread?: number }} contact
+ * @param {{ id: string, status?: string, archived?: boolean, pinned?: boolean, favorite?: boolean, unread?: number, manages?: string, leads?: boolean }} contact
  * @param {string} current  the contact whose conversation the window shows
  * @param {{ here: (contact: any) => void, apart: (contact: any) => void, history: (contact: any) => void,
  *   openFolder: (contact: any) => void, copyPath: (contact: any) => void, copyBranch: (contact: any) => void,
@@ -109,11 +109,12 @@ export const paneView = (settings) => ({ ...listView(settings), project: null, h
  *   pin: (contact: any) => void, favorite: (contact: any) => void, archive: (contact: any) => void,
  *   restore: (contact: any) => void, remove: (contact: any) => void, assign?: (contact: any) => void,
  *   assignTeam?: (manager: any) => void, settings?: (contact: any, section: string) => void,
- *   deleteTeam?: (manager: any) => void, continueWorkers?: (manager: any) => void,
+ *   deleteTeam?: (manager: any) => void, continueWorkers?: (manager: any) => void, assignManagers?: (lead: any) => void,
  *   priority: (contact: any, priority: 'high' | 'normal' | 'low') => void }} actions
  *   `unread`, `pin` and `favorite` turn what the contact is the other way. `assign`: Assign to manager..., where
  *   it can be put under one of its project's managers. `assignTeam`: Assign conversations..., where it is a manager
- *   with conversations of its project to put under it. `settings`: its project's pages in the Settings window, left
+ *   with conversations of its project to put under it. `assignManagers`: Assign managers..., where it is a project
+ *   manager. `settings`: its project's pages in the Settings window, left
  *   out where there is none: a manager has Manager settings..., at its own page. `deleteTeam`: Delete contacts...,
  *   where it is a manager with conversations under it. `priority`: Priority, how much it matters, which the list can
  *   be sorted by
@@ -140,6 +141,7 @@ export function paneMenu(
     remove,
     assign,
     assignTeam,
+    assignManagers,
     continueWorkers,
     settings,
     deleteTeam,
@@ -186,7 +188,11 @@ export function paneMenu(
     { label: 'Rename...', key: 'r', action: () => rename(contact) },
     ...(assign ? [{ label: 'Assign to manager...', action: () => assign(contact) }] : []),
     ...(assignTeam ? [{ label: 'Assign conversations...', action: () => assignTeam(contact) }] : []),
-    ...(contact.manages && continueWorkers
+    ...(contact.leads && assignManagers
+      ? [{ label: 'Assign managers...', action: () => assignManagers(contact) }]
+      : []),
+    // A project manager has no workers of its own to continue.
+    ...(contact.manages && !contact.leads && continueWorkers
       ? [{ label: 'Continue workers with...', action: () => continueWorkers(contact) }]
       : []),
     // As in the contact list: a manager's own page in Settings.

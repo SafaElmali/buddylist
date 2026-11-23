@@ -54,7 +54,8 @@ import { THIS_COMPUTER } from '../../shared/projects.js';
  * @typedef {Object} ManagerHandlers
  * @property {(project: ProjectManager) => void} add  "Add a manager"'s dialog, for this project
  * @property {(project: ProjectManager) => void} [addAnother]  "Add another manager"'s, for a project that has one
- * @property {(project: ProjectManager) => void} [addLead]  "Add a project manager"'s, for a project with a manager
+ * @property {(project: ProjectManager) => void} [addLead]  "Add a project manager"'s, for a project with a manager,
+ *   and "Add another project manager"'s, for one with a project manager
  * @property {(project: ProjectManager) => void} turnOff  the manager its settings name oversees nothing from now on
  */
 
@@ -217,30 +218,36 @@ function computerMenuItems(section, on) {
 function managerItems(contact, manager, on) {
   const all = manager.managers ?? [{ id: manager.contactId, settings: manager.settings, archived: false }];
   const working = all.filter((one) => one.id && one.settings.on && !one.archived && !one.leads);
-  const lead = all.find((one) => one.leads && !one.archived);
-  return [...conversationManagerItems(contact, manager, working, on), ...leadItems(manager, lead, working, on)];
+  const leads = all.filter((one) => one.leads && !one.archived);
+  return [...conversationManagerItems(contact, manager, working, on), ...leadItems(manager, leads, working, on)];
 }
 
 /**
- * A repository's choices about its project manager, which oversees its managers: to add one once it has a manager,
- * or its page in Settings, and to turn it off while it is at work.
+ * A repository's choices about its project managers, which oversee its managers: to add one once it has a manager,
+ * and another once it has one. With one, its page in Settings, and to turn it off while it is at work; with several,
+ * Settings has them all, as Managers... does, and each turns off in its own window.
  * @param {ProjectManager} manager
- * @param {NonNullable<ProjectManager['managers']>[number] | undefined} lead  its project manager, if any
+ * @param {NonNullable<ProjectManager['managers']>} leads  its project managers, the ones put away aside
  * @param {NonNullable<ProjectManager['managers']>} working  its managers at work
  * @param {ProjectHandlers} on
  * @returns {MenuItem[]}
  */
-function leadItems(manager, lead, working, on) {
-  if (!lead) {
-    return working.length && on.manager.addLead
-      ? [{ label: 'Add a project manager...', icon: smallIcon.addContact(), action: () => on.manager.addLead(manager) }]
-      : [];
-  }
+function leadItems(manager, leads, working, on) {
+  const addLead = on.manager?.addLead;
+  const add = (label) => (addLead ? [{ label, icon: smallIcon.addContact(), action: () => addLead(manager) }] : []);
+  if (!leads.length) return working.length ? add('Add a project manager...') : [];
+  const [lead] = leads;
+  const several = leads.length > 1;
   return [
     ...(on.settings
-      ? [{ label: 'Project manager settings...', action: () => on.settings({ id: lead.id }, 'manager') }]
+      ? [
+          {
+            label: several ? 'Project managers...' : 'Project manager settings...',
+            action: () => on.settings({ id: lead.id }, 'manager'),
+          },
+        ]
       : []),
-    ...(lead.settings.on
+    ...(!several && lead.settings.on
       ? [
           {
             label: 'Turn off project manager',
@@ -248,6 +255,7 @@ function leadItems(manager, lead, working, on) {
           },
         ]
       : []),
+    ...add('Add another project manager...'),
   ];
 }
 
