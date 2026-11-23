@@ -149,6 +149,7 @@ contextBridge.exposeInMainWorld('messenger', {
     init: invokeNow('chat:init'),
     history: invoke('chat:history'),
     picture: invoke('chat:picture'),
+    githubPicture: invoke('chat:github-picture'),
     keepView: invoke('chat:keep-view'),
     send: invoke('chat:send'),
     edit: invoke('chat:edit'),

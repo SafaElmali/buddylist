@@ -260,10 +260,10 @@ test('what reports errors is inside the main script, and not packed next to it',
   // Still small next to the package: the parts the app does not use are left out. The script
   // holds the updater too (see below), about a quarter of a megabyte.
   // The current app, with manager coordination, instruction approvals, phone access levels, the phone page's
-  // bundle and palettes, and one way of starting git and gh, is about 1.75 MiB.
-  // Keep a bounded budget as features grow, measured in shipped bytes rather than string characters.
+  // bundle and palettes, one way of starting git and gh, and reading a reply's GitHub pictures through gh, is about
+  // 1.80 MiB. Keep a bounded budget as features grow, measured in shipped bytes rather than string characters.
   const bytes = Buffer.byteLength(main);
-  assert.ok(bytes < 1.8 * 1024 * 1024, `The main bundle is ${(bytes / 1024 / 1024).toFixed(2)} MiB`);
+  assert.ok(bytes < 1.85 * 1024 * 1024, `The main bundle is ${(bytes / 1024 / 1024).toFixed(2)} MiB`);
 });
 
 test('a build that is given no project reports and counts nowhere: no address or token is in its main script', () => {

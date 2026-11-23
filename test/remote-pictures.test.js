@@ -367,3 +367,32 @@ test('nativeImage makes the phone’s copy: a JPEG unless it can be seen through
   assert.equal(seeThrough(Buffer.from([0, 0, 0, 255])), false);
   assert.equal(seeThrough(Buffer.from([0, 0, 0, 255, 0, 0, 0, 254])), true);
 });
+
+test('a reply’s GitHub picture is read through gh for the phone, asked only when the phone says so, and phone-sized', async () => {
+  const address = 'https://github.com/example/shop/blob/main/proof/cart.png?raw=true';
+  const read = [];
+  const pictures = new PhonePictures({
+    history: () => [],
+    original: async () => assert.fail('no original'),
+    folderOf: (id) => (id === 'gone' ? null : '/code/shop'),
+    github: async (...asked) => (read.push(asked), { bytes: png(3, 2), type: 'image/png', name: 'cart.png' }),
+  });
+  const answer = await pictures.picture('c1', { web: address });
+  assert.deepEqual([answer.width, answer.height, answer.whole], [3, 2, true]);
+  await pictures.picture('c1', { web: address, asked: true });
+  await pictures.picture('c1', { web: address, asked: 'yes' });
+  const full = await pictures.picture('c1', { web: address, asked: true }, { full: true });
+  assert.deepEqual([full.part, full.parts], [0, 1]);
+  assert.deepEqual(
+    read.map(([id, web, options]) => [id, web, options.asked]),
+    [
+      ['c1', address, false],
+      ['c1', address, true],
+      ['c1', address, false],
+      ['c1', address, true],
+    ]
+  );
+  await assert.rejects(pictures.picture('gone', { web: address }), /isn’t there any more/);
+  await assert.rejects(pictures.picture('c1', { web: 42 }), /isn’t in this conversation/);
+  assert.equal(read.length, 4);
+});

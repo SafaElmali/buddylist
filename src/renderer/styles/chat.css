@@ -1641,6 +1641,11 @@
   line-height: 0;
 }
 
+/* What a picture that couldn't load says in its place is drawn in its own line-height, not squashed into the corner's. */
+.picture-reply-at > img {
+  line-height: normal;
+}
+
 /* That corner: there while the pointer is on the picture or Tab is on one of its buttons, as a diagram's Copy source
    is. Download takes no more room than its drawing, and Reply is where it always was. */
 .picture-actions {
@@ -2065,6 +2070,54 @@
 .md img:not(.emoticon) {
   max-width: 100%;
   height: auto;
+}
+
+/* A reply's picture that isn't shown, in a card in its place (see reply-pictures.js): what the reply calls it, why it
+   isn't shown and where it is, and Open link or Load with GitHub. Only the words wrap, beside the picture's sign. */
+.picture-card {
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, max-content) auto;
+  align-items: center;
+  column-gap: 8px;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--pane-border-soft);
+  border-radius: 4px;
+  color: var(--text);
+  line-height: 1.35;
+  vertical-align: middle;
+}
+
+.picture-card-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.picture-card-words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.picture-card-alt {
+  overflow: hidden;
+  font-weight: bold;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.picture-card-why {
+  color: var(--muted);
+}
+
+.picture-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 16px;
+  white-space: nowrap;
 }
 
 .md > :first-child,

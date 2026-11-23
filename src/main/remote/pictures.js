@@ -158,6 +158,22 @@ export function pictureSources(text) {
 }
 
 /**
+ * A conversation's replies: those it kept, and those still arriving.
+ * @param {{ kind: string, text?: unknown }[]} entries
+ * @param {string[]} live
+ * @returns {string[]}
+ */
+export const repliesOf = (entries, live) => [
+  ...entries
+    .filter((entry) => entry.kind === 'assistant' && typeof entry.text === 'string')
+    .map(({ text }) => /** @type {string} */ (text)),
+  ...live,
+];
+
+/** Whether a reply has a picture at all, before its pictures are looked for. @param {string} text */
+const hasPictures = (text) => text.includes('![') || /<img\b/i.test(text);
+
+/**
  * Whether a conversation's replies show this file as a picture.
  * @param {string[]} texts  its replies
  * @param {string} folder  the contact's, which a picture is named from
@@ -165,11 +181,17 @@ export function pictureSources(text) {
  */
 export function shows(texts, folder, file) {
   return texts.some(
-    (text) =>
-      (text.includes('![') || /<img\b/i.test(text)) &&
-      pictureSources(text).some((src) => fileOf(pictureAddress(src, folder)) === file)
+    (text) => hasPictures(text) && pictureSources(text).some((src) => fileOf(pictureAddress(src, folder)) === file)
   );
 }
+
+/**
+ * Whether a conversation's replies show a picture from this address, as their windows load it.
+ * @param {string[]} texts  its replies
+ * @param {string} address
+ */
+export const showsAddress = (texts, address) =>
+  texts.some((text) => hasPictures(text) && pictureSources(text).includes(address));
 
 /** Said of a picture that isn't one of the conversation's. */
 const NOT_HERE = 'That picture isn’t in this conversation.';
@@ -240,8 +262,8 @@ export function seeThrough(bitmap) {
 
 /**
  * What the phone asks for: a message of yours' picture by its entry and place, a call's by its tool id and place, or
- * a reply's by the address its picture loads from.
- * @typedef {{ entry: string, index: number } | { tool: string, index: number } | { file: string }} Which
+ * a reply's by the address its picture loads from: a file, or one on GitHub, `asked` once the user asked for it.
+ * @typedef {{ entry: string, index: number } | { tool: string, index: number } | { file: string } | { web: string, asked?: boolean }} Which
  */
 
 /**
@@ -269,13 +291,16 @@ export class PhonePictures {
    * @param {(contactId: string) => string | null} deps.folderOf  the contact's folder, or null for one not there
    * @param {(contactId: string) => string[]} [deps.live]  the replies still arriving
    * @param {Shrink | null} [deps.shrink]
+   * @param {(contactId: string, address: string, options: { asked: boolean }) => Promise<{ bytes: Buffer }>} [deps.github]
+   *   a reply's picture on GitHub (see github-pictures.js)
    */
-  constructor({ history, original, folderOf, live = () => [], shrink = null }) {
+  constructor({ history, original, folderOf, live = () => [], shrink = null, github = notHere }) {
     this.history = history;
     this.original = original;
     this.folderOf = folderOf;
     this.live = live;
     this.shrink = shrink;
+    this.github = github;
   }
 
   /**
@@ -334,15 +359,13 @@ export class PhonePictures {
       const call = entries.find((entry) => entry.kind === 'tool' && entry.toolId === asked.tool);
       return dataBytes(call?.pictures?.[asked.index]) ?? notHere();
     }
+    if (asked.web !== undefined) {
+      if (typeof asked.web !== 'string') return notHere();
+      return (await this.github(contactId, asked.web, { asked: asked.asked === true })).bytes;
+    }
     const file = fileOf(asked.file);
     if (!file || !folder) return notHere();
-    const replies = [
-      ...entries
-        .filter((entry) => entry.kind === 'assistant' && typeof entry.text === 'string')
-        .map(({ text }) => text),
-      ...this.live(contactId),
-    ];
-    if (!shows(replies, folder, file)) return notHere();
+    if (!shows(repliesOf(entries, this.live(contactId)), folder, file)) return notHere();
     return folderFile(folder, file);
   }
 }

@@ -4,6 +4,8 @@ import { el, html } from '../lib/dom.js';
 import { sentence, took } from '../lib/format.js';
 import { basename } from '../../shared/activity-text.js';
 import { pathInside } from '../../shared/paths.js';
+import { githubPicture, reasonOf } from '../../shared/web-pictures.js';
+import { pictureCard } from '../lib/reply-pictures.js';
 import { yourComputer } from './host.js';
 
 /** What a conversation's header says while someone in it is at work, or waits for you. */
@@ -81,11 +83,43 @@ export function todoProgress(todos, { stopped = false } = {}) {
 }
 
 /**
+ * A reply's picture on GitHub, asked of the Mac in a tile as one in the contact's folder is, `asked` once Load with
+ * GitHub was tapped. One the Mac won't load is a card that says why (see reply-pictures.js), with Load with GitHub
+ * where it asks first; one the connection lost stays a tile, to tap again.
+ * @param {string} address
+ * @param {string} alt
+ * @param {{ pictures: import('./pictures.js').ConversationPictures, who: string }} shown
+ * @param {boolean} [asked]
+ * @returns {HTMLElement}
+ */
+export function githubTile(address, alt, { pictures, who }, asked = false) {
+  const name = /** @type {string} */ (githubPicture(address)?.rest.at(-1));
+  const shown = el(html`<span class="ph-reply-pic"></span>`);
+  const fallback = (error) => {
+    const reason = reasonOf(error?.message);
+    if (!reason) return false;
+    const card = pictureCard({
+      alt,
+      address,
+      reason,
+      onLoad: reason === 'ask' ? () => card.replaceWith(githubTile(address, alt, { pictures, who }, true)) : null,
+    });
+    shown.replaceWith(card);
+    return true;
+  };
+  const which = asked ? { web: address, asked: true } : { web: address };
+  shown.append(pictures.tile({ which, title: alt || name, who, name }, { label: `Picture: ${alt || name}`, fallback }));
+  if (alt) shown.append(el(html`<span class="ph-reply-pic-said" aria-hidden="true">${alt}</span>`));
+  return shown;
+}
+
+/**
  * What the phone makes of a reply's Markdown once it is drawn. The pictures it names on the Mac (file: addresses, or
  * paths from the top: see pictureAddress in shared/links.js) are asked of the Mac where they are in the contact's
  * folder, each in a tile (see pictures.js) with what the reply calls it under it. One elsewhere, such as in /tmp, is
- * said by its name, with where it is on the Mac. Pictures from the web or of the page itself (data:, blob:) stay.
- * Code and tables, which scroll on their own, can be reached from a keyboard, and are named.
+ * said by its name, with where it is on the Mac. Pictures on the web are drawn as the Markdown is (see githubTile and
+ * reply-pictures.js), and pictures of the page itself (data:, blob:) stay. Code and tables, which scroll on their own,
+ * can be reached from a keyboard, and are named.
  * @param {ParentNode} root  a reply's Markdown, as it was drawn
  * @param {{ pictures?: import('./pictures.js').ConversationPictures | null, folder?: string, who?: string }} [shown]
  *   what draws its pictures, the contact's folder, and whose reply it is
