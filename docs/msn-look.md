@@ -30,7 +30,7 @@ Every open window changes at once, and the choice is kept. In the [professional 
 
 ### Adding to a stylesheet
 
-A colour that should change at night is written as the default of a role, and `src/renderer/styles/theme.css` gives the role its night colour:
+A colour that should change at night is written as the default of a role, and [`src/renderer/styles/theme.css`](../src/renderer/styles/theme.css) gives the role its night colour:
 
 ```css
 .me-name {

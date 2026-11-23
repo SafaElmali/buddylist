@@ -76,7 +76,7 @@ One picture at a time, with a few lines under it, of what buddylist does besides
 | **Managers**        | A [project manager](project-managers.md) and its **Team** tab, with how each conversation under it is doing. |
 | **Changes and PRs** | The **Changes** tab with a file's diff. **Create PR** opens the pull request, and the list shows its checks. |
 
-The pictures are of the look the windows are in, and in the professional look at night they are of the night. They are stills of the app in demo mode, in `src/renderer/onboarding/pictures/`. Short clips of each will take their place.
+The pictures are of the look the windows are in, and in the professional look at night they are of the night. They are stills of the app in demo mode, in [`src/renderer/onboarding/pictures/`](../src/renderer/onboarding/pictures/). Short clips of each will take their place.
 
 ## Add a project
 

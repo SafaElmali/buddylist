@@ -60,7 +60,8 @@ The picture shown when the page is shared is [`site/og-image.png`](../site/og-im
 
 - **Which guides are on it** is the list in [`scripts/site-docs.js`](../scripts/site-docs.js), under the headings the left side has, each with the sentence a search result shows for it. The **Using it** guides in the [README](../README.md#guides) are that list, and a test checks the two agree: add a guide to both.
 - **A guide is written for GitHub and the site alike.** A heading has the anchor GitHub gives it, so `settings.md#scripts` works on both, and a link to another guide becomes a link to its page.
-- **A link the site can't follow fails the build**: one to a file that is not a guide on the site, such as `../README.md`, `browser-preview.md` or something in `src/`, or to a heading a guide doesn't have, and a picture from the repository. On the site the file or picture would be a 404, and a missing heading would leave the guide at its top. Link to a guide, to the [live demo](https://buddylist.dev/demo/) or to another full address instead.
+- **A link to any other file of the repository opens it on GitHub**, such as `../README.md`, `browser-preview.md` or something in `src/`: the site has no page for it, so it becomes `https://github.com/SafaElmali/buddylist/blob/main/<path>`, or `…/tree/main/<path>` for a folder, with its anchor, such as `#L10`, kept. It opens as any other full address on the site does.
+- **A link the site can't follow fails the build**: one to a file the repository doesn't have or outside it, to a heading a guide doesn't have, and a picture from the repository. The file would be a 404, a missing heading would leave the guide at its top, and the site can't show a picture it doesn't have. Link to a full address for a picture instead.
 - **The pages need no script.** On a phone the guide comes first, with the list of guides under it.
 - [`site/_headers`](../site/_headers) keeps the Markdown out of search results, so a search finds the page.
 
