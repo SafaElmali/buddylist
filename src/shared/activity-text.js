@@ -191,6 +191,26 @@ export function draftingStatus(activity) {
  */
 export const helpersAtWork = (count) => `${count} ${count === 1 ? 'subagent' : 'subagents'} at work`;
 
+/** A tool by its name and where it is from, such as an MCP server: "save_ticket (tracker)". */
+const toolLabel = (activity) => `${activity?.label || 'a tool'}${activity?.source ? ` (${activity.source})` : ''}`;
+
+/**
+ * What a card's Always allow says where it covers less than always: its provider's own words, or for one contact only,
+ * whose (see alwaysScope in providers/contract.js). Null where it says what it always does.
+ * @param {{ alwaysLabel?: string, alwaysScope?: string }} prompt
+ * @param {string} name  who asks
+ */
+export const alwaysLabel = (prompt, name) =>
+  prompt.alwaysLabel || (prompt.alwaysScope === 'contact' ? `Always allow for ${name}` : null);
+
+/**
+ * What a card answered with Always allow for the contact that asked says afterwards: "You always allow save_ticket
+ * (tracker) for shop manager."
+ * @param {Activity | undefined} activity  the MCP tool's
+ * @param {string} name  who asked
+ */
+export const allowedForContact = (activity, name) => `You always allow ${toolLabel(activity)} for ${name}.`;
+
 /**
  * What the agent wants permission for: "run a command".
  * @param {Activity} activity
@@ -247,6 +267,6 @@ export function activityRequest(activity, showPath = basename) {
     case 'account':
       return `switch to ${activity.label}`;
     default:
-      return `use ${activity?.label || 'a tool'}${activity?.source ? ` (${activity.source})` : ''}`;
+      return `use ${toolLabel(activity)}`;
   }
 }

@@ -606,3 +606,35 @@ test('allowed for the conversation, the card and the line it leaves later say fo
     [`You allowed for this conversation: ${title}.`, `You always allowed: ${title}.`, `You accepted: ${title}.`]
   );
 });
+
+// ---- Always allow for one contact: a read-only agent's MCP tool ---------------------------------
+
+const SAVE_TICKET_CARD = {
+  activity: { kind: 'tool', label: 'save_ticket', source: 'tracker' },
+  reason: 'Its server doesn’t mark this tool as read-only, so it can change things.',
+  canAlways: true,
+  alwaysScope: 'contact',
+  alwaysTool: { server: 'tracker', tool: 'save_ticket' },
+};
+
+test('Always allow for a contact names whose it is, and the card and its line later name the tool and its server', (t) => {
+  const { invitations, node, responses, choice } = toolCard(t, SAVE_TICKET_CARD);
+  assert.equal(choice('always').textContent, 'Always allow for Codex');
+  assert.equal(choice('allow').textContent, 'Accept');
+  assert.equal(choice('deny').textContent, 'Decline');
+  choice('always').click();
+  assert.deepEqual(responses, [['r1', { decision: 'always' }]]);
+  invitations.resolve('r1', 'always');
+  assert.equal(node.querySelector('.resolved').textContent, 'You always allow save_ticket (tracker) for Codex.');
+  // Accepted once, it says what any card says.
+  const once = toolCard(t, SAVE_TICKET_CARD);
+  once.invitations.resolve('r1', 'allow');
+  assert.equal(once.node.querySelector('.resolved').textContent, 'You accepted.');
+  assert.deepEqual(
+    historyOf(
+      { promptKind: 'tool', activity: SAVE_TICKET_CARD.activity, decision: 'always', scope: 'contact' },
+      { promptKind: 'tool', activity: SAVE_TICKET_CARD.activity, decision: 'allow' }
+    ),
+    ['You always allow save_ticket (tracker) for Claude.', 'You accepted: Claude wanted to use save_ticket (tracker).']
+  );
+});

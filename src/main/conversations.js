@@ -42,7 +42,7 @@ import {
   nearestEffort,
 } from '../shared/models.js';
 import { shouldCatchUp } from '../shared/presence.js';
-import { MCP_ACTIONS } from '../shared/mcp.js';
+import { MCP_ACTIONS, sameTool } from '../shared/mcp.js';
 import { madeForComputer, onComputer, projectName } from '../shared/projects.js';
 import { planTitle } from '../shared/plan-title.js';
 import { pullRequestStatus } from '../shared/pull-request-text.js';
@@ -1942,6 +1942,7 @@ export class Conversations {
             ...(guest.outputStyle && { outputStyle: guest.outputStyle }),
             ...(typeof guest.fastMode === 'boolean' && { fastMode: guest.fastMode }),
             ...((role?.readOnly || host.manages) && { readOnly: true }),
+            ...(guest.allowedTools?.length && { allowedTools: guest.allowedTools }),
             ...(managing && { readDirs: managing.dirs }),
             ...(guest.agent && { agent: guest.agent }),
           };
@@ -3385,6 +3386,11 @@ export class Conversations {
     }
     const prompt = this.#prompts.get(contactId)?.get(requestId);
     const asker = prompt?.speaker ?? contactId;
+    // Always allow for the contact that asked: its next call of that tool, here or in any conversation, goes unasked.
+    if (response?.decision === 'always' && prompt?.alwaysTool) {
+      const kept = this.store.getContact(asker)?.allowedTools ?? [];
+      if (!kept.some((one) => sameTool(one, prompt.alwaysTool))) this.#allowTools(asker, [...kept, prompt.alwaysTool]);
+    }
     this.#sessions.get(contactId)?.get(asker)?.respond(requestId, response);
     // For analytics: how long Always allow covers, where it is less than always.
     if (response?.decision === 'always' && prompt?.alwaysScope) return { scope: prompt.alwaysScope };
@@ -3628,7 +3634,47 @@ export class Conversations {
    * @returns {Promise<import('../providers/contract.js').McpServer[]>}
    */
   async mcpServers(contactId) {
-    return (await this.#hostSession(contactId)?.mcpServers()) || [];
+    const servers = (await this.#hostSession(contactId)?.mcpServers()) || [];
+    // Which of their tools the agents here use without asking, the guests' too: the place to ask again.
+    const host = this.store.getContact(contactId);
+    const here = [host, ...(host?.guests ?? []).map((guest) => this.store.getContact(guest.id))].filter(Boolean);
+    return servers.map((server) => {
+      const allowed = here.flatMap(({ id, name, allowedTools = [] }) =>
+        allowedTools.filter((one) => one.server === server.name).map(({ tool }) => ({ tool, contactId: id, name }))
+      );
+      return allowed.length ? { ...server, allowed } : server;
+    });
+  }
+
+  /**
+   * Takes back an Always allow of an MCP tool for one of the agents of a conversation: it asks before its next call
+   * again, here and in any other conversation.
+   * @param {string} contactId  the conversation's host
+   * @param {string} who  the agent it was allowed for: the host, or one of its guests
+   * @param {import('../providers/contract.js').AllowedTool} tool
+   * @returns {boolean}  whether there was one to take back
+   */
+  askAgain(contactId, who, tool) {
+    const host = this.store.getContact(contactId);
+    if (typeof tool?.server !== 'string' || typeof tool.tool !== 'string') return false;
+    if (!host || (who !== contactId && !host.guests?.some((guest) => guest.id === who))) return false;
+    const kept = this.store.getContact(who)?.allowedTools ?? [];
+    const left = kept.filter((one) => !sameTool(one, tool));
+    if (left.length === kept.length) return false;
+    this.#allowTools(who, left);
+    return true;
+  }
+
+  /**
+   * The MCP tools a contact that changes no files uses without asking, kept with it for after a restart, and given
+   * to each of its sessions running now, its own and the ones it has as a guest.
+   * @param {string} contactId
+   * @param {import('../providers/contract.js').AllowedTool[]} tools
+   */
+  #allowTools(contactId, tools) {
+    const allowedTools = tools.length ? tools : undefined;
+    if (!this.store.updateContact(contactId, { allowedTools })) return;
+    for (const session of this.#sessionsOf(contactId)) session.setAllowedTools(allowedTools);
   }
 
   /**

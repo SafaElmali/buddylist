@@ -46,6 +46,7 @@ function setup(
         setPermissionMode: async (mode) => session.modes.push(mode),
         setModel: async () => {},
         setOutputStyle: async (style) => session.styles.push(style),
+        setAllowedTools: (tools) => (session.contact.allowedTools = tools),
         close: () => {
           session.closed = true;
         },
@@ -3494,6 +3495,99 @@ test('an archived contact, or one that is gone, has no session to ask about MCP 
   assert.deepEqual(await conversations.mcpServers(contact.id), []);
   assert.equal(await conversations.mcpAct(contact.id, 'linear', 'reconnect'), null);
   assert.equal(sessions.length, 0);
+});
+
+const TRACKER = { kind: 'tool', label: 'save_ticket', source: 'tracker' };
+const SAVE_TICKET = { server: 'tracker', tool: 'save_ticket' };
+
+/** A read-only agent's session asks about an MCP tool on a card that can always allow it for that agent. */
+function asksAboutTool(session, requestId, alwaysTool = SAVE_TICKET) {
+  session.emit({
+    type: 'permission',
+    requestId,
+    kind: 'tool',
+    activity: TRACKER,
+    canAlways: true,
+    alwaysScope: 'contact',
+    alwaysTool,
+  });
+}
+
+test('Always allow for a contact keeps the MCP tool with it, for its sessions now and after a restart, and for no one else', async () => {
+  const app = withMcp(setup(), [
+    { name: 'tracker', status: 'connected' },
+    { name: 'files', status: 'connected' },
+  ]);
+  const { conversations, contact, sessions, store } = app;
+  const other = store.addContact({ provider: 'claude', name: 'Reviewer', cwd: contact.cwd, model: '' });
+  conversations.send(contact.id, { text: 'mark SHOP-12', images: [] });
+  asksAboutTool(sessions[0], 'r1');
+  assert.deepEqual(conversations.respond(contact.id, 'r1', { decision: 'always' }), { scope: 'contact' });
+  sessions[0].emit({ type: 'permission-resolved', requestId: 'r1', decision: 'always' });
+  assert.deepEqual(store.getContact(contact.id).allowedTools, [SAVE_TICKET]);
+  assert.deepEqual(sessions[0].contact.allowedTools, [SAVE_TICKET], 'its running session has it before it hears');
+  assert.deepEqual(sessions[0].responses, [['r1', { decision: 'always' }]]);
+  assert.equal(store.getContact(other.id).allowedTools, undefined, 'another contact still asks');
+  // Allowed again, as cards asked side by side are, it is kept once.
+  asksAboutTool(sessions[0], 'r2');
+  conversations.respond(contact.id, 'r2', { decision: 'always' });
+  assert.deepEqual(store.getContact(contact.id).allowedTools, [SAVE_TICKET]);
+  // Accept and Always allow of another scope keep nothing.
+  asksAboutTool(sessions[0], 'r3', { server: 'tracker', tool: 'close_ticket' });
+  conversations.respond(contact.id, 'r3', { decision: 'allow' });
+  assert.deepEqual(store.getContact(contact.id).allowedTools, [SAVE_TICKET]);
+  // The card says so later.
+  const kept = app.history.read(contact.id).find((e) => e.kind === 'permission');
+  assert.equal(kept.scope, 'contact');
+  // MCP servers lists it under its server, as whose it is.
+  assert.deepEqual(await conversations.mcpServers(contact.id), [
+    {
+      name: 'tracker',
+      status: 'connected',
+      allowed: [{ tool: 'save_ticket', contactId: contact.id, name: contact.name }],
+    },
+    { name: 'files', status: 'connected' },
+  ]);
+
+  const again = restarted(app);
+  assert.deepEqual(again.store.getContact(contact.id).allowedTools, [SAVE_TICKET]);
+  again.conversations.send(contact.id, { text: 'and SHOP-14', images: [] });
+  assert.deepEqual(again.sessions[0].contact.allowedTools, [SAVE_TICKET], 'its session starts with it');
+});
+
+test('Ask again takes an Always allow back from the host or a guest, in their sessions too, and nobody else’s', async () => {
+  const { conversations, contact, sessions, store } = withMcp(setup(), [{ name: 'tracker', status: 'connected' }]);
+  const guest = store.addContact({ provider: 'claude', name: 'Reviewer', cwd: contact.cwd, model: '' });
+  const stranger = store.addContact({ provider: 'claude', name: 'Elsewhere', cwd: contact.cwd, model: '' });
+  for (const one of [contact, guest, stranger]) store.updateContact(one.id, { allowedTools: [SAVE_TICKET] });
+  conversations.invite(contact.id, guest.id);
+  conversations.send(contact.id, { text: 'hi', images: [] });
+  reply(sessions[0].emit, 'Hi.');
+  conversations.send(contact.id, { text: '@Reviewer look', images: [] });
+  const guestSession = sessions.find((session) => session.contact.id === guest.id);
+  assert.deepEqual(guestSession.contact.allowedTools, [SAVE_TICKET], 'a guest’s session starts with its own');
+  assert.deepEqual(
+    (await conversations.mcpServers(contact.id))[0].allowed.map(({ name }) => name),
+    [contact.name, 'Reviewer'],
+    'every agent here, the guests too'
+  );
+
+  assert.equal(
+    conversations.askAgain(contact.id, stranger.id, SAVE_TICKET),
+    false,
+    'not an agent of this conversation'
+  );
+  assert.equal(conversations.askAgain(contact.id, guest.id, { server: 'tracker', tool: 'other' }), false);
+  assert.equal(conversations.askAgain(contact.id, guest.id, 'save_ticket'), false);
+  assert.equal(conversations.askAgain('nobody', guest.id, SAVE_TICKET), false);
+
+  assert.equal(conversations.askAgain(contact.id, guest.id, SAVE_TICKET), true);
+  assert.equal(store.getContact(guest.id).allowedTools, undefined);
+  assert.equal(guestSession.contact.allowedTools, undefined, 'its next call asks again');
+  assert.equal(conversations.askAgain(contact.id, contact.id, SAVE_TICKET), true);
+  assert.equal(sessions[0].contact.allowedTools, undefined);
+  assert.deepEqual(store.getContact(stranger.id).allowedTools, [SAVE_TICKET]);
+  assert.deepEqual(await conversations.mcpServers(contact.id), [{ name: 'tracker', status: 'connected' }]);
 });
 
 test('why the MCP servers could not be listed, or one not acted on, reaches the window', async () => {

@@ -3,7 +3,7 @@
 // Also: multiple-choice questions, plans waiting for approval, and project instructions an agent
 // wants to save, as a change to read. A plan itself opens beside the conversation (plans.js); here
 // is only the line that says so.
-import { activityRequest } from '../../shared/activity-text.js';
+import { activityRequest, allowedForContact, alwaysLabel } from '../../shared/activity-text.js';
 import { changeCounts, foldUnchanged, lineChanges } from '../../shared/line-diff.js';
 import { planTitle } from '../../shared/plan-title.js';
 import { INSTRUCTIONS_MAX, cleanInstructionText } from '../../shared/project-settings.js';
@@ -192,7 +192,9 @@ export class Invitations {
       const forConversation = decision === 'always' && event.alwaysScope === 'conversation';
       const said = answeredBy?.name
         ? `Answered by ${answeredBy.name}.`
-        : (forConversation ? FOR_CONVERSATION.resolved : RESOLVED[decision]) || 'Done.';
+        : decision === 'always' && event.alwaysScope === 'contact'
+          ? allowedForContact(event.activity, this.#asker(event).name)
+          : (forConversation ? FOR_CONVERSATION.resolved : RESOLVED[decision]) || 'Done.';
       node.appendChild(el(html`<div class="resolved">${said}</div>`));
     });
   }
@@ -214,6 +216,8 @@ export class Invitations {
 
   /** A summary line for prompts restored from history. */
   addHistory(entry) {
+    if (entry.decision === 'always' && entry.scope === 'contact')
+      return this.conversation.line('notice', '', allowedForContact(entry.activity, this.#asker(entry).name));
     const forConversation = entry.decision === 'always' && entry.scope === 'conversation';
     const answered = (forConversation ? FOR_CONVERSATION.past : PAST[entry.decision]) || 'answered';
     if (entry.plan) return this.#planHistory(entry, answered);
@@ -295,7 +299,8 @@ export class Invitations {
                 ? // Its comma keeps to it, as a key's does, however long it says what it covers.
                   html`<span class="key">(${accept})<span class="ask">,</span></span>
                     <span
-                      ><a data-d="always">${event.alwaysLabel || 'Always allow'}</a><span class="ask">, or</span></span
+                      ><a data-d="always">${alwaysLabel(event, name) || 'Always allow'}</a
+                      ><span class="ask">, or</span></span
                     >`
                 : html`<span class="key">(${accept})<span class="ask"> or</span></span>`
             }

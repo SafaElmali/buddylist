@@ -1381,6 +1381,21 @@ test('an MCP server is counted with what was done to it, and never its name', as
   assert.ok(!JSON.stringify(posts).includes('secret'));
 });
 
+test('an Always allow taken back is counted once there was one, and never says which tool or whose', async () => {
+  const { analytics, posts } = setup();
+  let taken = true;
+  const askAgain = analytics.counting(REQUESTS.chatMcpAskAgain, () => taken);
+  await askAgain({}, 'c1', 'c2', { server: 'secret-crm', tool: 'save_deal' });
+  taken = false;
+  await askAgain({}, 'c1', 'c2', { server: 'secret-crm', tool: 'save_deal' });
+  await analytics.flush();
+  assert.deepEqual(
+    posts[0].body.batch.map(({ event }) => event),
+    ['always allow taken back']
+  );
+  assert.ok(!JSON.stringify(posts).includes('secret'));
+});
+
 test('a window is counted when it is put in front of the others, and not when it is let go', async () => {
   const { analytics, posts } = setup();
   const onTop = analytics.counting(REQUESTS.windowAlwaysOnTop, () => {});
@@ -1487,11 +1502,13 @@ test('an invitation is counted with how it was answered, and never with what was
   for (const kept of ['secret', 'Which database', 'r1']) assert.ok(!sent.includes(kept), kept);
 });
 
-test('an Always allow for the rest of the conversation is counted as Always allow, with its scope', async () => {
+test('an Always allow for the rest of the conversation or for one contact is counted as Always allow, with its scope', async () => {
   const { analytics, posts } = setup();
   let scope = { scope: 'conversation' };
   const respond = analytics.counting(REQUESTS.chatRespond, () => scope);
   await respond({}, 'c1', 'r1', { decision: 'always' });
+  scope = { scope: 'contact' };
+  await respond({}, 'c1', 'r1b', { decision: 'always' });
   // Only Always allow has a scope, and only one the app knows.
   await respond({}, 'c1', 'r2', { decision: 'allow' });
   scope = { scope: 'forever' };
@@ -1505,6 +1522,7 @@ test('an Always allow for the rest of the conversation is counted as Always allo
     ),
     [
       ['invitation answered', 'always', 'conversation'],
+      ['invitation answered', 'always', 'contact'],
       ['invitation answered', 'allow', undefined],
       ['invitation answered', 'always', undefined],
       ['invitation answered', 'always', undefined],
