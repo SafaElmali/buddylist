@@ -6,6 +6,8 @@ import { DIAGRAM_CLASS, diagramCode, drawDiagrams, isDiagram } from './diagrams.
 import { emoticonize } from './emoticons.js';
 import { codeHtml, languageNamed } from './syntax.js';
 import { onAnotherComputer, pictureAddress } from '../../shared/links.js';
+import { isWebPicture } from '../../shared/web-pictures.js';
+import { showReplyPictures } from './reply-pictures.js';
 
 marked.setOptions({ gfm: true, breaks: true });
 marked.use({
@@ -39,14 +41,25 @@ const CODE_CLASSES = /^hljs-[\w-]+( [a-z]+_+)*$|^language-[\w-]+$/;
 export const keepsClass = (tag, classes) =>
   (tag === 'SPAN' && CODE_CLASSES.test(classes)) || (tag === 'CODE' && classes === DIAGRAM_CLASS);
 
+/**
+ * Whether the sanitizing below keeps a picture's file: address, which it takes out of anything else: a picture an
+ * agent took is often written so. One on another computer is taken out where it is placed (see placeSources).
+ * @param {string} tag
+ * @param {string} name  the attribute's
+ * @param {string} value  as written
+ */
+export const keepsPictureFile = (tag, name, value) => tag === 'IMG' && name === 'src' && /^\s*file:/i.test(value);
+
 /** What an element of a reply loads from as soon as it is in the window, with no click: a picture, a video, a sound. */
 const LOADS_FROM = ['src', 'poster', 'background'];
 
 /**
  * Has what an element of a reply loads come from where it should. A picture loads from where it is (see
  * pictureAddress), not from beside the window's own page, where it would be looked for and not found. Nothing
- * loads from another computer (see onAnotherComputer): a `srcset` that names one is taken out whole. Done once
- * what it was written with is known to be safe, and before it is in the window.
+ * loads from another computer (see onAnotherComputer): a `srcset` that names one is taken out whole, and a picture
+ * there is marked `data-not-shown="elsewhere"`. A picture on the web isn't loaded either: its address is kept in
+ * `data-web`, for a card to say what it is or for GitHub to load it (see reply-pictures.js). Done once what it was
+ * written with is known to be safe, and before it is in the window.
  * @param {Element} node  any element of the reply
  * @param {string} [folder]  the contact's
  */
@@ -54,9 +67,16 @@ export function placeSources(node, folder) {
   for (const name of LOADS_FROM) {
     if (!node.hasAttribute(name)) continue;
     const written = node.getAttribute(name);
-    const address = node.nodeName === 'IMG' && name === 'src' ? pictureAddress(written, folder) : written;
-    if (address === null || onAnotherComputer(address)) node.removeAttribute(name);
-    else if (address !== written) node.setAttribute(name, address);
+    const picture = node.nodeName === 'IMG' && name === 'src';
+    const address = picture ? pictureAddress(written, folder) : written;
+    if (address === null || onAnotherComputer(address)) {
+      node.removeAttribute(name);
+      if (picture) node.setAttribute('data-not-shown', 'elsewhere');
+    } else if (picture && isWebPicture(address)) {
+      node.removeAttribute(name);
+      node.removeAttribute('srcset');
+      node.setAttribute('data-web', address);
+    } else if (address !== written) node.setAttribute(name, address);
   }
   // "a.png 1x, b.png 2x": each address starts after a comma or a space.
   const candidates = node.getAttribute('srcset')?.split(/[\s,]+/) ?? [];
@@ -73,7 +93,10 @@ let picturesFrom;
 // DOMPurify has nothing to sanitize with in Node, where the tests read this file.
 if (DOMPurify.isSupported) {
   DOMPurify.addHook('uponSanitizeAttribute', (node, attribute) => {
-    if (attribute.attrName === 'class' && keepsClass(node.nodeName, attribute.attrValue))
+    if (
+      (attribute.attrName === 'class' && keepsClass(node.nodeName, attribute.attrValue)) ||
+      keepsPictureFile(node.nodeName, attribute.attrName, attribute.attrValue)
+    )
       attribute.forceKeepAttr = true;
   });
   DOMPurify.addHook('afterSanitizeAttributes', (node) => placeSources(node, picturesFrom));
@@ -127,18 +150,21 @@ export const isMarkdownFile = (path) => /\.(md|markdown)$/i.test(String(path ?? 
 
 /**
  * Render Markdown into `node` (replacing its contents). Its diagrams are drawn over their code
- * blocks, at once or once they can be (see diagrams.js).
+ * blocks, at once or once they can be (see diagrams.js), and its pictures that can't be shown are cards that say so
+ * (see reply-pictures.js).
  * @param {HTMLElement} node
  * @param {string} text
  * @param {(paint: () => void) => void} [around]  wraps a diagram put in later, e.g. to keep the
  *   conversation scrolled to the bottom
  * @param {string} [folder]  where the pictures it names by a path from a folder are (see markdownToHtml)
+ * @param {import('./reply-pictures.js').PictureWays} [pictures]  how its GitHub pictures are shown
  */
-export function renderMarkdown(node, text, around, folder) {
+export function renderMarkdown(node, text, around, folder, pictures) {
   const html = markdownToHtml(text, folder);
   node.innerHTML = html;
   emoticonize(node, { safe: true });
   addCodeCopies(node);
+  showReplyPictures(node, pictures);
   if (html.includes(DIAGRAM_CLASS)) drawDiagrams(node, around);
 }
 
@@ -225,11 +251,13 @@ export class StreamingMarkdown {
    * @param {(paint: () => void) => void} [around]  wraps each DOM update, e.g.
    *   to keep the conversation scrolled to the bottom
    * @param {string} [folder]  where the pictures it names by a path from a folder are (see markdownToHtml)
+   * @param {import('./reply-pictures.js').PictureWays} [pictures]  how its GitHub pictures are shown
    */
-  constructor(node, around = (paint) => paint(), folder = undefined) {
+  constructor(node, around = (paint) => paint(), folder = undefined, pictures = undefined) {
     this.node = node;
     this.around = around;
     this.folder = folder;
+    this.pictures = pictures;
     this.text = '';
     this.done = document.createElement('div');
     this.tail = document.createElement('div');
@@ -276,7 +304,7 @@ export class StreamingMarkdown {
       const chunk = document.createElement('div');
       chunk.className = 'md-chunk';
       // A diagram is drawn once, here: its code block is done once its fence is closed.
-      renderMarkdown(chunk, this.text.slice(this.doneLength, stable), this.around, this.folder);
+      renderMarkdown(chunk, this.text.slice(this.doneLength, stable), this.around, this.folder, this.pictures);
       this.done.append(...chunk.childNodes);
       this.doneLength = stable;
     }
@@ -284,7 +312,7 @@ export class StreamingMarkdown {
     // Cut right before it, the tail is a code block still open: no fence after it is whole yet.
     if (OUTER_FENCE.test(tail) && tail.includes('\n')) return this.#updateCode(tail);
     this.#code = null;
-    renderMarkdown(this.tail, tail, this.around, this.folder);
+    renderMarkdown(this.tail, tail, this.around, this.folder, this.pictures);
     // Put the typing caret at the end of the last line of text.
     let target = this.tail;
     while (
@@ -326,6 +354,6 @@ export class StreamingMarkdown {
     clearTimeout(this.#timer);
     this.frame = 0;
     this.#timer = 0;
-    this.around(() => renderMarkdown(this.node, text, this.around, this.folder));
+    this.around(() => renderMarkdown(this.node, text, this.around, this.folder, this.pictures));
   }
 }

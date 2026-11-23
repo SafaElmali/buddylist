@@ -27,16 +27,18 @@ const SEARCH_LIMIT = 20;
  * @param {string} cwd
  * @param {string[]} args
  * @param {number} [timeout]  how long it gets; what a dialog waits for is short
- * @returns {Promise<string>}  what it printed
+ * @param {import('node:child_process').ExecFileOptions} [options]  more for execFile, such as `encoding: 'buffer'`
+ *   for a file's bytes
+ * @returns {Promise<any>}  what it printed: a string, or a Buffer for `encoding: 'buffer'`
  */
-export function runGh(cwd, args, timeout = GH_TIMEOUT_MS) {
+export function runGh(cwd, args, timeout = GH_TIMEOUT_MS, options = {}) {
   return new Promise((resolve, reject) => {
     try {
       execTool(
         'gh',
         args,
         // Never stop to ask anything: nobody would see the question.
-        { cwd, timeout, windowsHide: true, env: { ...process.env, GH_PROMPT_DISABLED: '1' } },
+        { cwd, timeout, windowsHide: true, env: { ...process.env, GH_PROMPT_DISABLED: '1' }, ...options },
         // What gh wrote as it gave up is what tells one failure from another. And what it printed
         // all the same: the checks of a pull request, when it leaves with an error because one fails.
         (err, stdout, stderr) => (err ? reject(Object.assign(err, { stderr, stdout })) : resolve(stdout))

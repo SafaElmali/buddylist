@@ -911,6 +911,11 @@ export class Conversation {
     return this.ctx.contact?.cwd;
   }
 
+  /** How a reply's GitHub pictures are shown: asked of the app (see reply-pictures.js). One way, kept as it answers. */
+  #pictures = {
+    load: (address, asked) => window.messenger.chat.githubPicture(this.ctx.contactId, address, asked),
+  };
+
   /** The conversations a message here can tag: the ones a project's manager oversees, in its conversation window. */
   #tags() {
     return this.openTag ? taggable(this.ctx.contact, this.ctx.contacts ?? [], this.ctx.participants) : [];
@@ -972,7 +977,13 @@ export class Conversation {
     if (!hasReply(text)) return;
     const node = this.#assistantNode(time, entry);
     // A diagram in it is drawn after: the line grows by it, as by a picture.
-    renderMarkdown(node.querySelector('.text'), text, (paint) => this.keepPinned(paint), this.#folder());
+    renderMarkdown(
+      node.querySelector('.text'),
+      text,
+      (paint) => this.keepPinned(paint),
+      this.#folder(),
+      this.#pictures
+    );
     markTags(node.querySelector('.text'), this.#tags());
     if (entry.managerAnswer) this.#answeredFrom(node, entry.speaker);
     if (id) this.identify(node, id, { pinned });
@@ -1006,7 +1017,12 @@ export class Conversation {
     const { key, text = '' } = event;
     if (this.live.has(key)) return this.live.get(key);
     const node = this.#assistantNode(Date.now(), event);
-    const md = new StreamingMarkdown(node.querySelector('.text'), (paint) => this.keepPinned(paint), this.#folder());
+    const md = new StreamingMarkdown(
+      node.querySelector('.text'),
+      (paint) => this.keepPinned(paint),
+      this.#folder(),
+      this.#pictures
+    );
     const entry = { node, md };
     this.live.set(key, entry);
     this.append(node, { reply: true });

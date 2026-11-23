@@ -7,6 +7,7 @@ import { page } from './fixtures/dom.js';
 import {
   isMarkdownFile,
   keepsClass,
+  keepsPictureFile,
   placeSources,
   SANITIZE_OPTIONS,
   stableLength,
@@ -164,9 +165,37 @@ test('a picture of a reply is loaded from the contact’s folder, before the win
   const card = element('IMG', { src: 'shots/c.png', alt: 'The card' });
   placeSources(/** @type {any} */ (card), folder);
   assert.deepEqual(card.attributes, { src: 'file:///Users/me/app/shots/c.png', alt: 'The card' });
-  const shot = element('IMG', { src: 'https://example.com/a.png' });
-  placeSources(/** @type {any} */ (shot), folder);
-  assert.deepEqual(shot.attributes, { src: 'https://example.com/a.png' }, 'a web address is as it was');
+});
+
+test('a picture on the web is not loaded by the window: its address is kept aside, for a card or GitHub to show it', () => {
+  for (const src of [
+    'https://example.com/a.png',
+    'http://example.com/a.png',
+    'HTTPS://github.com/example/shop/raw/main/a.png',
+  ]) {
+    const shot = element('IMG', {
+      src,
+      alt: 'shot',
+      srcset: 'https://example.com/a.png 1x, https://example.com/b.png 2x',
+    });
+    placeSources(/** @type {any} */ (shot), '/Users/me/app');
+    assert.deepEqual(shot.attributes, { alt: 'shot', 'data-web': src }, src);
+  }
+  const video = element('VIDEO', { src: 'https://example.com/a.mp4' });
+  placeSources(/** @type {any} */ (video), '/Users/me/app');
+  assert.deepEqual(video.attributes, { src: 'https://example.com/a.mp4' }, 'a video or a sound is as it was');
+});
+
+test('a picture written as a file: address is kept by the sanitizing, where it would take out any other file: one', () => {
+  assert.equal(keepsPictureFile('IMG', 'src', 'file:///tmp/receipt.png'), true);
+  assert.equal(keepsPictureFile('IMG', 'src', ' FILE:///tmp/receipt.png'), true);
+  assert.equal(keepsPictureFile('A', 'href', 'file:///tmp/receipt.png'), false, 'a link is not');
+  assert.equal(keepsPictureFile('IMG', 'srcset', 'file:///tmp/receipt.png'), false);
+  assert.equal(keepsPictureFile('IMG', 'src', 'javascript:alert(1)'), false);
+  // One on another computer is kept only to be taken out where it is placed, and said so.
+  const share = element('IMG', { src: 'file://server/share/a.png', alt: 'share' });
+  placeSources(/** @type {any} */ (share), '/Users/me/app');
+  assert.deepEqual(share.attributes, { alt: 'share', 'data-not-shown': 'elsewhere' });
 });
 
 test('only a picture’s address is changed: a link, and a picture with none, are as they were', () => {
@@ -185,10 +214,10 @@ test('a picture, a video or a sound on another computer is not loaded: what name
   for (const src of ['//server/a.png', '\\\\server\\a.png', '/\\server/a.png', 'file://server/a.png']) {
     const picture = element('IMG', { src, alt: 'A picture' });
     placeSources(/** @type {any} */ (picture), '/Users/me/app');
-    assert.deepEqual(picture.attributes, { alt: 'A picture' }, src);
+    assert.deepEqual(picture.attributes, { alt: 'A picture', 'data-not-shown': 'elsewhere' }, src);
     const unnamed = element('IMG', { src });
     placeSources(/** @type {any} */ (unnamed));
-    assert.deepEqual(unnamed.attributes, {}, `${src}, in a reply with no folder`);
+    assert.deepEqual(unnamed.attributes, { 'data-not-shown': 'elsewhere' }, `${src}, in a reply with no folder`);
   }
   const video = element('VIDEO', { src: '//server/a.mp4', poster: 'file://server/a.png', controls: '' });
   placeSources(/** @type {any} */ (video), '/Users/me/app');
@@ -203,11 +232,11 @@ test('a picture, a video or a sound on another computer is not loaded: what name
 
 test('a srcset that names another computer anywhere in it is taken out whole', () => {
   const picture = element('IMG', {
-    src: 'https://example.com/a.png',
-    srcset: 'https://example.com/a.png 1x,//server/b.png 2x',
+    src: '/tmp/a.png',
+    srcset: '/tmp/a.png 1x,//server/b.png 2x',
   });
   placeSources(/** @type {any} */ (picture));
-  assert.deepEqual(picture.attributes, { src: 'https://example.com/a.png' });
+  assert.deepEqual(picture.attributes, { src: '/tmp/a.png' });
   const source = element('SOURCE', { srcset: '\\\\server\\a.png' });
   placeSources(/** @type {any} */ (source));
   assert.deepEqual(source.attributes, {});

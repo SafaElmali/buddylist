@@ -30,6 +30,7 @@ import { homeSections, roleOf, rowNote } from '../../shared/phone-sections.js';
 import {
   canStop,
   fitForPhone,
+  githubTile,
   queuedOf,
   resultLine,
   signalLine,
@@ -636,8 +637,14 @@ export class ConversationScreen {
       case 'assistant': {
         if (!hasReply(entry.text)) return [];
         const node = this.#reply(entry);
-        renderMarkdown(node.querySelector('.md'), entry.text, (paint) => this.#keepAtEnd(paint), this.view?.cwd);
         const who = speakerOf(this.participants, entry).name;
+        renderMarkdown(
+          node.querySelector('.md'),
+          entry.text,
+          (paint) => this.#keepAtEnd(paint),
+          this.view?.cwd,
+          this.#webPictures(who)
+        );
         // The manager's answer to what you tagged it with here: from its own conversation, which the link opens.
         if (entry.managerAnswer) {
           node.append(
@@ -795,6 +802,11 @@ export class ConversationScreen {
     return row;
   }
 
+  /** How a reply's GitHub pictures are shown: in tiles, asked of the Mac, said to be `who`'s (see githubTile). */
+  #webPictures(who) {
+    return { github: (address, alt) => githubTile(address, alt, { pictures: this.pictures, who }) };
+  }
+
   /** What a reply's pictures in the contact's folder are drawn with (see fitForPhone): tiles, said to be `who`'s. */
   #replyPictures(who) {
     return { pictures: this.pictures, folder: this.view?.cwd, who };
@@ -822,7 +834,8 @@ export class ConversationScreen {
           paint();
           fitForPhone(node, this.#replyPictures(speakerOf(this.participants, { speaker }).name));
         }),
-      this.view?.cwd
+      this.view?.cwd,
+      this.#webPictures(speakerOf(this.participants, { speaker }).name)
     );
     const live = { node, text };
     this.#live.set(key, live);

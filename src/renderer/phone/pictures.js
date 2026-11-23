@@ -16,8 +16,9 @@ const ORIGINALS_KEPT = 3;
 export const NOT_LOADED = 'Couldn’t load';
 
 /**
- * What chat:picture asks for: a message of yours' picture, a call's, or a reply's by the address it loads from.
- * @typedef {{ entry: string, index: number } | { tool: string, index: number } | { file: string }} Which
+ * What chat:picture asks for: a message of yours' picture, a call's, or a reply's by the address it loads from: a file,
+ * or one on GitHub, `asked` once Load with GitHub was tapped.
+ * @typedef {{ entry: string, index: number } | { tool: string, index: number } | { file: string } | { web: string, asked?: boolean }} Which
  */
 
 /**
@@ -43,6 +44,8 @@ function bytesOf(data) {
 export class ConversationPictures {
   /** @type {WeakMap<Element, About>} */
   #about = new WeakMap();
+  /** @type {WeakMap<Element, (error: unknown) => boolean>} what shows instead of a tile, for what it couldn't load for */
+  #fallbacks = new WeakMap();
   /** @type {Map<string, Promise<Loaded>>} the phone's copies asked for, by what they are: one that failed too, until tried again */
   #copies = new Map();
   /** @type {Map<string, Promise<{ url: string, blob: Blob }>>} originals, the newest last */
@@ -78,10 +81,11 @@ export class ConversationPictures {
   /**
    * A tile for a picture, loaded once it comes into view.
    * @param {About} about
-   * @param {{ size?: { width: number, height: number } | null, label: string }} how  its shape where known, and what a
-   *   screen reader says of it
+   * @param {{ size?: { width: number, height: number } | null, label: string, fallback?: (error: unknown) => boolean }} how
+   *   its shape where known, what a screen reader says of it, and what puts something else in its place when it
+   *   couldn't be loaded for a reason tapping again won't change: true where it did
    */
-  tile(about, { size, label }) {
+  tile(about, { size, label, fallback }) {
     const tile = el(
       html`<button class="ph-pic" type="button" data-state="waiting" aria-label="${label}">
         <span class="ph-pic-note" aria-hidden="true" hidden
@@ -93,6 +97,7 @@ export class ConversationPictures {
     if (size?.width && size?.height) tile.style.setProperty('aspect-ratio', `${size.width} / ${size.height}`);
     else tile.classList.add('ph-pic-unsized');
     this.#about.set(tile, about);
+    if (fallback) this.#fallbacks.set(tile, fallback);
     tile.addEventListener('click', () => (tile.dataset.state === 'failed' ? this.#again(tile) : this.open(tile)));
     if (this.#observer) this.#observer.observe(tile);
     else queueMicrotask(() => this.#ask(tile));
@@ -241,7 +246,7 @@ export class ConversationPictures {
       this.copy(tile)
         .then(
           (loaded) => this.#shown(tile, loaded),
-          () => this.#show(tile, 'failed')
+          (error) => this.#fallbacks.get(tile)?.(error) || this.#show(tile, 'failed')
         )
         .finally(() => {
           this.#asking -= 1;

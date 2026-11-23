@@ -1239,6 +1239,63 @@ body:has(> .ph-connection:not([hidden])) > .ph-screen {
   overflow-wrap: anywhere;
 }
 
+/* A reply's picture that isn't shown, in a card in its place (see reply-pictures.js): what the reply calls it, why it
+   isn't shown and where it is, and Open link or Load with GitHub under them. */
+.picture-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 10px;
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  line-height: 1.35;
+}
+
+.picture-card-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-mid);
+}
+
+.picture-card-words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.picture-card-alt {
+  overflow: hidden;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.picture-card-why {
+  color: var(--text-mid);
+  font-size: calc(13rem / 15);
+  overflow-wrap: anywhere;
+}
+
+.picture-card-actions {
+  display: flex;
+  grid-column: 2;
+  align-items: center;
+  gap: 16px;
+}
+
+.picture-card-load {
+  padding: 5px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: calc(13rem / 15);
+}
+
 /* A conversation's pictures (see pictures.js): each holds its place, in its shape where that is known, until it is
    loaded. One alone is in its own shape; more are two by two, the fourth saying how many more the viewer has. */
 .ph-pics {

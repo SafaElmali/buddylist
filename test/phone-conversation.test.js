@@ -42,7 +42,8 @@ const failed = (code) =>
     { code }
   );
 const { describeActivity, describePending } = await import('../src/renderer/lib/activity-line.js');
-const { fitForPhone, todoProgress } = await import('../src/renderer/phone/transcript.js');
+const { fitForPhone, githubTile, todoProgress } = await import('../src/renderer/phone/transcript.js');
+const { showReplyPictures } = await import('../src/renderer/lib/reply-pictures.js');
 const { el, html } = await import('../src/renderer/lib/dom.js');
 const fs = await import('node:fs');
 const css = fs.readFileSync(new URL('../src/renderer/phone/phone.css', import.meta.url), 'utf8');
@@ -2043,7 +2044,8 @@ test('a message typed in the box is sent as typed, so it can tag the conversatio
 
 // ---- Pictures: yours, a call's and a reply's, asked of the Mac as they come into view -------------------------
 
-const { AT_ONCE, NOT_LOADED } = await import('../src/renderer/phone/pictures.js');
+const { AT_ONCE, ConversationPictures, NOT_LOADED } = await import('../src/renderer/phone/pictures.js');
+const { NOT_SHOWN } = await import('../src/shared/web-pictures.js');
 const { clampView, countText, MOST_ZOOM, sharedName, swipeTo, zoomAt } =
   await import('../src/renderer/phone/viewer.js');
 
@@ -2233,7 +2235,106 @@ test('a reply’s picture in the contact’s folder is asked of the Mac; one els
     reply.querySelectorAll('.ph-mac-picture').map((chip) => chip.textContent.trim()),
     ['Picture on your Mac: secret.png', 'Picture on your Mac: page.png']
   );
-  assert.equal(reply.querySelector('img').getAttribute('alt'), 'web', 'a picture on the web stays');
+  assert.equal(
+    reply.querySelector('img').getAttribute('alt'),
+    'web',
+    'a picture on the web is drawn as the Markdown is'
+  );
+});
+
+test('a reply’s picture on GitHub is asked of the Mac in a tile; one on another site, or elsewhere, is a card', (t) => {
+  // As the phone draws a reply's Markdown (see #webPictures in conversation.js).
+  page(t);
+  const tiles = [];
+  const pictures = { tile: (about, how) => (tiles.push([about, how]), el(html`<button class="ph-pic"></button>`)) };
+  const cart = 'https://github.com/example/shop/blob/main/proof/cart-page.png?raw=true';
+  const reply = el(
+    html`<div class="md">
+      <p><img alt="cart page" data-web="${cart}" /></p>
+      <p><img alt="checkout" data-web="https://raw.githubusercontent.com/example/shop/main/checkout.png" /></p>
+      <p><img alt="receipt email" data-web="https://cdn.example.com/receipt.png" /></p>
+      <p><img alt="share" data-not-shown="elsewhere" /></p>
+    </div>`
+  );
+  showReplyPictures(reply, { github: (address, alt) => githubTile(address, alt, { pictures, who: 'Claude' }) });
+  assert.deepEqual(
+    tiles.map(([about, { label }]) => [about, label]),
+    [
+      [{ which: { web: cart }, title: 'cart page', who: 'Claude', name: 'cart-page.png' }, 'Picture: cart page'],
+      [
+        {
+          which: { web: 'https://raw.githubusercontent.com/example/shop/main/checkout.png' },
+          title: 'checkout',
+          who: 'Claude',
+          name: 'checkout.png',
+        },
+        'Picture: checkout',
+      ],
+    ]
+  );
+  assert.ok(
+    tiles.every(([, how]) => typeof how.fallback === 'function'),
+    'each says what shows if the Mac won’t load it'
+  );
+  assert.deepEqual(
+    reply
+      .querySelectorAll('.picture-card')
+      .map((card) => [
+        card.querySelector('.picture-card-alt').textContent,
+        card.querySelector('.picture-card-why').textContent,
+        card.querySelector('.picture-card-open')?.getAttribute('href') ?? null,
+      ]),
+    [
+      ['receipt email', `${NOT_SHOWN.web} · cdn.example.com`, 'https://cdn.example.com/receipt.png'],
+      ['share', NOT_SHOWN.elsewhere, null],
+    ]
+  );
+  assert.equal(reply.querySelectorAll('img').length, 0, 'no picture is left to show broken');
+});
+
+test('a GitHub picture the Mac won’t load unasked is a card: Load with GitHub asks for it again, asked', async (t) => {
+  const document = page(t);
+  const kit = 'https://github.com/example/design-kit/blob/main/coupon.png?raw=true';
+  const { asked, picture } = pictureAsked(async (_id, which) => {
+    if (which.web === kit && !which.asked) throw new Error('ask');
+    if (which.web !== kit) throw failed(NOT_SENT);
+    return copyOf();
+  });
+  messenger.chat = { picture };
+  const reply = el(
+    html`<div class="md">
+      <p><img alt="coupon field" data-web="${kit}" /></p>
+      <p><img alt="cart" data-web="https://github.com/example/shop/blob/main/cart.png" /></p>
+    </div>`
+  );
+  document.body.append(reply);
+  const pictures = new ConversationPictures('a', {
+    scroller: document.body,
+    keepAtEnd: (change) => change(),
+    open: () => {},
+  });
+  t.after(() => pictures.close());
+  showReplyPictures(reply, { github: (address, alt) => githubTile(address, alt, { pictures, who: 'Claude' }) });
+  await settle();
+  await settle();
+  const card = reply.querySelector('.picture-card');
+  assert.equal(card.querySelector('.picture-card-why').textContent, `${NOT_SHOWN.ask} · github.com`);
+  assert.equal(reply.querySelectorAll('.picture-card').length, 1, 'one the connection lost stays a tile, to tap again');
+  assert.equal(reply.querySelector('.ph-pic').dataset.state, 'failed');
+  card.querySelector('.picture-card-load').click();
+  await settle();
+  await settle();
+  assert.equal(reply.querySelectorAll('.picture-card').length, 0);
+  const shown = reply.querySelectorAll('.ph-pic').find((tile) => tile.dataset.state === 'shown');
+  assert.match(shown.querySelector('img').getAttribute('src'), /^blob:/);
+  assert.equal(shown.parentElement.querySelector('.ph-reply-pic-said').textContent, 'coupon field');
+  assert.deepEqual(
+    asked.filter(([, which]) => which.web === kit),
+    [
+      ['a', { web: kit }],
+      ['a', { web: kit, asked: true }],
+    ]
+  );
 });
 
 test('a picture tapped opens over the whole screen: through the conversation’s pictures, and closed', async (t) => {

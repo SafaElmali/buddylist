@@ -633,6 +633,7 @@ test('no other counted request passes on anything it was asked with', async () =
     REQUESTS.copied,
     REQUESTS.mediaDownload,
     REQUESTS.mediaDownloadAll,
+    REQUESTS.chatGithubPicture,
     REQUESTS.schedulesSetOn,
     REQUESTS.remoteUpdate,
     REQUESTS.remoteDeviceAccess,
@@ -1024,6 +1025,25 @@ test('Download all is counted with how many pictures were saved, once some were,
     ['pictures downloaded', 8],
     ['pictures downloaded', 2],
   ]);
+  assert.ok(!JSON.stringify(posts).includes('secret'));
+});
+
+test('Load with GitHub is counted once it loaded a picture: what loads by itself is not, and never which', async () => {
+  const { analytics, posts } = setup();
+  const load = (answer, asked) =>
+    analytics.counting(REQUESTS.chatGithubPicture, () => answer)(
+      {},
+      'c1',
+      'https://github.com/secret-org/secret-repo/blob/main/secret.png',
+      asked
+    );
+  await load({ picture: 'data:image/png;base64,c2VjcmV0', name: 'secret.png' }, true);
+  // Its own repository's, loaded by itself; one that asks first; one that could not load.
+  await load({ picture: 'data:image/png;base64,c2VjcmV0', name: 'secret.png' }, false);
+  await load({ problem: 'ask' }, false);
+  await load({ problem: 'not-found' }, true);
+  await analytics.flush();
+  assert.deepEqual(events(posts), ['github picture loaded']);
   assert.ok(!JSON.stringify(posts).includes('secret'));
 });
 

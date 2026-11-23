@@ -71,6 +71,7 @@ import { shortPath } from './conversations.js';
 import { Spending } from './spending.js';
 import { KeptViews } from './kept-views.js';
 import { listOpen, lookUp } from './github-lookup.js';
+import { githubPictures, windowAnswer } from './github-pictures.js';
 import { imageDataUrl } from './pack.js';
 import { nativeShrink, PhonePictures } from './remote/pictures.js';
 import { cloneRepository, createProject, recentRepositories } from './projects.js';
@@ -1574,20 +1575,31 @@ export function registerIpc({
   handle(REQUESTS.chatHistory, (_e, contactId, asked) => conversations.historyPage(String(contactId), asked ?? {}));
 
   // One of a conversation's pictures, for the phone app, which is sent none with its messages (see remote/routes.js).
+  // Null for a contact that isn't there; '' for one on This computer, which has no folder to show files from.
+  const picturesFolderOf = (contactId) => {
+    const contact = store.getContact(contactId);
+    return contact ? contact.cwd || '' : null;
+  };
+  // A reply's picture on GitHub, in its conversation's own repository or asked for (see github-pictures.js).
+  const githubPicture = githubPictures({
+    history: (contactId) => conversations.entries(contactId),
+    live: (contactId) => conversations.liveTexts(contactId),
+    folderOf: picturesFolderOf,
+  });
   const phonePictures = new PhonePictures({
     history: (contactId) => conversations.entries(contactId),
     original: (reference) => history.pictures.bytes(reference),
-    // Null for a contact that isn't there; '' for one on This computer, which has no folder to show files from.
-    folderOf: (contactId) => {
-      const contact = store.getContact(contactId);
-      return contact ? contact.cwd || '' : null;
-    },
+    folderOf: picturesFolderOf,
     live: (contactId) => conversations.liveTexts(contactId),
     shrink: nativeShrink(nativeImage),
+    github: githubPicture,
   });
   handle(REQUESTS.chatPicture, (_e, contactId, which, options) =>
     phonePictures.picture(String(contactId), which, options ?? {})
   );
+  // A reply's picture on GitHub, for its conversation window (see github-pictures.js): the picture, or why not.
+  const githubAnswer = windowAnswer(githubPicture);
+  handle(REQUESTS.chatGithubPicture, (_e, contactId, address, asked) => githubAnswer(contactId, address, asked));
 
   // Said as a window goes on from a contact, is loaded again or closes. A contact deleted by then keeps nothing.
   handle(REQUESTS.chatKeepView, (_e, contactId, view) => {

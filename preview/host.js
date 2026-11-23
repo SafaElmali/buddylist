@@ -1305,6 +1305,8 @@ const handlers = {
   [REQUESTS.chatHistory]: (_win, contactId, asked) => conversations.historyPage(String(contactId), asked ?? {}),
   // A phone's picture: no phone reaches the preview, and a page that asks anyway is told there is none.
   [REQUESTS.chatPicture]: () => null,
+  // A reply's picture on GitHub: the preview has no GitHub CLI to read it with.
+  [REQUESTS.chatGithubPicture]: () => ({ problem: 'missing' }),
   [REQUESTS.chatKeepView]: (_win, contactId, view) => {
     if (store.getContact(contactId)) views.keep(contactId, view);
   },

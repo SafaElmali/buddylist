@@ -549,6 +549,12 @@ export const COUNTED = Object.freeze({
     event: 'pictures downloaded',
     about: ({ answer }) => (answer?.saved > 0 ? { count: answer.saved } : null),
   },
+  // Load with GitHub on a reply's picture of another repository, once it loaded. One of the conversation's own
+  // repository loads by itself, and is not counted.
+  [REQUESTS.chatGithubPicture]: {
+    event: 'github picture loaded',
+    about: ({ answer }, _contactId, _address, asked) => (asked === true && answer?.picture ? {} : null),
+  },
   // From the +, the toolbar, the View menu or a shortcut. What the window opens by itself is not said.
   [REQUESTS.tabOpened]: { event: 'side tab opened', about: paneTabOpened },
   [REQUESTS.voiceTranscribe]: { event: 'voice clip recorded' },
