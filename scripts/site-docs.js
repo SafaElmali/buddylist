@@ -2,9 +2,16 @@
 // each, with every guide listed on the left and the page's headings on the right. Each guide is
 // also served as written, at its address with .md, for anyone (or any agent) who would rather
 // read Markdown. docs/landing-page.md#docs says how to add one.
+import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Marked } from 'marked';
+import { RELEASES_REPO } from '../src/shared/release-notes.js';
 import { plainText } from './site-seo.js';
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+// The repository's files, where the source is public. It shares its repository with the releases.
+const SOURCE = `https://github.com/${RELEASES_REPO}`;
 
 /**
  * The guides on the site, in the order the list on the left has them, under its headings.
@@ -236,25 +243,35 @@ function headingsOf(tokens, file) {
   return headings;
 }
 
-/** Where a link in a guide goes on the site, or why it can't go there. */
+/**
+ * Where a link in a guide goes: another guide's page on the site, or any other file or folder of
+ * the repository on GitHub. Why it can't go anywhere, otherwise.
+ */
 function siteHref(href, page, pages) {
   if (ADDRESS.test(href)) return href;
   const [file, anchor] = href.split('#');
-  const target = file ? pages.get(path.posix.join('docs', file)) : page;
+  const hash = anchor ? `#${anchor}` : '';
+  const where = path.posix.join('docs', file).replace(/\/$/, '');
+  const target = file ? pages.get(where) : page;
   if (!target) {
-    throw new Error(
-      `docs/${page.file} links to ${href}, which isn't on the site: link to a guide in scripts/site-docs.js, or to a full address`
-    );
+    const found = !/^\.\.(\/|$)/.test(where) && fs.statSync(path.join(ROOT, where), { throwIfNoEntry: false });
+    if (!found) {
+      throw new Error(
+        `docs/${page.file} links to ${href}, which is neither a guide on the site nor a file in the repository`
+      );
+    }
+    return `${SOURCE}/${found.isDirectory() ? 'tree' : 'blob'}/main/${where}${hash}`;
   }
   if (anchor && !target.headings.some(({ id }) => id === anchor)) {
     throw new Error(`docs/${page.file} links to ${href}, but docs/${target.file} has no heading with that anchor`);
   }
-  return file ? `${target.path}${anchor ? `#${anchor}` : ''}` : href;
+  return file ? `${target.path}${hash}` : href;
 }
 
 /**
- * Every guide as a page, its links pointing at the pages they name. A link or picture the site
- * doesn't have stops the build, and so does a link to a heading a guide doesn't have.
+ * Every guide as a page, its links pointing at the pages they name, or at GitHub for a file of the
+ * repository that isn't a guide. A link to a file the repository doesn't have stops the build, and
+ * so do a link to a heading a guide doesn't have and a picture the site doesn't have.
  * @param {(file: string) => string} read  a guide's Markdown, by its name in docs/
  */
 export function docPages(read) {

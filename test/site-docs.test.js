@@ -17,6 +17,11 @@ const guidesOf =
     written[file] ?? `# ${file}\n`;
 const pageOf = (pages, file) => pages.find((page) => page.file === file);
 const hrefs = (html) => [...html.matchAll(/<a [^>]*?href="([^"]*)"/g)].map((match) => match[1]);
+/** Where each link of a guide that has only these goes on its page. */
+const linked = (written) => {
+  const links = written.map((href) => `[this](${href})`).join(' ');
+  return hrefs(pageOf(docPages(guidesOf({ 'codex.md': `# Codex\n\n${links}\n` })), 'codex.md').html);
+};
 
 /** A page of the site as the build writes it. */
 const built = (page, pages) =>
@@ -83,11 +88,11 @@ test('a link to another guide goes to its page, or its heading, and a full addre
         '## Here',
         '',
         '[a](welcome-wizard.md) [b](welcome-wizard.md#signing-in) [c](getting-started.md) [d](./gemini.md)',
-        '[e](#here) [f](https://example.com/a.md) [g](mailto:someone@example.com)',
+        '[e](#here) [f](https://example.com/a.md) [g](mailto:someone@example.com) [h](../docs/run-button.md)',
         '',
         '| In a table |',
         '| --- |',
-        '| [h](settings.md) |',
+        '| [i](settings.md) |',
       ].join('\n'),
       'welcome-wizard.md': '# The welcome wizard\n\n## Signing in\n',
     })
@@ -101,15 +106,38 @@ test('a link to another guide goes to its page, or its heading, and a full addre
     '#here',
     'https://example.com/a.md',
     'mailto:someone@example.com',
+    '/docs/run-button',
     '/docs/settings',
   ]);
 });
 
-test("a link to a file the site doesn't have stops the build: on the site it would go nowhere", () => {
-  for (const href of ['../README.md#try-it-without-a-login', 'browser-preview.md', '../src/pack/winks', 'nope.md']) {
+test('a link to a file of the repository that is not a guide on the site opens it on GitHub, its anchor kept', () => {
+  const links = {
+    '../README.md': 'https://github.com/SafaElmali/buddylist/blob/main/README.md',
+    '../README.md#guides': 'https://github.com/SafaElmali/buddylist/blob/main/README.md#guides',
+    '../src/main/ipc.js#L10': 'https://github.com/SafaElmali/buddylist/blob/main/src/main/ipc.js#L10',
+    'browser-preview.md': 'https://github.com/SafaElmali/buddylist/blob/main/docs/browser-preview.md',
+    './screenshot.png': 'https://github.com/SafaElmali/buddylist/blob/main/docs/screenshot.png',
+  };
+  assert.deepEqual(linked(Object.keys(links)), Object.values(links));
+});
+
+test('a link to a folder of the repository opens it on GitHub, with or without its slash', () => {
+  const links = {
+    '../scripts/': 'https://github.com/SafaElmali/buddylist/tree/main/scripts',
+    '../src/pack/winks': 'https://github.com/SafaElmali/buddylist/tree/main/src/pack/winks',
+  };
+  assert.deepEqual(linked(Object.keys(links)), Object.values(links));
+});
+
+test("a link to a file the repository doesn't have, or outside it, stops the build: it would go nowhere", () => {
+  for (const href of ['nope.md', '../src/nope.js#L1', '../..', '../../README.md']) {
     assert.throws(
       () => docPages(guidesOf({ 'codex.md': `# Codex\n\nSee [this](${href}).\n` })),
-      new RegExp(`docs/codex\\.md links to ${href.replace(/[.#/]/g, '\\$&')}, which isn't on the site`)
+      new RegExp(
+        `docs/codex\\.md links to ${href.replace(/[.#/]/g, '\\$&')}, which is neither a guide on the site nor a file in the repository`
+      ),
+      href
     );
   }
 });
