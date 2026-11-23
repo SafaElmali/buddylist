@@ -22,6 +22,7 @@ import { madeUpNickname, withoutPrefix } from '../../shared/branch-names.js';
 import { newContactStart } from '../../shared/contact-defaults.js';
 import { currentModel, defaultNamed, effortLabel } from '../../shared/models.js';
 import { branchFor, describeItem, draftFor, nicknameFor } from '../../shared/github-item.js';
+import { PRIORITY, priorityOf } from '../../shared/list-view.js';
 import { ADDS_MANAGER, managersAtWork, scopedManager, underFor } from '../../shared/managers.js';
 import { itemList } from './item-list.js';
 import { addAnotherManager, addManager, managerOfFolder, managerOfProject } from './manager-dialog.js';
@@ -292,6 +293,18 @@ export function contactDialog({
         </select>
       </label>`
     : '';
+  // How much it matters, which the list can be sorted by: asked of a contact being edited. A new one is Normal.
+  const priorityField = existing
+    ? html`<label
+        >Priority
+        <select name="priority">
+          ${PRIORITY.map(
+            ({ id, label }) =>
+              html`<option value="${id}" ${priorityOf(existing) === id ? 'selected' : ''}>${label}</option>`
+          )}
+        </select>
+      </label>`
+    : '';
   // Which manager oversees it: the one whose + it is added with, the one whose scope takes it, or else none. Drawn
   // for the project it works on (see showUnder), which This computer and a folder outside a repository are not.
   const underHint = (id, scoped = false) => {
@@ -327,7 +340,7 @@ export function contactDialog({
   const body = el(
     existing
       ? html`<form class="contact-form">
-          ${who} ${groupField} ${folderField} ${modelField} ${busyLine(ADDING)}
+          ${who} ${groupField} ${priorityField} ${folderField} ${modelField} ${busyLine(ADDING)}
           <div class="error" hidden></div>
         </form>`
       : html`<form class="contact-form">
@@ -668,6 +681,7 @@ export function contactDialog({
         // A new contact has its service's picture.
         avatar: existing ? fields.avatar.value : provider.avatar,
         ...(fields.groupId && { groupId: fields.groupId.value || null }),
+        ...(fields.priority && { priority: fields.priority.value }),
       };
       if (!values.cwd && !onComputer) throw new Error('Pick the folder this contact should work in.');
       if (existing && values.cwd !== existing.cwd) {

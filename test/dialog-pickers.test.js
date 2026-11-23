@@ -183,6 +183,36 @@ test('a contact being edited has no Effort, as before', async (t) => {
   assert.equal(shown(form.querySelector('.model-combo')), 'Sonnet 5.5');
 });
 
+test('a contact being edited has its Priority, Normal for one with none, and OK keeps the one picked', async (t) => {
+  const { document, closing } = opened(t);
+  const saved = [];
+  api.contacts = { ...api.contacts, update: async (id, fields) => (saved.push(fields), { id, ...fields }) };
+  api.on = { contactProgress: () => () => {}, settings: () => () => {} };
+  const existing = { id: 'c1', name: 'Cart', provider: 'claude', model: '', cwd: '/w/shop', avatar: 'claude' };
+  const edit = async (fields) => {
+    const closed = contactDialog({ providers: [claude, codex], existing: { ...existing, ...fields } });
+    closing(closed);
+    await tick();
+    const form = document.body.querySelector('.contact-form');
+    return { closed, form, select: form.elements.priority };
+  };
+  const { closed, form, select } = await edit({ priority: 'high' });
+  assert.deepEqual(
+    select.querySelectorAll('option').map((option) => [option.value, option.textContent]),
+    [
+      ['high', 'High'],
+      ['normal', 'Normal'],
+      ['low', 'Low'],
+    ]
+  );
+  assert.equal(select.value, 'high');
+  select.value = 'low';
+  form.fire('submit');
+  await closed;
+  assert.equal(saved.at(-1).priority, 'low');
+  assert.equal((await edit({})).select.value, 'normal', 'one with none is Normal');
+});
+
 // ---- a schedule -----------------------------------------------------------------------------------------------
 
 test('a schedule’s effort is our drop-down, starts where its schedule was kept, and its levels follow the model', async (t) => {

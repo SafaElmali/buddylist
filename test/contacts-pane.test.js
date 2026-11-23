@@ -282,13 +282,21 @@ test('an archived sidebar contact can be restored, read, found on disk, or delet
 });
 
 test('the list is grouped and sorted as the contact list is, with every project in it', () => {
-  assert.deepEqual(paneView({}), { groupBy: 'project', sortBy: 'added', project: null, hidden: [], pinned: [] });
+  assert.deepEqual(paneView({}), {
+    groupBy: 'project',
+    sortBy: 'added',
+    project: null,
+    hidden: [],
+    pinned: [],
+    projectGroups: {},
+  });
   assert.deepEqual(paneView({ listView: { groupBy: 'status', sortBy: 'recent', project: 'api' } }), {
     groupBy: 'status',
     sortBy: 'recent',
     project: null,
     hidden: [],
     pinned: [],
+    projectGroups: {},
   });
   // A project pinned in the contact list is pinned here too.
   assert.deepEqual(paneView({ listView: { pinned: ['shop'] } }).pinned, ['shop']);
@@ -303,6 +311,7 @@ test('a project hidden from the contact list is still in the list beside a conve
     project: null,
     hidden: [],
     pinned: [],
+    projectGroups: {},
   });
 
   // Whatever the contact list leaves out, a conversation has its own contact in the list beside it.
@@ -350,6 +359,7 @@ test('a right-click on a contact opens it here or in a window of its own, its hi
       'Copy branch name',
       '-',
       'Rename...',
+      'Priority',
       'Pin to top',
       'Add to favorites',
       'Archive contact',
@@ -386,6 +396,35 @@ test('a right-click on a contact opens it here or in a window of its own, its hi
   assert.deepEqual(
     own.filter((item) => item.disabled).map((item) => item.label),
     ['Open', 'Open in a new window']
+  );
+});
+
+test('beside a conversation, a contact’s Priority is the contact list’s, right before Pin to top', () => {
+  const set = [];
+  const noop = () => {};
+  const actions = Object.fromEntries(
+    ['here', 'apart', 'history', 'openFolder', 'copyPath', 'copyBranch', 'unread', 'addFrom', 'rename']
+      .concat(['pin', 'favorite', 'archive', 'restore', 'remove'])
+      .map((name) => [name, noop])
+  );
+  const priority = (contact, level) => set.push([contact.id, level]);
+  const menu = paneMenu({ id: 'c2', status: 'online', priority: 'low' }, 'c1', { ...actions, priority });
+  const labels = menu.map((item) => item.label ?? '-');
+  assert.equal(labels.indexOf('Priority'), labels.indexOf('Pin to top') - 1);
+  const { submenu } = menu.find((item) => item.label === 'Priority');
+  assert.deepEqual(
+    submenu.map((item) => [item.label, Boolean(item.checked)]),
+    [
+      ['High', false],
+      ['Normal', false],
+      ['Low', true],
+    ]
+  );
+  submenu[0].action();
+  assert.deepEqual(set, [['c2', 'high']]);
+  // An archived contact has none: nothing about it is changed while it is put away.
+  assert.ok(
+    !paneMenu({ id: 'c2', archived: true }, 'c1', { ...actions, priority }).some((i) => i.label === 'Priority')
   );
 });
 

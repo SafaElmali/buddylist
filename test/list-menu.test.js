@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { listItems, projectItems, projectMenuItems, viewItems } from '../src/renderer/contacts/list-menu.js';
+import {
+  groupChoices,
+  listItems,
+  projectItems,
+  projectMenuItems,
+  viewItems,
+} from '../src/renderer/contacts/list-menu.js';
 import { DEFAULT_LIST_VIEW } from '../src/shared/list-view.js';
 
 /** Handlers that write down what was chosen. */
@@ -114,7 +120,7 @@ test('beside a conversation, the list’s menu is Group by and Sort by, the same
 test('Sort by marks the order the list is in, and each choice changes only that', () => {
   const { on, chosen } = recorder();
   const items = find(listItems(list(), on), 'Sort by').submenu;
-  assert.deepEqual(labels(items), ['Date added', 'Name', 'Status', 'Last active']);
+  assert.deepEqual(labels(items), ['Date added', 'Name', 'Status', 'Last active', 'Priority']);
   assert.deepEqual(checked(items), ['Date added']);
   find(items, 'Last active').action();
   assert.deepEqual(chosen, [['setView', { sortBy: 'recent' }]]);
@@ -662,4 +668,65 @@ test('a repository nobody works on offers a manager; beside a conversation and i
     '-',
     'Remove project...',
   ]);
+});
+
+// ---- your groups over projects ---------------------------------------------------------------------
+
+const GROUPS = [
+  { id: 'g-work', name: 'Work' },
+  { id: 'g-side', name: 'Side projects' },
+];
+
+test('the groups a contact or a project can go to: yours, with its own ticked, No group, and New group...', () => {
+  const chosen = [];
+  const move = (id) => chosen.push(['move', id]);
+  const create = () => chosen.push(['create']);
+  const items = groupChoices(GROUPS, 'g-side', move, create);
+  assert.deepEqual(labels(items), ['Work', 'Side projects', 'No group', '-', 'New group...']);
+  assert.deepEqual(checked(items), ['Side projects']);
+  assert.deepEqual(checked(groupChoices(GROUPS, null, move, create)), ['No group']);
+  assert.deepEqual(checked(groupChoices(GROUPS, 'g-gone', move, create)), ['No group'], 'a group deleted is none');
+  items.forEach((item) => item.action?.());
+  assert.deepEqual(chosen, [['move', 'g-work'], ['move', 'g-side'], ['move', null], ['create']]);
+  // Where no group can be made, as beside a conversation, there is no New group....
+  assert.deepEqual(labels(groupChoices(GROUPS, null, move)), ['Work', 'Side projects', 'No group']);
+  assert.deepEqual(labels(groupChoices([], null, move)), ['No group']);
+});
+
+test('a project’s menu moves it to one of your groups, right before pinning it, where that can be done', () => {
+  const { on, chosen } = projectRecorder();
+  const asked = [];
+  on.moveItems = (name) => (asked.push(name), groupChoices(GROUPS, null, () => {}));
+  const items = projectMenuItems(section([claude]), on);
+  assert.equal(labels(items).indexOf('Move to group'), labels(items).indexOf('Pin project') - 1);
+  assert.deepEqual(labels(find(items, 'Move to group').submenu), ['Work', 'Side projects', 'No group']);
+  assert.deepEqual(asked, ['shop'], 'by the project’s name');
+  assert.deepEqual(chosen, []);
+  // A project nobody works on can be in a group too, by its name.
+  const empty = projectMenuItems(
+    { id: 'project:docs', label: 'docs', project: true, members: [], empty: { key: 'dir:/code/docs', name: 'docs' } },
+    on
+  );
+  assert.equal(labels(empty).indexOf('Move to group'), labels(empty).indexOf('Pin project') - 1);
+  assert.deepEqual(asked, ['shop', 'docs']);
+  // This computer keeps its place: it is in no group.
+  const computer = projectMenuItems(
+    { id: 'computer', label: 'This computer', project: true, computer: true, members: [] },
+    on
+  );
+  assert.ok(!labels(computer).includes('Move to group'));
+  // Without a way to move it, as in a list that can't, none is offered.
+  assert.ok(!labels(projectMenuItems(section([claude]), projectRecorder().on)).includes('Move to group'));
+});
+
+test('Sort by offers Priority, last', () => {
+  const { on, chosen } = recorder();
+  const sortBy = find(viewItems(DEFAULT_LIST_VIEW, on.setView), 'Sort by').submenu;
+  assert.equal(sortBy.at(-1).label, 'Priority');
+  sortBy.at(-1).action();
+  assert.deepEqual(chosen, [['setView', { sortBy: 'priority' }]]);
+  assert.deepEqual(
+    checked(find(viewItems({ ...DEFAULT_LIST_VIEW, sortBy: 'priority' }, on.setView), 'Sort by').submenu),
+    ['Priority']
+  );
 });

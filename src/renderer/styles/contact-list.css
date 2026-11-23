@@ -172,8 +172,10 @@
   max-width: 70%;
 }
 
-/* A pinned contact or project: a pin before its name, inside it, so that a name cut short keeps it. */
-.pin-mark {
+/* A pinned contact or project: a pin before its name, inside it, so that a name cut short keeps it. A contact of high
+   or low priority has an arrow there too, after its pin. */
+.pin-mark,
+.priority-mark {
   display: inline-block;
   width: 10px;
   height: 10px;
@@ -181,10 +183,24 @@
   vertical-align: -1px;
 }
 
-.pin-mark svg {
+.pin-mark svg,
+.priority-mark svg {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.priority-mark {
+  color: var(--muted);
+}
+
+.priority-mark[data-priority='high'] {
+  color: var(--danger, #b3261e);
+}
+
+/* One of your groups over projects: the projects in it are a step in, under its line. */
+.project-group > .group-members {
+  padding-left: 10px;
 }
 
 /* A name being typed over, where it was (see ContactList#rename). As tall as the row lets it be. */
@@ -408,8 +424,10 @@
   height: 12px;
 }
 
-/* A conversation dragged to go under a manager, and the manager's row or the project's line it would go to. */
-.contact.dragging {
+/* A conversation dragged to go under a manager, or a project's line to go in one of your groups, and the manager's
+   row, the project's line or the group's it would go to. */
+.contact.dragging,
+.group.dragging {
   opacity: 0.5;
 }
 

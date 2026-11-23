@@ -1,5 +1,5 @@
 // Contact groups: the user's own sections of the contact list ("Work",
-// "Side projects"), next to the built-in ones.
+// "Side projects"), next to the built-in ones. Grouped by project, they head the projects put in them.
 import { THIS_COMPUTER } from './projects.js';
 
 /** @typedef {{ id: string, name: string }} Group */
@@ -15,6 +15,8 @@ import { THIS_COMPUTER } from './projects.js';
  * @property {boolean} [computer]  This computer: the contacts that work on no project, each in a folder of its own.
  *   It is pinned and hidden by its name, as a project is
  * @property {boolean} [pinned]  a project pinned on top of the others
+ * @property {{ id: string, label: string }} [inGroup]  a project in one of your groups: its line is under the group's.
+ *   The projects of a group are listed together, one after the other
  * @property {boolean} [projectNotes]  its rows say which project each member works on, where they would say what it does
  * @property {EmptyProject} [empty]  a project nobody works on any more: it has no members, and is known by this
  * @property {any[]} members
@@ -120,30 +122,42 @@ function statusSections(contacts) {
 }
 
 /**
- * A section for each project, by name, the pinned ones first, and one for each of the `empty` ones too, with nobody
- * in it. This computer, the contacts on no project, comes after the projects, or among the pinned ones once it is
- * pinned. `computer` lists it even with nobody on it, as the way to a contact there.
+ * A section for each project, by name, the pinned ones first, then the ones in your groups, a group after another in
+ * their order, and one for each of the `empty` ones too, with nobody in it. This computer, the contacts on no
+ * project, comes after the projects, or among the pinned ones once it is pinned. `computer` lists it even with nobody
+ * on it, as the way to a contact there. A pinned project stays on top, out of its group, and This computer is in
+ * none.
  * @param {any[]} contacts
+ * @param {Group[]} groups
  * @param {Set<string>} pinned
- * @param {{ computer: boolean, empty: EmptyProject[] }} opts
+ * @param {{ computer: boolean, empty: EmptyProject[], projectGroups: Record<string, string> }} opts
  */
-function projectSections(contacts, pinned, { computer, empty }) {
+function projectSections(contacts, groups, pinned, { computer, empty, projectGroups }) {
   const here = contacts.filter((c) => c.place === 'computer');
-  const pin = (name) => pinned.has(name) && { pinned: true };
+  // Pinned, or else in one of your groups that is still there, by the name the project goes by.
+  const placed = (name) => {
+    if (pinned.has(name)) return { pinned: true };
+    const group = groups.find((g) => g.id === projectGroups[name]);
+    return group && { inGroup: { id: group.id, label: group.name } };
+  };
   const sections = [
     ...sectionsBy(
       contacts.filter((c) => c.place !== 'computer'),
       (c) => ({ id: `project:${c.project}`, label: c.project || OTHER })
-    ).map((section) => ({ ...section, project: true, ...pin(section.members[0].project) })),
+    ).map((section) => ({ ...section, project: true, ...placed(section.members[0].project) })),
     ...empty.map((project) => ({
       id: `project:${project.name}`,
       label: project.name,
       project: true,
       empty: project,
       members: [],
-      ...pin(project.name),
+      ...placed(project.name),
     })),
   ].sort(byLabel);
+  const rest = [
+    ...groups.flatMap((g) => sections.filter((s) => s.inGroup?.id === g.id)),
+    ...sections.filter((s) => !s.pinned && !s.inGroup),
+  ];
   const mine =
     here.length || computer
       ? {
@@ -155,15 +169,14 @@ function projectSections(contacts, pinned, { computer, empty }) {
           ...(pinned.has(THIS_COMPUTER) && { pinned: true }),
         }
       : null;
-  if (mine?.pinned)
-    return [...[...sections.filter((s) => s.pinned), mine].sort(byLabel), ...sections.filter((s) => !s.pinned)];
-  return [...sections.filter((s) => s.pinned), ...sections.filter((s) => !s.pinned), ...(mine ? [mine] : [])];
+  if (mine?.pinned) return [...[...sections.filter((s) => s.pinned), mine].sort(byLabel), ...rest];
+  return [...sections.filter((s) => s.pinned), ...rest, ...(mine ? [mine] : [])];
 }
 
 /** What the reachable contacts that are no favorites are listed under, for each way of grouping them. */
 const MIDDLE = {
   group: groupSections,
-  project: (contacts, _groups, pinned, opts) => projectSections(contacts, pinned, opts),
+  project: projectSections,
   status: statusSections,
   service: (contacts) =>
     sectionsBy(contacts, (c) => ({ id: `service:${c.provider}`, label: c.providerName || c.provider || OTHER })),
@@ -180,15 +193,16 @@ const MIDDLE = {
  * that is each of the user's groups with its reachable contacts and Other
  * Contacts for the rest, or just Online without groups. By project or by
  * service it is a section for each, by name, and by project the pinned ones
- * come first, and This computer last. By project, each of the `empty` ones has a section too, with nobody in it. By status it is who is working, and Online. A favorite keeps its
+ * come first, then the ones in your groups (see projectSections), and This computer last. By project, each of the `empty` ones has a section too, with nobody in it. By status it is who is working, and Online. A favorite keeps its
  * group for when it stops being one, and is under Offline like any other when
  * its folder is gone.
  * @param {{ status: string, groupId?: string | null, favorite?: boolean, archived?: boolean, project?: string, provider?: string, providerName?: string }[]} contacts
  * @param {Group[]} groups
  * @param {import('./list-view.js').ListView['groupBy']} [groupBy]
  * @param {string[]} [pinnedProjects]  by name
- * @param {{ computer?: boolean, empty?: EmptyProject[] }} [opts]  `computer`: by project, This computer is listed
- *   even with nobody on it. `empty`: the projects nobody works on any more, none of them a contact's project by name
+ * @param {{ computer?: boolean, empty?: EmptyProject[], projectGroups?: Record<string, string> }} [opts]  `computer`:
+ *   by project, This computer is listed even with nobody on it. `empty`: the projects nobody works on any more, none of
+ *   them a contact's project by name. `projectGroups`: by project, the group of yours each project is in, by its name
  * @returns {Section[]}
  */
 export function contactSections(
@@ -196,7 +210,7 @@ export function contactSections(
   groups,
   groupBy = 'group',
   pinnedProjects = [],
-  { computer = false, empty = [] } = {}
+  { computer = false, empty = [], projectGroups = {} } = {}
 ) {
   const archived = contacts.filter((c) => c.archived);
   const listed = contacts.filter((c) => !c.archived);
@@ -205,7 +219,11 @@ export function contactSections(
   const rest = reachable.filter((c) => c.status !== 'away');
   const favorites = rest.filter((c) => c.favorite);
   const others = rest.filter((c) => !c.favorite);
-  const middle = (MIDDLE[groupBy] || MIDDLE.group)(others, groups, new Set(pinnedProjects), { computer, empty });
+  const middle = (MIDDLE[groupBy] || MIDDLE.group)(others, groups, new Set(pinnedProjects), {
+    computer,
+    empty,
+    projectGroups,
+  });
   const projectNotes = new Set(listed.map((c) => c.project).filter(Boolean)).size > 1;
   return [
     ...(waiting.length ? [{ id: 'waiting', label: WAITING, members: waiting, projectNotes }] : []),

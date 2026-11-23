@@ -13,6 +13,8 @@ version into package.json and package-lock.json in the release prep PR.
 
 ## v0.7.14
 
+- **Sort contacts by priority, and put projects in your groups** — Right-click a contact and choose **Priority** to make it **High** or **Low**, or pick it in **Edit contact...**: an arrow before its name says so, and **Sort by > Priority** lists the High ones first in each section, then Normal, then Low, a manager still leading its workers. Grouped by project, right-click a project and choose **Move to group**, or drag its line onto a group's line: your groups, such as "Work" and "Side projects", head the projects in them, and fold them all away with a click. The phone app shows them the same way. Every list stays as it was until you set a priority or move a project.
+
 - **A manager can take a guest out of a worker, and adds no second copy** — A project manager could invite an agent, such as a reviewer, into its workers but never take one out, so replacing one meant opening each worker's **Agents** tab by hand. Now ask it to _"replace the reviewers with the Full-Stack Reviewer role"_ and it takes the old ones out and invites the new ones, asking you first on a card unless you asked for it. It takes out any guest of a worker it oversees, one you added included, stops one that is at work, and never the worker's own agent. Inviting a role that is in a worker already, one you added by hand too, on another model, no longer adds a second named _Full-Stack Reviewer 2_: the manager is told it is there already.
 
 ## v0.7.13 — 2026-11-22

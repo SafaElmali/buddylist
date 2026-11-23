@@ -1,6 +1,6 @@
 // How the contact list is laid out: what its contacts are grouped by, which
 // project it is narrowed down to, which projects are put out of sight or pinned
-// on top, and the order of the contacts in a section.
+// on top or put in one of your groups, and the order of the contacts in a section.
 // It is kept with the settings, so the list comes back the way it was left.
 import { contactSections } from './groups.js';
 import { inTeamOf, ledBy } from './managers.js';
@@ -9,10 +9,12 @@ import { THIS_COMPUTER } from './projects.js';
 /**
  * @typedef {Object} ListView
  * @property {'group' | 'project' | 'status' | 'service'} groupBy
- * @property {'added' | 'name' | 'status' | 'recent'} sortBy
+ * @property {'added' | 'name' | 'status' | 'recent' | 'priority'} sortBy
  * @property {string | null} project  the only project listed; null lists them all
  * @property {string[]} hidden  the projects whose contacts are left out of the list until they are shown again
  * @property {string[]} pinned  the projects listed before the others, grouped by project
+ * @property {Record<string, string>} projectGroups  the group of yours each project is listed under, grouped by
+ *   project: by the project's name, the group's id
  */
 
 /** What the list can be grouped by, as the menu offers it. */
@@ -29,7 +31,40 @@ export const SORT_BY = Object.freeze([
   { id: 'name', label: 'Name' },
   { id: 'status', label: 'Status' },
   { id: 'recent', label: 'Last active' },
+  { id: 'priority', label: 'Priority' },
 ]);
+
+/**
+ * How much a contact matters to you, as you set it. Normal is what a contact has until you say otherwise, and is not
+ * kept on it.
+ */
+export const PRIORITY = Object.freeze([
+  { id: 'high', label: 'High' },
+  { id: 'normal', label: 'Normal' },
+  { id: 'low', label: 'Low' },
+]);
+
+/**
+ * The priority to keep on a contact: High or Low, and nothing for Normal or what is none of them.
+ * @param {unknown} value
+ * @returns {'high' | 'low' | undefined}
+ */
+export const cleanPriority = (value) => {
+  const priority = known(PRIORITY, value, 'normal');
+  return priority === 'normal' ? undefined : priority;
+};
+
+/** @param {{ priority?: unknown }} contact @returns {'high' | 'normal' | 'low'} */
+export const priorityOf = (contact) => cleanPriority(contact.priority) ?? 'normal';
+
+/**
+ * Priority's choices in a contact's menu, its own ticked: in the contact list and beside a conversation.
+ * @template T
+ * @param {T & { priority?: unknown }} contact
+ * @param {(contact: T, priority: 'high' | 'normal' | 'low') => void} set
+ */
+export const priorityItems = (contact, set) =>
+  PRIORITY.map(({ id, label }) => ({ label, checked: priorityOf(contact) === id, action: () => set(contact, id) }));
 
 /**
  * How a list nobody laid out is: by project, since a contact is added for a project and
@@ -42,6 +77,7 @@ export const DEFAULT_LIST_VIEW = Object.freeze({
   project: null,
   hidden: Object.freeze([]),
   pinned: Object.freeze([]),
+  projectGroups: Object.freeze({}),
 });
 
 // Nobody hides or pins this many projects by hand.
@@ -54,6 +90,14 @@ const names = (value) =>
   [...new Set((Array.isArray(value) ? value : []).filter((name) => typeof name === 'string' && name))].slice(
     0,
     HIDDEN_MAX
+  );
+
+/** Each project's group, by the project's name: one each, and only what names both. */
+const groupsOf = (value) =>
+  Object.fromEntries(
+    Object.entries(value && typeof value === 'object' && !Array.isArray(value) ? value : {})
+      .filter(([name, id]) => name && typeof id === 'string' && id)
+      .slice(0, HIDDEN_MAX)
   );
 
 /**
@@ -69,6 +113,7 @@ export function listView(settings) {
     project: projectOr(view?.project),
     hidden: names(view?.hidden),
     pinned: names(view?.pinned),
+    projectGroups: groupsOf(view?.projectGroups),
   };
 }
 
@@ -90,6 +135,7 @@ export function cleanListView(patch, settings) {
       project: 'project' in asked ? projectOr(asked.project) : current.project,
       hidden: 'hidden' in asked ? names(asked.hidden) : current.hidden,
       pinned: 'pinned' in asked ? names(asked.pinned) : current.pinned,
+      projectGroups: 'projectGroups' in asked ? groupsOf(asked.projectGroups) : current.projectGroups,
     },
   };
 }
@@ -186,6 +232,18 @@ export const showing = (view, name) => ({ hidden: view.hidden.filter((hidden) =>
  */
 export const pinning = (view, name) => ({ pinned: names([...view.pinned, name]) });
 
+/**
+ * The list's layout with a project put in one of your groups, out of the one it was in, or in none.
+ * @param {ListView} view
+ * @param {string} name
+ * @param {string | null} groupId
+ * @returns {Pick<ListView, 'projectGroups'>}  what to change about the layout
+ */
+export const grouping = (view, name, groupId) => {
+  const { [name]: _was, ...rest } = view.projectGroups;
+  return { projectGroups: groupId ? { ...rest, [name]: groupId } : rest };
+};
+
 /** The same with a project back in its place. @param {ListView} view @param {string} name */
 export const unpinning = (view, name) => ({ pinned: view.pinned.filter((pinned) => pinned !== name) });
 
@@ -196,16 +254,21 @@ const statusRank = (contact) => {
   return rank === -1 ? STATUS_ORDER.length : rank;
 };
 
+const PRIORITY_RANK = Object.fromEntries(PRIORITY.map(({ id }, rank) => [id, rank]));
+// The one heard from last is on top. One never heard from is at the bottom.
+const recent = (a, b) => (b.lastActive ?? -Infinity) - (a.lastActive ?? -Infinity);
+
 const ORDERS = {
   name: (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
   status: (a, b) => statusRank(a) - statusRank(b),
-  // The one heard from last is on top. One never heard from is at the bottom.
-  recent: (a, b) => (b.lastActive ?? -Infinity) - (a.lastActive ?? -Infinity),
+  recent,
+  // High, then Normal, then Low: of the same priority, the one heard from last first.
+  priority: (a, b) => PRIORITY_RANK[priorityOf(a)] - PRIORITY_RANK[priorityOf(b)] || recent(a, b),
 };
 
 /**
  * The contacts in the order a section lists them. Those that are equal stay in the order they were added.
- * @template {{ name: string, status: string, lastActive?: number | null }} T
+ * @template {{ name: string, status: string, lastActive?: number | null, priority?: string }} T
  * @param {T[]} contacts  in the order they were added
  * @param {ListView['sortBy']} sortBy
  * @returns {T[]}
@@ -235,7 +298,7 @@ export const managersFirst = (contacts) => [
 
 /**
  * The contact list's sections as `view` groups and sorts them. In each, a project's manager comes first,
- * then the pinned contacts.
+ * then the pinned contacts. By project, the projects in a group of yours say so (see `inGroup` on a Section).
  * @param {any[]} contacts  the contacts to list: those of one project, when the list is narrowed down to it
  * @param {import('./groups.js').Group[]} groups
  * @param {ListView} view
@@ -245,13 +308,28 @@ export const managersFirst = (contacts) => [
  * @returns {import('./groups.js').Section[]}
  */
 export const listSections = (contacts, groups, view, opts = {}) =>
-  contactSections(
-    managersFirst(pinnedFirst(sortContacts(contacts, view.sortBy))),
-    groups,
-    view.groupBy,
-    view.pinned,
-    opts
-  );
+  contactSections(managersFirst(pinnedFirst(sortContacts(contacts, view.sortBy))), groups, view.groupBy, view.pinned, {
+    ...opts,
+    projectGroups: view.projectGroups,
+  });
+
+/**
+ * The sections as a list draws them: the projects in one of your groups one after the other under its heading, and
+ * every other section on its own. On the computer and on the phone.
+ * @param {import('./groups.js').Section[]} sections  as listSections has them: a group's projects together
+ * @returns {({ section: import('./groups.js').Section, group?: undefined } | { section?: undefined,
+ *   group: { id: string, label: string }, projects: import('./groups.js').Section[] })[]}
+ */
+export function headed(sections) {
+  const drawn = [];
+  for (const section of sections) {
+    const last = drawn.at(-1);
+    if (!section.inGroup) drawn.push({ section });
+    else if (last?.group?.id === section.inGroup.id) last.projects.push(section);
+    else drawn.push({ group: section.inGroup, projects: [section] });
+  }
+  return drawn;
+}
 
 /**
  * A section's members as the list draws them: the conversations an agent started (see `startedBy`

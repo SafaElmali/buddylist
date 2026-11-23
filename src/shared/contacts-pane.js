@@ -2,7 +2,7 @@
 // It is kept with the settings, so every conversation window starts the way the
 // last one was left. Shared by the main process, which makes a new window wide
 // enough for the list, and by the windows.
-import { listView } from './list-view.js';
+import { listView, priorityItems } from './list-view.js';
 
 /** How wide the list is until someone drags it, and how narrow and how wide it gets. */
 export const CONTACTS_PANE_WIDTH = 200;
@@ -109,12 +109,14 @@ export const paneView = (settings) => ({ ...listView(settings), project: null, h
  *   pin: (contact: any) => void, favorite: (contact: any) => void, archive: (contact: any) => void,
  *   restore: (contact: any) => void, remove: (contact: any) => void, assign?: (contact: any) => void,
  *   assignTeam?: (manager: any) => void, settings?: (contact: any, section: string) => void,
- *   deleteTeam?: (manager: any) => void, continueWorkers?: (manager: any) => void }} actions
+ *   deleteTeam?: (manager: any) => void, continueWorkers?: (manager: any) => void,
+ *   priority: (contact: any, priority: 'high' | 'normal' | 'low') => void }} actions
  *   `unread`, `pin` and `favorite` turn what the contact is the other way. `assign`: Assign to manager..., where
  *   it can be put under one of its project's managers. `assignTeam`: Assign conversations..., where it is a manager
  *   with conversations of its project to put under it. `settings`: its project's pages in the Settings window, left
  *   out where there is none: a manager has Manager settings..., at its own page. `deleteTeam`: Delete contacts...,
- *   where it is a manager with conversations under it
+ *   where it is a manager with conversations under it. `priority`: Priority, how much it matters, which the list can
+ *   be sorted by
  * @returns {{ label?: string, key?: string, bold?: boolean, disabled?: boolean, danger?: boolean, separator?: boolean, action?: () => void }[]}  the
  *   items of a menu, as menu.js draws them. Each `key` is the letter the item has in the contact list too
  */
@@ -141,6 +143,7 @@ export function paneMenu(
     continueWorkers,
     settings,
     deleteTeam,
+    priority,
   }
 ) {
   // As in the contact list: read an archived conversation, or restore it before continuing.
@@ -191,6 +194,7 @@ export function paneMenu(
       ? [{ label: 'Manager settings...', action: () => settings(contact, 'manager') }]
       : []),
     // Both lists follow: they are one list, drawn twice.
+    { label: 'Priority', submenu: priorityItems(contact, priority) },
     { label: contact.pinned ? 'Unpin' : 'Pin to top', key: 'p', action: () => pin(contact) },
     {
       label: contact.favorite ? 'Remove from favorites' : 'Add to favorites',

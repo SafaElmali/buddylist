@@ -180,6 +180,30 @@ test('a contact whose folder moves to another project is under none of its manag
   assert.equal(app.store.getContact(tags.id).managedBy, undefined);
 });
 
+// Not about managers: the same real handler keeps a contact's priority, which sorts it in the contact list.
+test(
+  'a contact’s priority is kept as High or Low, and Normal, or what is none of them, takes it off',
+  opts,
+  async (t) => {
+    const app = fixture(t);
+    const cart = app.store.addContact({ provider: 'claude', name: 'cart', cwd: app.repo, model: '' });
+    const saved = () => JSON.parse(fs.readFileSync(path.join(app.root, 'data', 'messenger.json'), 'utf8'));
+    const priority = () => saved().contacts.find((contact) => contact.id === cart.id).priority;
+    await app.invoke(REQUESTS.contactUpdate, cart.id, { priority: 'high' });
+    assert.equal(priority(), 'high');
+    await app.invoke(REQUESTS.contactUpdate, cart.id, { priority: 'urgent' });
+    assert.equal(priority(), undefined);
+    await app.invoke(REQUESTS.contactUpdate, cart.id, { priority: 'low' });
+    assert.equal(priority(), 'low');
+    // A change to anything else leaves it.
+    await app.invoke(REQUESTS.contactUpdate, cart.id, { name: 'cart totals' });
+    assert.equal(priority(), 'low');
+    await app.invoke(REQUESTS.contactUpdate, cart.id, { priority: 'normal' });
+    assert.equal(priority(), undefined);
+    assert.ok(!('priority' in saved().contacts.find((contact) => contact.id === cart.id)), 'Normal is not written');
+  }
+);
+
 test(
   'Settings changes the manager it names, and a window can’t say which contact the first one is',
   opts,

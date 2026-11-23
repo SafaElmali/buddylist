@@ -50,6 +50,8 @@ started = true;
 setPack(pack);
 let contacts = init.contacts;
 showBadge(contacts);
+// The computer's groups and settings: Home lays out its projects as the contact list there does (see homeSections).
+const desk = { groups: init.groups ?? [], settings: init.settings };
 // The page has the colours of the palette it opened in (see phonePage in src/main/remote/web.js): another one, as the
 // theme changes on the Mac meanwhile, has them from the palettes' file, asked for then.
 const opened = document.documentElement.dataset.palette;
@@ -96,7 +98,7 @@ async function route() {
   current = null;
   const contactId = /^#\/c\/(.+)$/.exec(location.hash)?.[1];
   if (!contactId) {
-    current = new Home(screen, { contacts, signOut, notifications });
+    current = new Home(screen, { contacts, desk, signOut, notifications });
     return;
   }
   const { hash } = location;
@@ -146,6 +148,7 @@ async function drawAgain() {
   banner.name = nameNow();
   contacts = fresh.contacts;
   showBadge(contacts);
+  Object.assign(desk, { groups: fresh.groups ?? [], settings: fresh.settings });
   showPalette(fresh.settings);
   // Home stays where it was scrolled to; a conversation keeps its place itself.
   const home = screen.querySelector('#home')?.scrollTop;
@@ -159,7 +162,16 @@ api.on.contacts((views) => {
   showBadge(views);
   current?.contactsChanged(views);
 });
-api.on.settings(showPalette);
+/** A change on the computer to how its list is laid out: Home follows it, where it is drawn. */
+const deskChanged = (change) => {
+  Object.assign(desk, change);
+  if (current instanceof Home) current.contactsChanged(contacts);
+};
+api.on.settings((settings) => {
+  showPalette(settings);
+  deskChanged({ settings });
+});
+api.on.groups((groups) => deskChanged({ groups }));
 // Changed in Settings on the computer: the screen offers what this phone may do now, where it is.
 addEventListener(ACCESS, ({ detail }) => {
   setAccess(detail);
