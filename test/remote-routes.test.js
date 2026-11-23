@@ -111,12 +111,21 @@ test("no forwarded request's handler reaches for the window that asked, or for a
   }
 });
 
-// What the phone app reads of the app's settings is its theme. Settings also has environment variables, accounts,
-// the agents' programs and instructions: none of it leaves this computer, and a key added later stays here too.
+// What the phone app reads of the app's settings is its theme, and how the contact list sorts and puts projects in
+// groups, which Home follows. Settings also has environment variables, accounts, the agents' programs and
+// instructions: none of it leaves this computer, and a key added later stays here too.
 const CANARY = 'SYNTHETIC_NOT_A_REAL_SECRET';
 const desktopSettings = () => ({
   theme: 'royale-noir',
   look: 'professional',
+  listView: {
+    groupBy: 'status',
+    sortBy: 'priority',
+    project: 'shop',
+    hidden: ['secret-project'],
+    pinned: ['shop'],
+    projectGroups: { api: 'g-work' },
+  },
   env: [{ name: 'AUDIT_CANARY_SECRET', value: CANARY }],
   envFiles: ['/Users/me/.env'],
   agents: { claude: { path: '/opt/claude' } },
@@ -126,7 +135,9 @@ const desktopSettings = () => ({
 });
 const HOST = { name: 'studio-mac', noun: 'Mac' };
 
-test('a page is told only the theme of the settings, and which computer it reaches, on app:init and chat:init', async () => {
+const PHONE_SETTINGS = { theme: 'royale-noir', listView: { sortBy: 'priority', projectGroups: { api: 'g-work' } } };
+
+test('a page is told only the theme and list layout of the settings, and which computer it reaches, on app:init and chat:init', async () => {
   const requests = new Map([
     [REQUESTS.appInit, () => ({ contacts: [{ id: 'c1' }], settings: desktopSettings(), profile: { name: 'Me' } })],
     [
@@ -135,20 +146,20 @@ test('a page is told only the theme of the settings, and which computer it reach
     ],
   ]);
   const app = await route({ requests, client: client(), channel: REQUESTS.appInit, args: [], host: HOST });
-  assert.deepEqual(app.settings, { theme: 'royale-noir' });
+  assert.deepEqual(app.settings, PHONE_SETTINGS);
   assert.deepEqual(app.host, HOST);
   assert.equal(app.access, 'full');
   assert.deepEqual([app.platform, app.remote, app.contacts], ['web', true, [{ id: 'c1' }]]);
   const chat = await route({ requests, client: client(), channel: REQUESTS.chatInit, args: ['c1'], host: HOST });
-  assert.deepEqual(chat.settings, { theme: 'royale-noir' });
+  assert.deepEqual(chat.settings, PHONE_SETTINGS);
   assert.deepEqual(chat.contact, { id: 'c1' });
-  for (const answer of [app, chat]) assert.doesNotMatch(JSON.stringify(answer), new RegExp(CANARY));
+  for (const answer of [app, chat]) assert.doesNotMatch(JSON.stringify(answer), new RegExp(`${CANARY}|secret-project`));
   // A conversation that isn't there is still nothing.
   assert.equal(await route({ requests, client: client(), channel: REQUESTS.chatInit, args: ['gone'] }), null);
 });
 
-test('what every page hears of the settings is their theme; what a project is set up with is never heard', () => {
-  assert.deepEqual(heard(EVENTS.settingsChanged, desktopSettings()), { theme: 'royale-noir' });
+test('what every page hears of the settings is their theme and list layout; what a project is set up with is never heard', () => {
+  assert.deepEqual(heard(EVENTS.settingsChanged, desktopSettings()), PHONE_SETTINGS);
   assert.equal(JSON.stringify(heard(EVENTS.settingsChanged, { env: [] })), '{}');
   assert.deepEqual(heard(EVENTS.contactsChanged, [{ id: 'c1' }]), [{ id: 'c1' }]);
   // A project's settings have its variables, scripts and instructions.

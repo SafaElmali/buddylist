@@ -49,6 +49,8 @@ export class ContactsPane {
    * @param {(manager: any) => void} [opts.addUnder]  the + on a project's manager's row: another contact under it
    * @param {(contact: any, managerId: string | null, how: 'drag') => void} [opts.assign]  a conversation dragged
    *   onto a manager's row, or onto its project's line: see ContactList
+   * @param {(name: string, groupId: string) => void} [opts.moveProject]  a project's line dragged onto one of your
+   *   groups' lines: see ContactList
    * @param {(like: { from: any, groupId?: string }) => void} opts.addLike  the + on any other section: see ContactList
    * @param {(button: HTMLElement) => void} opts.addProject  Add project, under the list: the ways to a project, by `button`
    * @param {(contact: any) => void} opts.openPullRequest  the tags on a contact's row were clicked
@@ -75,6 +77,7 @@ export class ContactsPane {
       addIn,
       addUnder,
       assign,
+      moveProject,
       addLike,
       addProject,
       openPullRequest,
@@ -108,6 +111,7 @@ export class ContactsPane {
         addIn,
         addUnder,
         assign,
+        moveProject,
         addLike,
         openPullRequest,
         tagAction,

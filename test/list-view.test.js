@@ -10,8 +10,11 @@ import { MemoryHistory } from '../preview/memory-storage.js';
 import { contactSections } from '../src/shared/groups.js';
 import {
   cleanListView,
+  cleanPriority,
   DEFAULT_LIST_VIEW,
   GROUP_BY,
+  grouping,
+  headed,
   hiddenProjects,
   hiding,
   listedContacts,
@@ -20,6 +23,8 @@ import {
   managersFirst,
   pinnedFirst,
   pinning,
+  PRIORITY,
+  priorityOf,
   projectsOf,
   showing,
   shownEmptyProjects,
@@ -57,6 +62,7 @@ test('a list nobody laid out is grouped by project, in the order its contacts we
       project: null,
       hidden: [],
       pinned: [],
+      projectGroups: {},
     });
   }
   assert.deepEqual(listView({}), DEFAULT_LIST_VIEW);
@@ -69,6 +75,7 @@ test('a layout that was stored is read back, and what it does not say is the usu
     project: 'shop',
     hidden: [],
     pinned: [],
+    projectGroups: {},
   });
   assert.deepEqual(listView({ listView: { sortBy: 'recent' } }), {
     groupBy: 'project',
@@ -76,6 +83,7 @@ test('a layout that was stored is read back, and what it does not say is the usu
     project: null,
     hidden: [],
     pinned: [],
+    projectGroups: {},
   });
   // A list that was put on its groups stays on them.
   assert.equal(listView({ listView: { groupBy: 'group' } }).groupBy, 'group');
@@ -94,14 +102,14 @@ test('every choice the menu offers is one the list can be laid out by', () => {
 test('a settings patch changes only what it names about the list', () => {
   const settings = { listView: { groupBy: 'project', sortBy: 'name', project: 'shop' } };
   assert.deepEqual(cleanListView({ listView: { sortBy: 'status' } }, settings), {
-    listView: { groupBy: 'project', sortBy: 'status', project: 'shop', hidden: [], pinned: [] },
+    listView: { groupBy: 'project', sortBy: 'status', project: 'shop', hidden: [], pinned: [], projectGroups: {} },
   });
   assert.deepEqual(cleanListView({ listView: { project: null } }, settings), {
-    listView: { groupBy: 'project', sortBy: 'name', project: null, hidden: [], pinned: [] },
+    listView: { groupBy: 'project', sortBy: 'name', project: null, hidden: [], pinned: [], projectGroups: {} },
   });
   // What can't be chosen leaves the choice as it was.
   assert.deepEqual(cleanListView({ listView: { groupBy: 'nonsense', sortBy: 7 } }, settings), {
-    listView: { ...settings.listView, hidden: [], pinned: [] },
+    listView: { ...settings.listView, hidden: [], pinned: [], projectGroups: {} },
   });
   assert.equal(cleanListView({ listView: { project: 12 } }, settings).listView.project, null);
 });
@@ -477,6 +485,7 @@ test('the projects that were pinned are kept with the layout, each once and only
     project: null,
     hidden: ['web'],
     pinned: ['api'],
+    projectGroups: {},
   });
 });
 
@@ -637,6 +646,7 @@ test('the projects that were hidden are kept with the layout, each once and only
     project: null,
     hidden: ['api'],
     pinned: [],
+    projectGroups: {},
   });
 });
 
@@ -1428,4 +1438,297 @@ test('the list draws a project with nobody in it as it is laid out', () => {
     ['shop', ['a']],
     ['Offline', []],
   ]);
+});
+
+// ---- priority ----------------------------------------------------------------------------------
+
+test('a contact with no priority is Normal, and only High or Low is kept on it', () => {
+  assert.deepEqual(
+    PRIORITY.map(({ id }) => id),
+    ['high', 'normal', 'low']
+  );
+  assert.equal(cleanPriority('high'), 'high');
+  assert.equal(cleanPriority('low'), 'low');
+  for (const value of ['normal', '', null, undefined, 'urgent', 1, {}, ['high']]) {
+    assert.equal(cleanPriority(value), undefined, String(value));
+  }
+  assert.equal(priorityOf(contact('a')), 'normal');
+  assert.equal(priorityOf(contact('a', { priority: 'high' })), 'high');
+  assert.equal(priorityOf(contact('a', { priority: 'urgent' })), 'normal', 'one it does not know is Normal');
+});
+
+test('by priority, High comes first, then Normal, then Low, and the same priority by last active', () => {
+  const contacts = [
+    contact('low-old', { priority: 'low', lastActive: 100 }),
+    contact('normal', { lastActive: 300 }),
+    contact('high-old', { priority: 'high', lastActive: 100 }),
+    contact('low-new', { priority: 'low', lastActive: 500 }),
+    contact('high-new', { priority: 'high', lastActive: 400 }),
+    contact('normal-never'),
+    contact('unknown', { priority: 'urgent', lastActive: 200 }),
+  ];
+  assert.deepEqual(ids(sortContacts(contacts, 'priority')), [
+    'high-new',
+    'high-old',
+    'normal',
+    'unknown',
+    'normal-never',
+    'low-new',
+    'low-old',
+  ]);
+  assert.ok(
+    SORT_BY.some(({ id, label }) => id === 'priority' && label === 'Priority'),
+    'Sort by offers it'
+  );
+  assert.equal(listView({ listView: { sortBy: 'priority' } }).sortBy, 'priority');
+});
+
+test('sorted by priority, the pinned contacts still come first, and a manager still leads its section', () => {
+  const contacts = [
+    contact('low', { priority: 'low', lastActive: 900 }),
+    contact('pin-low', { priority: 'low', pinned: true }),
+    contact('boss', { oversees: true, priority: 'low' }),
+    contact('high', { priority: 'high', lastActive: 100 }),
+    contact('normal', { lastActive: 500 }),
+    contact('pin-high', { priority: 'high', pinned: true }),
+  ];
+  assert.deepEqual(shape(listSections(contacts, [], { ...DEFAULT_LIST_VIEW, sortBy: 'priority' })), [
+    ['shop', ['boss', 'pin-high', 'pin-low', 'high', 'normal', 'low']],
+    ['Offline', []],
+  ]);
+});
+
+test('sorted by priority, the conversations under a manager are sorted among themselves, under it', () => {
+  const members = [
+    manager({ lastActive: 1 }),
+    worker('cart', { lastActive: 400 }),
+    worker('footer', { priority: 'low', lastActive: 900 }),
+    worker('checkout', { priority: 'high', lastActive: 100 }),
+    worker('search', { lastActive: 600 }),
+  ];
+  const [section] = listSections(members, [], { ...DEFAULT_LIST_VIEW, sortBy: 'priority' });
+  assert.deepEqual(drawn(section.members), ['boss (4 team)', '├ checkout', '├ search', '├ cart', '└ footer']);
+});
+
+test('grouped by groups, status or service, each section is sorted by priority too', () => {
+  const contacts = [
+    contact('low', { priority: 'low', groupId: work.id }),
+    contact('normal', { groupId: work.id }),
+    contact('high', { priority: 'high', groupId: work.id }),
+  ];
+  for (const groupBy of ['group', 'status', 'service']) {
+    const sections = listSections(contacts, [work], { ...DEFAULT_LIST_VIEW, groupBy, sortBy: 'priority' });
+    const middle = shape(sections).find(([, members]) => members.length);
+    assert.deepEqual(middle[1], ['high', 'normal', 'low'], groupBy);
+  }
+});
+
+test('Waiting for you, the favorites and Offline are sorted by priority, and stay where they are', () => {
+  const contacts = [
+    contact('waits', { status: 'away' }),
+    contact('waits-high', { status: 'away', priority: 'high' }),
+    contact('fav', { favorite: true, priority: 'low' }),
+    contact('fav-high', { favorite: true, priority: 'high' }),
+    contact('gone', { status: 'offline' }),
+    contact('gone-high', { status: 'offline', priority: 'high' }),
+    contact('a'),
+  ];
+  assert.deepEqual(shape(listSections(contacts, [], { ...DEFAULT_LIST_VIEW, sortBy: 'priority' })), [
+    ['Waiting for you', ['waits-high', 'waits']],
+    ['Favorites', ['fav-high', 'fav']],
+    ['shop', ['a']],
+    ['Offline', ['gone-high', 'gone']],
+  ]);
+});
+
+// ---- your groups over projects ---------------------------------------------------------------------
+
+const side = { id: 'g-side', name: 'Side projects' };
+/** The sections' labels, each project in a group of yours after the group's name. */
+const grouped = (sections) => sections.map((s) => (s.inGroup ? `${s.inGroup.label} › ${s.label}` : s.label));
+
+test('the group of each project is kept with the layout, one for each project, by its name', () => {
+  assert.deepEqual(
+    listView({ listView: { projectGroups: { shop: 'g-work', api: 'g-side', '': 'g-work', web: '', blog: 7 } } })
+      .projectGroups,
+    { shop: 'g-work', api: 'g-side' }
+  );
+  for (const projectGroups of [null, 'shop', ['shop'], 7]) {
+    assert.deepEqual(listView({ listView: { projectGroups } }).projectGroups, {}, String(projectGroups));
+  }
+  const settings = { listView: { sortBy: 'name', pinned: ['shop'], projectGroups: { shop: 'g-work' } } };
+  // A patch about something else leaves them as they are, and one about them leaves the rest.
+  assert.deepEqual(cleanListView({ listView: { sortBy: 'priority' } }, settings).listView.projectGroups, {
+    shop: 'g-work',
+  });
+  assert.deepEqual(cleanListView({ listView: { projectGroups: { api: 'g-side' } } }, settings).listView, {
+    groupBy: 'project',
+    sortBy: 'name',
+    project: null,
+    hidden: [],
+    pinned: ['shop'],
+    projectGroups: { api: 'g-side' },
+  });
+});
+
+test('a project is moved to a group by its name, and out of any with none', () => {
+  const view = { ...DEFAULT_LIST_VIEW, projectGroups: { api: 'g-work' } };
+  assert.deepEqual(grouping(view, 'shop', 'g-side'), { projectGroups: { api: 'g-work', shop: 'g-side' } });
+  assert.deepEqual(grouping(view, 'api', 'g-side'), { projectGroups: { api: 'g-side' } }, 'one group at a time');
+  assert.deepEqual(grouping(view, 'api', null), { projectGroups: {} });
+  assert.deepEqual(grouping(view, 'web', null), { projectGroups: { api: 'g-work' } });
+  assert.deepEqual(view.projectGroups, { api: 'g-work' }, 'the layout it was given is left alone');
+});
+
+test('grouped by project, your groups head their projects after the pinned ones, in their order, before the rest', () => {
+  const contacts = [
+    contact('waits', { status: 'away', project: 'api' }),
+    contact('fav', { favorite: true, project: 'blog' }),
+    contact('a', { project: 'api' }),
+    contact('b', { project: 'blog' }),
+    contact('g', { project: 'game' }),
+    contact('d', { project: 'docs' }),
+    contact('s', { project: 'shop' }),
+    onIt('chat'),
+    contact('gone', { status: 'offline', project: 'api' }),
+    contact('old', { archived: true, project: 'game' }),
+  ];
+  const view = {
+    ...DEFAULT_LIST_VIEW,
+    pinned: ['shop'],
+    projectGroups: { api: work.id, blog: work.id, game: side.id, shop: work.id },
+  };
+  // Side projects was made first: the groups are in the order they were made.
+  const sections = listSections(contacts, [side, work], view, { computer: true });
+  assert.deepEqual(grouped(sections), [
+    'Waiting for you',
+    'Favorites',
+    'shop',
+    'Side projects › game',
+    'Work › api',
+    'Work › blog',
+    'docs',
+    THIS_COMPUTER,
+    'Offline',
+    'Archived',
+  ]);
+  assert.deepEqual(
+    sections.filter((s) => s.inGroup).map((s) => s.inGroup),
+    [
+      { id: side.id, label: 'Side projects' },
+      { id: work.id, label: 'Work' },
+      { id: work.id, label: 'Work' },
+    ]
+  );
+  assert.equal(
+    sections.find((s) => s.label === 'shop').pinned,
+    true,
+    'a pinned project stays on top, out of its group'
+  );
+});
+
+test('only a list grouped by project puts projects under your groups', () => {
+  const contacts = [contact('a', { project: 'api', groupId: work.id }), contact('b', { project: 'shop' })];
+  const view = { ...DEFAULT_LIST_VIEW, projectGroups: { api: work.id, shop: work.id } };
+  for (const groupBy of ['group', 'status', 'service']) {
+    const sections = listSections(contacts, [work], { ...view, groupBy });
+    assert.ok(!sections.some((s) => s.inGroup), groupBy);
+    assert.deepEqual(
+      shape(sections),
+      shape(listSections(contacts, [work], { ...DEFAULT_LIST_VIEW, groupBy })),
+      groupBy
+    );
+  }
+});
+
+test('a group with no project listed has no heading, nor does a project renamed or gone', () => {
+  const contacts = [contact('a', { project: 'shop-new' }), contact('b', { project: 'api' })];
+  // Work holds a project by a name nobody works on now, and Side projects holds nothing.
+  const view = { ...DEFAULT_LIST_VIEW, projectGroups: { shop: work.id, gone: side.id } };
+  const sections = listSections(contacts, [work, side], view);
+  assert.ok(!sections.some((s) => s.inGroup));
+  assert.deepEqual(grouped(sections), ['api', 'shop-new', 'Offline']);
+});
+
+test('a project in a group nobody has any more is in none', () => {
+  const contacts = [contact('a', { project: 'api' })];
+  const sections = listSections(contacts, [side], { ...DEFAULT_LIST_VIEW, projectGroups: { api: work.id } });
+  assert.deepEqual(grouped(sections), ['api', 'Offline']);
+});
+
+test('This computer stays after the projects, and a project nobody works on can be in a group', () => {
+  const contacts = [onIt('chat'), contact('a', { project: 'shop' })];
+  const view = { ...DEFAULT_LIST_VIEW, projectGroups: { [THIS_COMPUTER]: work.id, api: work.id } };
+  const sections = listSections(contacts, [work], view, { computer: true, empty: [emptyProject('api')] });
+  assert.deepEqual(grouped(sections), ['Work › api', 'shop', THIS_COMPUTER, 'Offline']);
+  assert.ok(!sections.find((s) => s.computer).inGroup);
+});
+
+test('a group deleted leaves its projects in none, and one renamed keeps them', () => {
+  const dir = tempDir('cm-project-groups-');
+  const store = new Store(dir, STORE_DEFAULTS);
+  const team = store.addGroup('Work');
+  store.updateSettings({ listView: { ...DEFAULT_LIST_VIEW, projectGroups: { api: team.id } } });
+  const contacts = [contact('a', { project: 'api' }), contact('b', { project: 'shop' })];
+  const sections = () => grouped(listSections(contacts, store.groups, listView(store.settings)));
+  assert.deepEqual(sections(), ['Work › api', 'shop', 'Offline']);
+  store.renameGroup(team.id, 'Clients');
+  assert.deepEqual(sections(), ['Clients › api', 'shop', 'Offline']);
+  store.removeGroup(team.id);
+  assert.deepEqual(sections(), ['api', 'shop', 'Offline']);
+  assert.deepEqual(listView(store.settings).projectGroups, {}, 'nor is it kept for them');
+  // A group made afterwards is a group of its own: the deleted one's projects are not in it.
+  store.addGroup('Work');
+  assert.deepEqual(sections(), ['api', 'shop', 'Offline']);
+});
+
+test('a settings file from before priorities and groups over projects lists everyone as it did', () => {
+  const dir = tempDir('cm-list-before-');
+  const before = new Store(dir, STORE_DEFAULTS);
+  const team = before.addGroup('Work');
+  const kept = { groupBy: 'project', sortBy: 'recent', project: null, hidden: ['web'], pinned: ['shop'] };
+  before.updateSettings({ listView: kept });
+  for (const [name, cwd] of [
+    ['a', '/code/api'],
+    ['b', '/code/shop'],
+    ['c', '/code/blog'],
+  ]) {
+    before.updateContact(before.addContact({ provider: 'claude', name, cwd, model: '' }).id, { groupId: team.id });
+  }
+  const saved = fs.readFileSync(path.join(dir, 'messenger.json'), 'utf8');
+  assert.ok(!saved.includes('projectGroups') && !saved.includes('priority'), 'nothing new is written by itself');
+
+  const store = new Store(dir, STORE_DEFAULTS);
+  const view = listView(store.settings);
+  assert.deepEqual(view, { ...kept, projectGroups: {} });
+  const contacts = store.contacts.map((c, at) => ({
+    ...c,
+    status: 'online',
+    project: path.basename(c.cwd),
+    lastActive: at * 100,
+  }));
+  for (const groupBy of ['project', 'group', 'status', 'service']) {
+    const now = listSections(contacts, store.groups, { ...view, groupBy });
+    assert.ok(!now.some((s) => s.inGroup), groupBy);
+    // As the list was drawn from the layout before it had groups over projects.
+    assert.deepEqual(shape(now), shape(listSections(contacts, store.groups, { ...kept, groupBy })), groupBy);
+  }
+  assert.ok(store.contacts.every((c) => !('priority' in c)));
+});
+
+test('the projects of a group are drawn together under its heading, and every other section on its own', () => {
+  const contacts = [
+    contact('a', { project: 'api' }),
+    contact('b', { project: 'blog' }),
+    contact('d', { project: 'docs' }),
+  ];
+  const view = { ...DEFAULT_LIST_VIEW, projectGroups: { api: work.id, blog: work.id } };
+  const drawn = headed(listSections(contacts, [work], view));
+  assert.deepEqual(
+    drawn.map((one) =>
+      one.group ? `${one.group.label}: ${one.projects.map((p) => p.label).join(', ')}` : one.section.label
+    ),
+    ['Work: api, blog', 'docs', 'Offline']
+  );
+  assert.deepEqual(headed([]), []);
 });

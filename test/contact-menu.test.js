@@ -66,6 +66,7 @@ test('a contact’s right-click menu: what to do with it, then how to keep it', 
     'Rename...',
     'Edit contact...',
     'Move to group',
+    'Priority',
     'Pin to top',
     'Add to favorites',
     'Archive contact',
@@ -75,6 +76,25 @@ test('a contact’s right-click menu: what to do with it, then how to keep it', 
   assert.deepEqual(only(items, 'danger'), ['Delete contact']);
   assert.deepEqual(only(items, 'disabled'), []);
   assert.equal(items.find((item) => item.label === 'Move to group').submenu, MOVE);
+});
+
+test('Priority ticks the contact’s own, Normal for one with none, and sets the one chosen', () => {
+  const { on } = recorder();
+  const set = [];
+  on.setPriority = (contact, priority) => set.push([contact.id, priority]);
+  const submenu = (contact) => contactItems(contact, on).find((item) => item.label === 'Priority').submenu;
+  assert.deepEqual(labels(submenu(claude)), ['High', 'Normal', 'Low']);
+  assert.deepEqual(only(submenu(claude), 'checked'), ['Normal']);
+  assert.deepEqual(only(submenu({ ...claude, priority: 'high' }), 'checked'), ['High']);
+  assert.deepEqual(only(submenu({ ...claude, priority: 'low' }), 'checked'), ['Low']);
+  chooseAll(submenu(claude));
+  assert.deepEqual(set, [
+    ['c1', 'high'],
+    ['c1', 'normal'],
+    ['c1', 'low'],
+  ]);
+  // Nothing about an archived contact is changed while it is put away.
+  assert.ok(!labels(contactItems({ ...claude, archived: true }, on)).includes('Priority'));
 });
 
 test('every choice is made for the contact the menu was opened on', () => {
@@ -220,6 +240,7 @@ test('with no contact selected, the menu bar shows its menus greyed out', () => 
     'Rename...',
     'Edit contact...',
     'Move to group',
+    'Priority',
     'Pin to top',
     'Add to favorites',
     'Archive contact',
@@ -230,6 +251,7 @@ test('with no contact selected, the menu bar shows its menus greyed out', () => 
     true
   );
   assert.deepEqual(manage.find((item) => item.label === 'Move to group').submenu, [], 'no groups to list');
+  assert.deepEqual(manage.find((item) => item.label === 'Priority').submenu, [], 'no contact to set it for');
   chooseAll([...actions, ...manage]);
   assert.deepEqual(chosen, []);
 });

@@ -28,7 +28,7 @@ import { setModelSettings } from './models.js';
 import { deleteAllDialog, deleteContactDialog, deleteTeamDialog, removeProjectDialog } from './delete-dialog.js';
 import { branchPrefixDialog } from './branch-prefix-dialog.js';
 import { groupDialog } from './group-dialog.js';
-import { listItems, projectItems, projectMenuItems } from './list-menu.js';
+import { groupChoices, listItems, projectItems, projectMenuItems } from './list-menu.js';
 import {
   addAnotherManager,
   addProjectManager,
@@ -49,7 +49,7 @@ import { checkForUpdates, mountUpdate, showContacts, showUpdate } from './update
 import { teamOf } from '../chat/team-tab.js';
 import { workerHandoverDialog } from './worker-handover-dialog.js';
 import { mountSettings } from '../settings/main.js';
-import { hiding, listView, pinning, showing, unpinning } from '../../shared/list-view.js';
+import { grouping, hiding, listView, pinning, showing, unpinning } from '../../shared/list-view.js';
 import { addsManager, managersFor, teamChoices } from '../../shared/managers.js';
 import { appearanceItems } from '../../shared/theme.js';
 import { newBranchQuestion } from '../../shared/new-branch.js';
@@ -68,7 +68,7 @@ const tips = () => [
   'Point at a project and click <b>+</b> for another contact on it. Press <b>Enter</b> and its branch is named after your first message, or type a name of your own.',
   '<b>Invite</b> a second contact into a conversation and they answer in turn. Start a message with <b>@</b> and a name to ask just one.',
   'Your contacts are listed by <b>project</b>. Right-click one and choose <b>New contact in this project...</b> for another on the same project.',
-  'Sort your projects into <b>groups</b>: create one from the <b>Contacts</b> menu, then right-click a contact to move it.',
+  'Sort your projects into <b>groups</b>: create one from the <b>Contacts</b> menu, then right-click a project or a contact and choose <b>Move to group</b>.',
   'Click <b>...</b> next to the search box to group the list by project, status or service, to show one project only, or to sort it.',
   'A project that is not on your Mac yet? <b>...</b> > <b>Add project</b> clones one from GitHub, or starts a new one with <b>Quick start</b>.',
   'Right-click a contact to <b>pin</b> it to the top of its project, to add it to your <b>favorites</b>, or to <b>archive</b> one you are done with for now. Its history and its folder are kept.',
@@ -132,6 +132,7 @@ const on = {
   teamOf: (manager) => teamOf(manager, list.contacts),
   deleteTeam: (manager) =>
     deleteTeamDialog(manager, teamOf(manager, list.contacts), { remove: state.settings.removeWorktrees }),
+  setPriority: (contact, priority) => api.contacts.update(contact.id, { priority }),
   togglePin: (contact) => api.contacts.update(contact.id, { pinned: !contact.pinned }),
   toggleFavorite: (contact) => api.contacts.update(contact.id, { favorite: !contact.favorite }),
   archive: archiveContactDialog,
@@ -149,6 +150,7 @@ const list = new ContactList($('#contact-list'), {
   addIn: (project) => addContact(project.root),
   addUnder: (manager) => addContactFrom(manager, manager.id),
   assign: assignDragged,
+  moveProject: (name, groupId) => moveProject(name, groupId),
   addLike,
   openPullRequest: (contact) => contact.pullRequest && api.app.openExternal(contact.pullRequest.url),
   tagAction: ({ id }, action) => api.chat.open(id, { action }),
@@ -174,20 +176,31 @@ const search = new ConversationSearch({
 const moveTo = (contact, groupId) => api.contacts.update(contact.id, { groupId });
 
 function moveItems(contact) {
-  const current = state.groups.find((g) => g.id === contact.groupId);
-  return [
-    ...state.groups.map((g) => ({ label: g.name, checked: g === current, action: () => moveTo(contact, g.id) })),
-    { label: 'No group', checked: !current, action: () => moveTo(contact, null) },
-    { separator: true },
-    {
-      label: 'New group...',
-      action: async () => {
-        const group = await newGroup();
-        if (group) moveTo(contact, group.id);
-      },
-    },
-  ];
+  return groupChoices(
+    state.groups,
+    contact.groupId,
+    (groupId) => moveTo(contact, groupId),
+    async () => {
+      const group = await newGroup();
+      if (group) moveTo(contact, group.id);
+    }
+  );
 }
+
+/** A project into one of your groups, or out of any: grouped by project, its line goes under the group's. */
+const moveProject = (name, groupId) => setView(grouping(list.view, name, groupId));
+
+/** Move to group in a project's menu. A group made there has the project in it, and the list stays by project. */
+const projectMoveItems = (name) =>
+  groupChoices(
+    state.groups,
+    list.view.projectGroups[name],
+    (groupId) => moveProject(name, groupId),
+    async () => {
+      const group = await groupDialog();
+      if (group) moveProject(name, group.id);
+    }
+  );
 
 /** @param {import('../../shared/groups.js').Section} section  a group the user made */
 const groupItems = (section) => [
@@ -212,10 +225,12 @@ async function startBranch(contact) {
 
 async function deleteGroup({ id, label }) {
   // Counted from the whole list: the section leaves out offline and filtered-out contacts.
-  const used = list.contacts.some((c) => c.groupId === id);
+  const contacts = list.contacts.some((c) => c.groupId === id);
+  const projects = Object.values(list.view.projectGroups).includes(id);
+  const what = [contacts && 'contacts', projects && 'projects'].filter(Boolean).join(' and ');
   const ok =
-    !used ||
-    (await confirmDialog(`Delete the group ${label}?\n\nIts contacts stay in your list, without a group.`, {
+    !what ||
+    (await confirmDialog(`Delete the group ${label}?\n\nIts ${what} stay in your list, without a group.`, {
       ok: 'Delete',
     }));
   if (ok) api.groups.remove(id);
@@ -336,6 +351,7 @@ const onProject = () => ({
       turnOff: turnOffManager,
     },
   }),
+  moveItems: projectMoveItems,
   pin: (name, pinned) => setView((pinned ? pinning : unpinning)(list.view, name)),
   hide: (name) => setView(hiding(list.view, name)),
   archiveAll: archiveAllDialog,

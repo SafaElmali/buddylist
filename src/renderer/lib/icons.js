@@ -669,6 +669,11 @@ export const smallIcon = named('sm', {
   /** Fork chat from here: one conversation going on two ways. */
   fork: () =>
     `<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3.5 4.4v.8c0 1.3 3.5 1.5 3.5 3.3v1M10.5 4.4v.8c0 1.3-3.5 1.5-3.5 3.3" fill="none" stroke="${INK}" stroke-width="1.2" stroke-linecap="round"/><circle cx="3.5" cy="2.9" r="1.7" fill="#bfe0ff" stroke="#2a68c8" stroke-width=".9"/><circle cx="10.5" cy="2.9" r="1.7" fill="#c9f2b8" stroke="#2f8a22" stroke-width=".9"/><circle cx="7" cy="11.1" r="1.7" fill="#bfe0ff" stroke="#2a68c8" stroke-width=".9"/></svg>`,
+  /** A contact of high or low priority: an arrow up or down, in the colour its mark has (see .priority-mark). */
+  priorityHigh: () =>
+    `<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M5 8.6V1.8M2 4.7l3-3.1 3 3.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  priorityLow: () =>
+    `<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1.4v6.8M2 5.3l3 3.1 3-3.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   /** Pinned: a red pushpin, leaning as if pressed into a board. */
   pin: () =>
     `<svg viewBox="0 0 14 14" aria-hidden="true"><g transform="rotate(45 7 7)"><path d="M7 8v5" stroke="#6b7480" stroke-width="1.2" stroke-linecap="round"/><path d="M4.6 1.2h4.8v1.6H8.7v3.4l1.7 1.9H3.6l1.7-1.9V2.8H4.6z" fill="#e0483a" stroke="#8a160c" stroke-width=".8" stroke-linejoin="round"/><path d="M6.1 3.2v2.6" stroke="#fff" stroke-width=".8" opacity=".55" stroke-linecap="round"/></g></svg>`,

@@ -691,3 +691,152 @@ test('a folded section says how much in it is unread, as its rows would, and onl
   assert.equal(pill('kit'), null, 'opened, it goes: the rows say it');
   assert.equal(shownOnRows('kit'), 7);
 });
+
+// ---- priority and your groups over projects ------------------------------------------------------------
+
+test('a contact’s priority is marked before its name, High and Low, and Normal has none', (t) => {
+  const { root } = sectionList(t, {
+    contacts: [
+      contact({ id: 'hi', name: 'Claude (cart)', priority: 'high' }),
+      contact({ id: 'lo', name: 'Claude (docs)', priority: 'low', pinned: true }),
+      contact({ id: 'no', name: 'Claude (search)' }),
+    ],
+  });
+  const mark = (id) => root.querySelector(`[data-id="${id}"] .name .priority-mark`);
+  assert.equal(mark('hi').title, 'High priority');
+  assert.equal(mark('hi').dataset.priority, 'high');
+  assert.equal(mark('lo').title, 'Low priority');
+  assert.equal(mark('no'), null);
+  // A pinned one keeps its pin first.
+  const name = root.querySelector('[data-id="lo"] .name');
+  assert.ok(name.children[0].classList.contains('pin-mark') && name.children[1].classList.contains('priority-mark'));
+});
+
+const WORK = { id: 'g-work', name: 'Work' };
+const SIDE = { id: 'g-side', name: 'Side projects' };
+const LOOSE = contact({ id: 'loose', name: 'Claude (readme)', cwd: '/code/docs', project: 'docs' });
+/** The list with notes in Work, by project, and Side projects with nothing in it. */
+function groupedList(t, { view = {}, handlers = {} } = {}) {
+  const drawn = sectionList(t, { contacts: [...CONTACTS, LOOSE], handlers });
+  drawn.list.setGroups([WORK, SIDE]);
+  drawn.list.setView({ ...drawn.list.view, projectGroups: { notes: WORK.id, gone: SIDE.id }, ...view });
+  const heading = (id) => drawn.root.querySelector(`.project-group[data-section="group:${id}"]`);
+  return { ...drawn, heading };
+}
+/** The top level of the list, by what each says on its line. */
+const topLevel = (root) =>
+  root.children.map((node) => node.querySelector('.group-header').textContent.replace(/\s+/g, ' ').trim());
+
+test('grouped by project, a group of yours heads its projects, after the pinned ones and before the rest', (t) => {
+  foldStorage(t);
+  const { root, heading } = groupedList(t);
+  // Pinned projects, This computer and Offline keep their places.
+  assert.deepEqual(topLevel(root), ['Work (2)', 'docs (1)', 'kit (3)', 'This computer (0)', 'Offline (0)']);
+  const work = heading(WORK.id);
+  assert.equal(work.querySelector('.group-header .group-label').textContent, 'Work (2)');
+  // Its projects are drawn in it, each a section of its own as before.
+  const inside = work.querySelector('.group-members').children;
+  assert.deepEqual(
+    inside.map((node) => node.dataset.section),
+    ['project:notes']
+  );
+  assert.ok(inside[0].querySelector('[data-id="started"]'));
+  assert.equal(heading(SIDE.id), null, 'a group with no project listed has no heading');
+});
+
+test('a group of yours over projects folds on its own, is kept folded, and says what is unread in it', (t) => {
+  const kept = foldStorage(t);
+  const { list, root, heading } = groupedList(t);
+  const toggle = () => heading(WORK.id).querySelector('.group-header');
+  toggle().click();
+  assert.ok(heading(WORK.id).classList.contains('collapsed'));
+  assert.deepEqual(keptSections(kept), ['archived', 'group:g-work']);
+  assert.ok(!sectionOf(root, 'notes').classList.contains('collapsed'), 'the project keeps its own fold');
+  list.setContacts([...CONTACTS.map((one) => (one.id === 'notes' ? { ...one, unread: 3 } : one)), LOOSE]);
+  assert.equal(heading(WORK.id).querySelector('.group-unread').textContent, '3');
+  // Its rows are in a folded section, which the keyboard goes past.
+  assert.ok(root.querySelector('[data-id="notes"]').closest('.group.collapsed'));
+  toggle().click();
+  assert.deepEqual(keptSections(kept), ['archived']);
+});
+
+test('the heading of a group over projects has the group’s menu, and is left out where it says nothing', (t) => {
+  foldStorage(t);
+  const menus = [];
+  const { list, root, heading } = groupedList(t, { handlers: { groupMenu: (section) => menus.push(section) } });
+  heading(WORK.id).querySelector('.group-header').fire('contextmenu', { clientX: 1, clientY: 2 });
+  assert.deepEqual(menus, [{ id: WORK.id, label: 'Work', custom: true }], 'Rename group... and Delete group');
+  // Narrowed down to one project, or searched for what is in none of its projects, the list has no heading.
+  list.setView({ ...list.view, project: 'notes' });
+  assert.equal(heading(WORK.id), null);
+  assert.ok(root.querySelector('[data-id="notes"]'));
+  list.setView({ ...list.view, project: null });
+  list.setQuery('readme');
+  assert.equal(heading(WORK.id), null);
+  list.setQuery('notes');
+  assert.ok(heading(WORK.id));
+  // Grouped any other way, there is none.
+  list.setQuery('');
+  for (const groupBy of ['group', 'status', 'service']) {
+    list.setView({ ...list.view, groupBy });
+    assert.equal(root.querySelector('.project-group'), null, groupBy);
+  }
+});
+
+/** What a drag carries, as a browser hands it over. */
+const transfer = () => ({ setData() {}, effectAllowed: '', dropEffect: '' });
+
+test('a project is dragged by its line onto a group’s line, and nothing else takes it', (t) => {
+  foldStorage(t);
+  const moved = [];
+  const assigned = [];
+  const handlers = {
+    moveProject: (name, groupId) => moved.push([name, groupId]),
+    assign: (one, to) => assigned.push([one.id, to]),
+  };
+  const { list, root, header, heading } = groupedList(t, { handlers });
+  const workLine = () => heading(WORK.id).querySelector('.group-header');
+  const row = (id) => root.querySelector(`[data-id="${id}"]`);
+  assert.equal(header('kit').draggable, true);
+  assert.equal(header('Offline').draggable, false, 'a section that is no project stays where it is');
+  assert.equal(workLine().draggable, false, 'a group’s line is not dragged');
+
+  // A project over a group's line: taken there.
+  header('kit').fire('dragstart', { dataTransfer: transfer() });
+  assert.ok(header('kit').closest('.group').classList.contains('dragging'));
+  assert.equal(workLine().fire('dragover', { dataTransfer: transfer() }).defaultPrevented, true);
+  assert.ok(workLine().classList.contains('drop-target'));
+  // Not over a manager's row, a contact's, or another project's line: those take contacts.
+  assert.equal(row('boss').fire('dragover', { dataTransfer: transfer() }).defaultPrevented, false);
+  assert.equal(header('docs').fire('dragover', { dataTransfer: transfer() }).defaultPrevented, false);
+  row('boss').fire('drop', { dataTransfer: transfer() });
+  header('docs').fire('drop', { dataTransfer: transfer() });
+  workLine().fire('drop', { dataTransfer: transfer() });
+  assert.deepEqual(moved, [['kit', WORK.id]]);
+  assert.deepEqual(assigned, []);
+  header('kit').fire('dragend');
+
+  // One already in the group is not taken there again.
+  sectionOf(root, 'notes').querySelector('.group-header').fire('dragstart', { dataTransfer: transfer() });
+  assert.equal(workLine().fire('dragover', { dataTransfer: transfer() }).defaultPrevented, false);
+  sectionOf(root, 'notes').querySelector('.group-header').fire('dragend');
+
+  // A conversation dragged onto a group's line goes nowhere: it goes under a manager, or out from under one.
+  list.setContacts([...CONTACTS.map((one) => (one.id === 'merged' ? { ...one, managedBy: 'boss' } : one)), LOOSE]);
+  row('merged').fire('dragstart', { dataTransfer: transfer() });
+  assert.equal(workLine().fire('dragover', { dataTransfer: transfer() }).defaultPrevented, false);
+  workLine().fire('drop', { dataTransfer: transfer() });
+  assert.equal(
+    header('kit').fire('dragover', { dataTransfer: transfer() }).defaultPrevented,
+    true,
+    'its project’s line'
+  );
+  row('merged').fire('dragend');
+  assert.deepEqual(moved, [['kit', WORK.id]]);
+});
+
+test('without a way to move projects, as in the preview’s pane, no project’s line is dragged', (t) => {
+  foldStorage(t);
+  const { header } = groupedList(t);
+  assert.equal(header('kit').draggable, false);
+});

@@ -1,5 +1,6 @@
 // The grouped contact list: your favorites, your groups or Online / Offline, the archived
-// contacts and, while you search, the conversations that contain your text. Selection,
+// contacts and, while you search, the conversations that contain your text. Grouped by project, your groups head the
+// projects put in them, and a project's line is dragged onto a group's to put it there. Selection,
 // keyboard, right-click, renaming a contact where its name is, the tags that say how each
 // contact's pull request stands, and the card that hovering a contact brings up. Its own
 // menu groups it another way, narrows it down to one project and sorts it: see list-view.js.
@@ -9,7 +10,9 @@ import {
   DEFAULT_LIST_VIEW,
   hiddenProjects,
   listedContacts,
+  headed,
   listSections,
+  priorityOf,
   projectsOf,
   shownEmptyProjects,
   shownProject,
@@ -45,6 +48,19 @@ const addButton = (title) =>
 
 /** What a pinned contact or project wears before its name. Its name is cut short from the end, so this stays. */
 const pinMark = (what) => html`<span class="pin-mark" title="${what} is pinned">${raw(smallIcon.pin())}</span>`;
+
+const PRIORITY_MARKS = {
+  high: { title: 'High priority', icon: smallIcon.priorityHigh },
+  low: { title: 'Low priority', icon: smallIcon.priorityLow },
+};
+/** What a contact of high or low priority wears before its name, after its pin. Normal wears nothing. */
+const priorityMark = (contact) => {
+  const level = priorityOf(contact);
+  const mark = PRIORITY_MARKS[level];
+  return mark
+    ? html`<span class="priority-mark" data-priority="${level}" title="${mark.title}">${raw(mark.icon())}</span>`
+    : '';
+};
 
 /** A row that can be selected: a contact's, or a search hit's. */
 const ROW = '.contact, .hit';
@@ -124,6 +140,8 @@ export class ContactList {
    * @param {(contact: any, managerId: string | null, how: 'drag') => void} [handlers.assign]  a conversation dragged
    *   onto a manager's row, to go under it, or onto its project's line, to go under none (see dropUnder). A list
    *   without it has no rows to drag
+   * @param {(name: string, groupId: string) => void} [handlers.moveProject]  a project's line dragged onto the line of
+   *   one of your groups, to go in it. A list without it has no project's line to drag
    * @param {() => void} [handlers.selectionChanged]
    * @param {object} [opts]  how the list is used where it is not a window of its own
    * @param {boolean} [opts.click]  one click on a contact opens it, as in a list that sits beside what it opens.
@@ -157,6 +175,11 @@ export class ContactList {
     this.renaming = false;
     /** The conversation being dragged to go under a manager, or out from under one: the list waits for the drop. */
     this.dragging = null;
+    /**
+     * The project whose line is being dragged to go in one of your groups, by its name, and the group it is in.
+     * @type {{ name: string, groupId: string | null } | null}
+     */
+    this.draggingProject = null;
     this.card = new HoverCard(root, (id) => this.contacts.find((c) => c.id === id));
     root.addEventListener('keydown', (e) => this.#onKey(e));
     // Folded or unfolded in another window: this one follows. Null is all of storage cleared.
@@ -262,9 +285,9 @@ export class ContactList {
   }
 
   render({ typing = false } = {}) {
-    // Not over a name that is being typed, or a row that is being dragged: it would be thrown away. Contacts
-    // change all the time.
-    if (this.renaming || this.dragging) return;
+    // Not over a name that is being typed, or a row or a project's line that is being dragged: it would be thrown
+    // away. Contacts change all the time.
+    if (this.renaming || this.dragging || this.draggingProject) return;
     const visible = this.#visible();
     const searching = Boolean(this.query);
     // The filter doesn't mark text in these rows. If it kept the same contacts, nothing on them changed.
@@ -284,7 +307,9 @@ export class ContactList {
     // a project nobody works on any more, which is otherwise there until it is removed.
     const computer = !this.query && !this.project && !this.hidden.includes(THIS_COMPUTER);
     const empty = this.query ? [] : shownEmptyProjects(this.emptyProjects, this.contacts, this.view);
-    const sections = listSections(visible, this.groups, this.view, { computer, empty }).filter(
+    // Narrowed down to one project, the group it is in would head it alone: it says nothing there.
+    const view = this.project ? { ...this.view, projectGroups: {} } : this.view;
+    const sections = listSections(visible, this.groups, view, { computer, empty }).filter(
       (s) => !(this.query && s.custom && !s.members.length)
     );
     const hits = this.#hits();
@@ -294,17 +319,30 @@ export class ContactList {
     // A section's toggle keeps the keyboard too, once the list is drawn again: folded or not.
     const toggle = document.activeElement?.closest?.(SECTION_TOGGLE);
     const toggleId = toggle && this.root.contains(toggle) ? toggle.closest('.group')?.dataset.section : null;
+    const drawn = (section) =>
+      this.#section(
+        section,
+        // The conversations an agent started are under the one it started them from, and the ones a project's
+        // manager oversees under it, unless folded away. A chat tab is under the conversation it was opened from.
+        startedUnder(section.members, this.folded).map(({ contact, ...place }) =>
+          this.#filteredRow(contact, { projectNote: section.projectNotes, ...place })
+        ),
+        this.#adding(section)
+      );
     this.root.replaceChildren(
-      ...sections.map((section) =>
-        this.#section(
-          section,
-          // The conversations an agent started are under the one it started them from, and the ones a project's
-          // manager oversees under it, unless folded away. A chat tab is under the conversation it was opened from.
-          startedUnder(section.members, this.folded).map(({ contact, ...place }) =>
-            this.#filteredRow(contact, { projectNote: section.projectNotes, ...place })
-          ),
-          this.#adding(section)
-        )
+      // The projects in one of your groups are under its line, which folds them all away.
+      ...headed(sections).map(({ section, group, projects }) =>
+        section
+          ? drawn(section)
+          : this.#section(
+              {
+                id: `group:${group.id}`,
+                label: group.label,
+                members: projects.flatMap((one) => one.members),
+                heading: group,
+              },
+              projects.map(drawn)
+            )
       ),
       // What the search found in the conversations goes under everyone it found by name.
       ...(hits.length
@@ -352,6 +390,7 @@ export class ContactList {
    */
   #section(section, rows, add = null) {
     const pin = section.pinned ? pinMark(section.computer ? THIS_COMPUTER : 'This project') : '';
+    const { heading } = section;
     const collapsed = this.collapsed.has(section.id);
     const name = `${section.label} (${section.members.length})`;
     // Folded away, it says how much its rows would say is unread, with the count a row wears: it is not opened for
@@ -360,7 +399,10 @@ export class ContactList {
     const unreadSaid = unread ? unreadInTitle(unread, section.label) : '';
     // Its arrow and its name are one button, for the keyboard and screen readers. Its + is a button of its own.
     const node = el(
-      html`<section class="group${collapsed ? ' collapsed' : ''}" data-section="${section.id}">
+      html`<section
+        class="group${heading ? ' project-group' : ''}${collapsed ? ' collapsed' : ''}"
+        data-section="${section.id}"
+      >
         <div class="group-header">
           <button
             class="group-toggle"
@@ -396,17 +438,32 @@ export class ContactList {
     if (add) header.querySelector('.contact-add').addEventListener('click', add.action);
     // A conversation dragged onto its project's line goes out from under its manager. This computer has none.
     if (section.project && !section.computer) this.#dropsOn(header, () => ({ project: section.members[0]?.project }));
+    // A project's line is dragged onto one of your groups' lines to go in it. This computer is in none.
+    const project = section.project && !section.computer && (section.empty?.name ?? section.members[0]?.project);
+    header.draggable = Boolean(project && this.handlers.moveProject);
+    if (header.draggable) {
+      this.#lifts(header, node, project, () => {
+        this.draggingProject = { name: project, groupId: section.inGroup?.id ?? null };
+      });
+    }
+    if (heading) {
+      const takes = () =>
+        this.draggingProject && this.draggingProject.groupId !== heading.id ? heading.id : undefined;
+      this.#takes(header, takes, (groupId) => this.handlers.moveProject?.(this.draggingProject.name, groupId));
+    }
     // A group the user made and a project have menus of their own, This computer too, and a project with nobody on
     // it. The section of the contacts whose folder has no name has none: there is nothing to set up, hide or remove.
+    // The heading of a group over projects has the group's menu, as the group has it grouped by groups.
     const menu =
-      (section.custom && this.handlers.groupMenu) ||
+      ((section.custom || heading) && this.handlers.groupMenu) ||
       (section.project &&
         (section.computer || section.empty || section.members[0]?.project) &&
         this.handlers.projectMenu);
+    const about = heading ? { id: heading.id, label: heading.label, custom: true } : section;
     if (menu) {
       header.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        menu(section, { x: e.clientX, y: e.clientY });
+        menu(about, { x: e.clientX, y: e.clientY });
       });
     }
     const members = node.querySelector('.group-members');
@@ -457,15 +514,28 @@ export class ContactList {
    */
   #drags(row, contact) {
     row.draggable = true;
-    row.addEventListener('dragstart', (e) => {
-      this.dragging = contact;
+    this.#lifts(row, row, contact.name, () => (this.dragging = contact));
+  }
+
+  /**
+   * Has `handle` dragged, `shown` saying so meanwhile: a conversation's row, or a project's line. The list is drawn
+   * again once the drag is over, wherever it was dropped.
+   * @param {HTMLElement} handle
+   * @param {HTMLElement} shown
+   * @param {string} text  what it carries as text, for wherever else it is dropped
+   * @param {() => void} start  says what is being dragged
+   */
+  #lifts(handle, shown, text, start) {
+    handle.addEventListener('dragstart', (e) => {
+      start();
       this.card.hide();
-      e.dataTransfer?.setData('text/plain', contact.name);
+      e.dataTransfer?.setData('text/plain', text);
       if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
-      row.classList.add('dragging');
+      shown.classList.add('dragging');
     });
-    row.addEventListener('dragend', () => {
+    handle.addEventListener('dragend', () => {
       this.dragging = null;
+      this.draggingProject = null;
       this.render();
     });
   }
@@ -477,7 +547,23 @@ export class ContactList {
    * @param {() => { manager?: any, project?: string }} onto
    */
   #dropsOn(node, onto) {
-    const target = () => (this.dragging ? dropUnder(this.dragging, onto()) : undefined);
+    this.#takes(
+      node,
+      () => (this.dragging ? dropUnder(this.dragging, onto()) : undefined),
+      (to) => this.handlers.assign?.(this.dragging, to, 'drag')
+    );
+  }
+
+  /**
+   * Has `node` take what is dragged onto it, and say so while it is over it, as long as `target` says where that goes.
+   * Each kind of drag has its own targets: a conversation's row goes to a manager's row or its project's line, and a
+   * project's line to a group's.
+   * @template T
+   * @param {HTMLElement} node
+   * @param {() => T | undefined} target  undefined for what it doesn't take
+   * @param {(to: T) => void} drop
+   */
+  #takes(node, target, drop) {
     node.addEventListener('dragover', (e) => {
       if (target() === undefined) return;
       e.preventDefault();
@@ -490,7 +576,7 @@ export class ContactList {
       node.classList.remove('drop-target');
       if (to === undefined) return;
       e.preventDefault();
-      this.handlers.assign?.(this.dragging, to, 'drag');
+      drop(to);
     });
   }
 
@@ -560,7 +646,7 @@ export class ContactList {
             : ''
         }
         ${raw(buddy(icon, 16, { lead, label: iconLabel }))}
-        <span class="name">${contact.pinned ? pinMark(contact.name) : ''}${contact.name}</span>
+        <span class="name">${contact.pinned ? pinMark(contact.name) : ''}${priorityMark(contact)}${contact.name}</span>
         ${serviceTagHtml(contact.serviceTag)}
         ${unread ? html`<span class="unread-count" title="${unreadTitle(unread)}">${unread}</span>` : ''}
         ${
