@@ -43,21 +43,26 @@ export function toMcpServer({ name, status, error, config, scope, source, tools 
 const inToolName = (name) => String(name).replace(/[^\w-]/g, '_');
 
 /**
- * Whether a call of an MCP server's tool only reads, as the server says in the tool's annotations: read-only, and not
- * destructive. Never by its name. A tool of a server that isn't listed, or that says nothing of it, may change things.
- * The server is found by its own name: Claude Code's `mcp__<server>__<tool>` writes some servers' names differently.
+ * The tool of an MCP server a call is for, as the server lists it. The server is found by its own name: Claude Code's
+ * `mcp__<server>__<tool>` writes some servers' names differently, such as a claude.ai connector's. Null where that
+ * isn't known: a server that isn't listed, a tool it doesn't list, or a call that could be either of two of its tools.
  * @param {import('@anthropic-ai/claude-agent-sdk').McpServerStatus[]} servers  as Claude Code lists them now
  * @param {string} toolName  the one called, `mcp__<server>__<tool>`
  * @param {string} [serverName]  the server Claude Code says the call is for. Without one, nothing is known
  */
-export function onlyReads(servers, toolName, serverName) {
+export function calledTool(servers, toolName, serverName) {
   const tools = servers.find((server) => server.name === serverName)?.tools ?? [];
-  // Its tool is the one whose name the call ends in, with the server's part before it. A call that could be either
-  // of two tools is known to be neither.
+  // Its tool is the one whose name the call ends in, with the server's part before it.
   const called = tools.filter(({ name }) => {
     const end = `__${inToolName(name)}`;
     return toolName.endsWith(end) && toolName.length - end.length > 'mcp__'.length;
   });
-  const [tool] = called.length === 1 ? called : [];
-  return Boolean(tool?.annotations?.readOnly && !tool.annotations.destructive);
+  return called.length === 1 ? called[0] : null;
 }
+
+/**
+ * Whether an MCP server's tool only reads, as the server says in its annotations: read-only, and not destructive.
+ * Never by its name. One that isn't known, or that its server says nothing of, may change things.
+ * @param {{ annotations?: { readOnly?: boolean, destructive?: boolean } } | null} tool  as its server lists it
+ */
+export const readsOnly = (tool) => Boolean(tool?.annotations?.readOnly && !tool.annotations.destructive);

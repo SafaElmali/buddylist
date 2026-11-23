@@ -1395,6 +1395,7 @@ const handlers = {
     await conversations.mcpAct(contactId, name, action);
     return { browser: false };
   },
+  [REQUESTS.chatMcpAskAgain]: (_win, contactId, who, tool) => conversations.askAgain(contactId, who, tool),
   [REQUESTS.chatUsage]: (_win, contactId, participantId) => conversations.usage(contactId, participantId),
   [REQUESTS.chatInvite]: (_win, contactId, guestId) => conversations.invite(contactId, guestId),
   [REQUESTS.chatInviteNew]: (_win, contactId, fields) => conversations.inviteNew(contactId, fields),

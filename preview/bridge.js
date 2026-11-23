@@ -232,6 +232,7 @@ window.messenger = {
     setAnswerOrder: invoke('chat:set-answer-order'),
     mcpServers: invoke('chat:mcp-servers'),
     mcpAct: invoke('chat:mcp-act'),
+    mcpAskAgain: invoke('chat:mcp-ask-again'),
     usage: invoke('chat:usage'),
     invite: invoke('chat:invite'),
     inviteNew: invoke('chat:invite-new'),

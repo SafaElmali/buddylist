@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ClaudeSession, READ_ONLY_MCP_ASKED } from '../src/providers/claude/session.js';
+import { ALWAYS_FOR_CONTACT, ClaudeSession, READ_ONLY_MCP_ASKED } from '../src/providers/claude/session.js';
 import { sdkTool } from '../src/providers/claude/app-tools.js';
 import { OUTSIDE_SANDBOX, appTools } from '../src/main/app-tools.js';
 import { descriptor } from '../src/providers/claude/descriptor.js';
@@ -3690,11 +3690,19 @@ async function answeredCard({ session, events, options }, tool, decision) {
   return { card, ran: await ran };
 }
 
-/** A session that has answered one message, in `mode`, with Claude Code listing `servers` as its MCP servers. */
-async function startedWith(mode, { readOnly = true, servers = async () => [NOTES] } = {}) {
+/**
+ * A session that has answered one message, in `mode`, with Claude Code listing `servers` as its MCP servers, and the
+ * MCP tools its contact was always allowed.
+ */
+async function startedWith(mode, { readOnly = true, servers = async () => [NOTES], allowedTools } = {}) {
   const { queryFn, starts } = lastingQuery(servers);
   const session = new ClaudeSession({
-    contact: { ...contact(), permissionMode: mode, ...(readOnly && { readOnly }) },
+    contact: {
+      ...contact(),
+      permissionMode: mode,
+      ...(readOnly && { readOnly }),
+      ...(allowedTools && { allowedTools }),
+    },
     emit: () => {},
     queryFn,
   });
@@ -3748,8 +3756,11 @@ test('a read-only agent asks on a card before a destructive or unmarked MCP tool
         const where = `${mode}, ${tool}, ${decision}`;
         const { card, ran } = await answeredCard(started, `mcp__notes__${tool}`, decision);
         assert.deepEqual(card.activity, { kind: 'tool', label: tool, source: 'notes' }, where);
-        assert.equal(card.reason, READ_ONLY_MCP_ASKED, where);
-        assert.equal(card.canAlways, false, `${where}: no rule for the folder is offered`);
+        assert.equal(card.reason, `${READ_ONLY_MCP_ASKED} ${ALWAYS_FOR_CONTACT}`, where);
+        // Always allow is offered for this contact, never as a rule for the folder.
+        assert.equal(card.canAlways, true, where);
+        assert.equal(card.alwaysScope, 'contact', where);
+        assert.deepEqual(card.alwaysTool, { server: 'notes', tool }, where);
         assert.equal(ran, decision === 'allow', where);
       }
     }
@@ -3797,10 +3808,181 @@ test('an agent that may change files gets MCP tools as ever: unasked in Never as
   for (const tool of ['list_notes', 'delete_note', 'add_note']) {
     const { card, ran } = await answeredCard(asks, `mcp__notes__${tool}`, 'allow');
     assert.equal(card.canAlways, true, tool);
+    assert.equal(card.alwaysScope, undefined, `${tool}: Claude Code’s own Always allow`);
     assert.equal(card.reason, null, tool);
     assert.equal(ran, true, tool);
   }
   asks.session.close();
+});
+
+/** How Claude Code is answered about a call it asks the app about, as its canUseTool callback answers. */
+async function answerTo(started, tool, decision) {
+  started.events.length = 0;
+  const said = await hookSays(started.options, tool);
+  const answer = started.options.canUseTool(
+    tool,
+    {},
+    {
+      signal: new AbortController().signal,
+      toolUseID: tool,
+      decisionReason: said?.permissionDecisionReason,
+      suggestions: [{ type: 'addRules', rules: [{ toolName: tool }], behavior: 'allow', destination: 'localSettings' }],
+    }
+  );
+  const card = await until(started.events, 'permission');
+  started.session.respond(card.requestId, { decision });
+  return { card, answer: await answer };
+}
+
+test('a read-only agent runs an MCP tool always allowed for it unasked, in every mode, a destructive one too', async () => {
+  const allowedTools = [
+    { server: 'notes', tool: 'add_note' },
+    { server: 'notes', tool: 'delete_note' },
+  ];
+  for (const mode of descriptor.permissionModes.map((one) => one.id)) {
+    const { session, events, options } = await startedWith(mode, { allowedTools });
+    for (const tool of ['add_note', 'delete_note']) {
+      // The hook's allow, not a rule: Claude Code still asks where the user's own rules ask, and denies where they deny.
+      assert.deepEqual(
+        await hookSays(options, `mcp__notes__${tool}`),
+        { hookEventName: 'PreToolUse', permissionDecision: 'allow' },
+        `${mode}, ${tool}`
+      );
+      assert.equal(await claudeCodeCalls(options, `mcp__notes__${tool}`), true, `${mode}, ${tool}`);
+    }
+    assert.equal(
+      events.some((e) => e.type === 'permission'),
+      false,
+      `${mode}: no card`
+    );
+    session.close();
+  }
+});
+
+test('Always allow for the contact lets the call run, writes no rule, and covers that tool from then on', async () => {
+  const started = await startedWith('default');
+  const { card, answer } = await answerTo(started, 'mcp__notes__add_note', 'always');
+  assert.equal(card.alwaysScope, 'contact');
+  assert.deepEqual(card.alwaysTool, { server: 'notes', tool: 'add_note' });
+  assert.equal(answer.behavior, 'allow');
+  assert.equal(answer.updatedPermissions, undefined, 'nothing goes into Claude Code’s settings');
+  // The app keeps the allow with the contact (see Conversations#allowTools), and hands it to the session.
+  started.session.setAllowedTools([card.alwaysTool]);
+  assert.equal((await hookSays(started.options, 'mcp__notes__add_note')).permissionDecision, 'allow');
+  assert.deepEqual(await hookSays(started.options, 'mcp__notes__delete_note'), ASKS, 'another tool still asks');
+  // Taken back, it asks again.
+  started.session.setAllowedTools([]);
+  assert.deepEqual(await hookSays(started.options, 'mcp__notes__add_note'), ASKS);
+  started.session.close();
+});
+
+test('cards asking about the same tool at once are all answered by one Always allow for the contact', async () => {
+  const { options, events, session } = await startedWith('default');
+  const tool = 'mcp__notes__add_note';
+  // Two calls side by side, each checked by the hook first, as Claude Code does.
+  const call = async (id) => {
+    await hook(
+      options,
+      'PreToolUse'
+    )({
+      hook_event_name: 'PreToolUse',
+      tool_name: tool,
+      tool_input: {},
+      tool_use_id: id,
+      mcp_server: { name: 'notes', source: 'user' },
+    });
+    return options.canUseTool(
+      tool,
+      {},
+      { signal: new AbortController().signal, toolUseID: id, decisionReason: READ_ONLY_MCP_ASKED }
+    );
+  };
+  const first = call('t1');
+  const second = call('t2');
+  while (events.filter((e) => e.type === 'permission').length < 2)
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  const [card] = events.filter((e) => e.type === 'permission');
+  session.respond(card.requestId, { decision: 'always' });
+  assert.deepEqual(
+    (await Promise.all([first, second])).map((answer) => answer.behavior),
+    ['allow', 'allow']
+  );
+  session.close();
+});
+
+test('an MCP tool always allowed for one contact still asks on another server, for an unsure match, and for another contact', async () => {
+  const files = { ...NOTES, name: 'files' };
+  const tracker = {
+    name: 'claude.ai Tracker ',
+    status: 'connected',
+    source: 'claudeai',
+    tools: [
+      { name: 'save.ticket', annotations: {} },
+      { name: 'get', annotations: {} },
+      { name: 'x__get', annotations: {} },
+    ],
+  };
+  const allowedTools = [
+    { server: 'notes', tool: 'add_note' },
+    { server: 'claude.ai Tracker ', tool: 'save.ticket' },
+    { server: 'claude.ai Tracker ', tool: 'x__get' },
+  ];
+  const started = await startedWith('bypassPermissions', {
+    servers: async () => [NOTES, files, tracker],
+    allowedTools,
+  });
+  const { options } = started;
+  assert.deepEqual(await hookSays(options, 'mcp__files__add_note', 'files'), ASKS, 'the same tool on another server');
+  // A claude.ai connector's name is written differently in the call: it is matched by its own.
+  assert.equal(
+    (await hookSays(options, 'mcp__claude_ai_Tracker__save_ticket', 'claude.ai Tracker ')).permissionDecision,
+    'allow'
+  );
+  // x__get, or get of a server whose name would be written claude_ai_Tracker__x: neither is known.
+  assert.deepEqual(await hookSays(options, 'mcp__claude_ai_Tracker__x__get', 'claude.ai Tracker '), ASKS);
+  started.session.close();
+
+  // That card offers no Always allow: there is no telling which tool it would be for.
+  const unsure = await startedWith('default', { servers: async () => [tracker] });
+  unsure.events.length = 0;
+  await hookSays(unsure.options, 'mcp__claude_ai_Tracker__x__get', 'claude.ai Tracker ');
+  const answering = unsure.options.canUseTool(
+    'mcp__claude_ai_Tracker__x__get',
+    {},
+    {
+      signal: new AbortController().signal,
+      toolUseID: 'mcp__claude_ai_Tracker__x__get',
+      decisionReason: READ_ONLY_MCP_ASKED,
+    }
+  );
+  const unsureCard = await until(unsure.events, 'permission');
+  assert.equal(unsureCard.canAlways, false);
+  assert.equal(unsureCard.alwaysScope, undefined);
+  assert.equal(unsureCard.reason, READ_ONLY_MCP_ASKED);
+  unsure.session.respond(unsureCard.requestId, { decision: 'deny' });
+  await answering;
+  unsure.session.close();
+
+  // Another contact, with nothing allowed, asks about the very tool.
+  const other = await startedWith('bypassPermissions');
+  assert.deepEqual(await hookSays(other.options, 'mcp__notes__add_note'), ASKS);
+  other.session.close();
+});
+
+test('a tool always allowed for the contact is still asked about where the user’s own rules ask about it', async () => {
+  // Claude Code asks the app after the hook's allow where a rule of the user's asks: the card is shown, as ever.
+  const started = await startedWith('default', { allowedTools: [{ server: 'notes', tool: 'add_note' }] });
+  assert.equal((await hookSays(started.options, 'mcp__notes__add_note')).permissionDecision, 'allow');
+  const answer = started.options.canUseTool(
+    'mcp__notes__add_note',
+    {},
+    { signal: new AbortController().signal, toolUseID: 'mcp__notes__add_note' }
+  );
+  const card = await until(started.events, 'permission');
+  assert.equal(card.canAlways, false, 'the hook didn’t ask, so it is no card to always allow from');
+  started.session.respond(card.requestId, { decision: 'deny' });
+  assert.equal((await answer).behavior, 'deny');
+  started.session.close();
 });
 
 test('a read-only agent in Never ask is asked about a command for a terminal, on a card saying where it runs', async () => {

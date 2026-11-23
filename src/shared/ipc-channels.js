@@ -132,6 +132,7 @@ export const REQUESTS = Object.freeze({
   chatSetAnswerOrder: 'chat:set-answer-order',
   chatMcpServers: 'chat:mcp-servers',
   chatMcpAct: 'chat:mcp-act',
+  chatMcpAskAgain: 'chat:mcp-ask-again',
   chatUsage: 'chat:usage',
   chatInvite: 'chat:invite',
   chatInviteNew: 'chat:invite-new',

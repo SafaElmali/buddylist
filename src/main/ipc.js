@@ -1824,6 +1824,9 @@ export function registerIpc({
     return { browser };
   });
 
+  // Ask again: takes back an Always allow of an MCP tool for one of the conversation's agents.
+  handleWithPath(REQUESTS.chatMcpAskAgain, (_e, contactId, who, tool) => conversations.askAgain(contactId, who, tool));
+
   // What /context and /usage show in a terminal: how full the context window is, and the plan's limits.
   handleWithPath(REQUESTS.chatUsage, (_e, contactId, participantId) => conversations.usage(contactId, participantId));
 

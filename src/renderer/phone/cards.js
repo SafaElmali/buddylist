@@ -1,7 +1,7 @@
 // What the phone app's cards ask, and what each of their buttons answers (see Conversations.respond): a permission,
 // questions, a plan, project instructions. As the conversation window's cards (see chat/invitations.js, plans.js),
 // with nothing to edit.
-import { activityRequest, clipLines } from '../../shared/activity-text.js';
+import { activityRequest, allowedForContact, alwaysLabel, clipLines } from '../../shared/activity-text.js';
 import { planTitle } from '../../shared/plan-title.js';
 import { ASKS_FIRST_MODE } from '../../shared/remote-access.js';
 
@@ -66,7 +66,7 @@ function toolDetail({ detail, activity = /** @type {any} */ ({}) }) {
 /**
  * A request to use a tool: what it asks, what to look at, and Decline and Allow side by side, Allow last. Always allow,
  * where it is offered, is apart from both and quieter: a slip of the thumb shouldn't give a standing permission. Only a
- * phone with full access offers it (see access.js), for the rest of the conversation too where that is all it covers.
+ * phone with full access offers it (see access.js), also where it covers only the rest of the conversation or one contact.
  * @param {import('../../providers/contract.js').PermissionRequest} prompt
  * @param {string} name  who asks
  * @param {{ always?: boolean }} [may]  whether this phone may always allow
@@ -82,7 +82,7 @@ export const toolCard = (prompt, name, { always = true } = {}) => ({
     ...(prompt.canAlways && always
       ? [
           {
-            label: prompt.alwaysLabel || 'Always allow, don’t ask again',
+            label: alwaysLabel(prompt, name) || 'Always allow, don’t ask again',
             answer: /** @type {PermissionResponse} */ ({ decision: 'always' }),
             quiet: true,
           },
@@ -162,7 +162,8 @@ export function instructionsCard(prompt, name) {
  * project's manager answered for you say whose answer it was.
  * @param {{ kind: string, decision: string, activity?: any, title?: string | null, plan?: string,
  *   instructions?: { project?: string, part?: string }, answeredBy?: { name: string }, scope?: string }} answered
- *   `scope`: `conversation` for an Always allow that covered the rest of the conversation only
+ *   `scope`: `conversation` for an Always allow that covered the rest of the conversation only, `contact` for one that
+ *   covers the contact that asked
  * @param {string} name  who asked
  */
 export function answeredLine({ kind, decision, activity, title, plan, instructions, answeredBy, scope }, name) {
@@ -179,6 +180,7 @@ export function answeredLine({ kind, decision, activity, title, plan, instructio
     const whose = project ? `${project}’s` : 'the project’s';
     return `${SAVED[decision] || SAVED.deny}: ${name}’s change to ${whose} ${part ? `${part} ` : ''}instructions.`;
   }
+  if (decision === 'always' && scope === 'contact') return allowedForContact(activity, name);
   if (title) return `You ${past}: ${title}.`;
   const request = requestOf(activity);
   if (decision === 'allow') return `You allowed ${name} to ${request}.`;

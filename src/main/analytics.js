@@ -291,6 +291,8 @@ const resolved = (_answered, _contactId, _threadId, resolve) => (resolve === tru
 
 /** The ways an agent's invitation is answered from its card (see PermissionResponse in providers/contract.js). */
 const ANSWERS = Object.freeze(['allow', 'always', 'deny', 'answer', 'skip', 'approve-plan', 'feedback', 'edit']);
+/** What an Always allow covers where it is less than always: the rest of a conversation, or one contact. */
+const ALWAYS_SCOPES = Object.freeze(['conversation', 'contact']);
 
 /**
  * What the app itself was asked to do that asks you first (see shared/app-tools.js), as the invitation's answer
@@ -319,8 +321,8 @@ function invitationAnswered({ answer }, _contactId, _requestId, response) {
     answer: response.decision,
     ...(ASKED_OF_APP.includes(action) && { asked: action }),
     ...(action === 'message' && { urgent: answer?.urgent === true }),
-    // Always allow for the rest of the conversation only, such as an app for Computer Use.
-    ...(response.decision === 'always' && answer?.scope === 'conversation' && { scope: 'conversation' }),
+    // Always allow for the rest of the conversation only, such as an app for Computer Use, or for one contact only.
+    ...(response.decision === 'always' && ALWAYS_SCOPES.includes(answer?.scope) && { scope: answer.scope }),
   };
 }
 
@@ -537,6 +539,8 @@ export const COUNTED = Object.freeze({
   [REQUESTS.chatSetOutputStyle]: { event: 'output style picked', about: outputStylePicked },
   [REQUESTS.chatSetMode]: { event: 'mode picked', about: modePicked },
   [REQUESTS.chatMcpAct]: { event: 'mcp server changed', about: mcpAct },
+  // Ask again under a server in MCP servers. Which tool, which server and whose it was stay here.
+  [REQUESTS.chatMcpAskAgain]: { event: 'always allow taken back', about: whenDone(() => ({})) },
   // The context meter, /context and /usage, and Conversation > Context and usage...
   [REQUESTS.chatUsage]: { event: 'usage opened', about: agentOf },
   [REQUESTS.chatWink]: { event: 'wink sent' },

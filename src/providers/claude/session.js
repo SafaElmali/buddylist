@@ -4,6 +4,7 @@ import { selectQueued } from '../queued-message.js';
 import crypto from 'node:crypto';
 import { APP_SERVER } from '../../shared/app-tools.js';
 import { checkInDue } from '../../shared/check-ins.js';
+import { sameTool } from '../../shared/mcp.js';
 import { accountName, planLimitText, resetText, switchedMidTurn } from '../../shared/usage.js';
 import { BaseSession, CHAT_INSTRUCTIONS, truncateOutput } from '../base-session.js';
 import { namesNoAnswer, offlineText } from '../offline.js';
@@ -15,7 +16,7 @@ import { draftActivity, toActivity, toQuestions, toolResultPictures, toolResultT
 import { APP_TOOL_INSTRUCTIONS, appToolName, appToolServer } from './app-tools.js';
 import { Background } from './background.js';
 import { listedAs as listedModel } from './models.js';
-import { onlyReads, toMcpServer } from './mcp.js';
+import { calledTool, readsOnly, toMcpServer } from './mcp.js';
 import { forkSession, getSessionMessages, query } from './sdk.js';
 import { TASK_TOOLS, Tasks } from './tasks.js';
 import { COMPACTED } from './transcript.js';
@@ -83,6 +84,9 @@ const READ_ONLY_DECLINED =
 // Why the user is asked about a tool of an MCP server other than the app's that an agent kept from changing files
 // called: no sandbox holds what such a tool does, and only its server can say it reads (see #readOnlyTool).
 export const READ_ONLY_MCP_ASKED = 'Its server doesn’t mark this tool as read-only, so it can change things.';
+// What its card adds where it can be allowed for good: for whom that is, and that it reaches no settings of Claude Code's.
+export const ALWAYS_FOR_CONTACT =
+  'Always allow covers this tool for this contact only: other agents still ask, and nothing goes into Claude Code’s settings.';
 
 /** Whether a tool is one of an MCP server's other than the app's own. */
 const otherServersTool = (name) => String(name).startsWith('mcp__') && !String(name).startsWith(appToolName(''));
@@ -319,6 +323,12 @@ export class ClaudeSession extends BaseSession {
     /** The model Claude answers with, by its full id, as Claude Code last said. */
     this.mainModel = '';
     this.declinedTools = new Set();
+    /**
+     * The calls of an MCP tool a read-only agent was asked about, by id, with the tool each is for, as its server lists
+     * it: the card can then allow that tool for the contact from then on (see #readOnlyTool).
+     * @type {Map<string, import('../contract.js').AllowedTool>}
+     */
+    this.askedTools = new Map();
     /** Of those, the ones whose question was withdrawn unanswered, as a Stop does: nobody declined them. */
     this.withdrawnTools = new Set();
     /** The questions the user skipped: Claude goes on without their answers. */
@@ -1442,27 +1452,32 @@ export class ClaudeSession extends BaseSession {
     }
     const askedIn = this.contact.permissionMode;
     const kind = promptKind(toolName);
-    // "Always" is a rule in Claude Code's settings. What the app does for Claude is asked each time, and so is an MCP
-    // tool a read-only agent calls: the rule would be the folder's, for every agent, and this one asks anyway.
+    // An MCP tool a read-only agent calls is asked about each time Claude Code's way: its "Always" is a rule in the
+    // folder's settings, for every agent, and this one asks anyway. The app keeps one for this contact instead, for
+    // the tool its hook found the call is for: one it couldn't tell from another has none.
+    const readOnlyMcp = this.contact.readOnly && otherServersTool(toolName);
+    const forContact = this.askedTools.get(toolUseID);
+    this.askedTools.delete(toolUseID);
+    // "Always" is a rule in Claude Code's settings. What the app does for Claude is asked each time.
     const canAlways =
-      kind === 'tool' &&
-      !appTool &&
-      !(this.contact.readOnly && otherServersTool(toolName)) &&
-      Boolean(suggestions?.length) &&
-      !suppressAlwaysAllowRule;
+      kind === 'tool' && !appTool && !readOnlyMcp && Boolean(suggestions?.length) && !suppressAlwaysAllowRule;
     const response = await this.requestPermission(
       {
         kind,
         activity: this.#activity(toolName, input),
         // What one of the app's tools does is said by its activity, in the app's own words.
         title: (!appTool && title) || null,
-        reason: decisionReason || null,
-        canAlways,
+        reason: (forContact ? [decisionReason, ALWAYS_FOR_CONTACT].filter(Boolean).join(' ') : decisionReason) || null,
+        canAlways: canAlways || Boolean(forContact),
+        ...(forContact && { alwaysScope: 'contact', alwaysTool: forContact }),
         questions: kind === 'question' ? toQuestions(input) : undefined,
         plan: kind === 'plan' ? String(input.plan || '') : undefined,
       },
-      // Calls that would add the very same rules are allowed by the same "Always allow".
-      { signal, rule: canAlways ? JSON.stringify(suggestions) : undefined }
+      // Calls that would add the very same rules, or allow the very same tool, are allowed by the same "Always allow".
+      {
+        signal,
+        rule: forContact ? JSON.stringify(forContact) : canAlways ? JSON.stringify(suggestions) : undefined,
+      }
     );
     if (response.decision === 'skip' && toolUseID) this.skippedTools.add(toolUseID);
     else if (!['allow', 'always', 'answer', 'approve-plan'].includes(response.decision) && toolUseID) {
@@ -1471,27 +1486,36 @@ export class ClaudeSession extends BaseSession {
     }
     // Claude Code's "always" for an edit is a switch to auto-accepting edits. A mode picked while the prompt
     // waited, such as Plan mode, is the user's last word: the switch would undo it.
-    const updates =
-      askedIn === this.contact.permissionMode ? suggestions : suggestions?.filter(({ type }) => type !== 'setMode');
+    // Nor does one the app keeps for this contact add a rule to Claude Code's settings.
+    const updates = forContact
+      ? undefined
+      : askedIn === this.contact.permissionMode
+        ? suggestions
+        : suggestions?.filter(({ type }) => type !== 'setMode');
     return this.#toPermissionResult(response, input, updates);
   }
 
   /**
    * A read-only agent's call of a tool of an MCP server other than the app's runs unasked where its server marks it
-   * read-only, as Claude Code lists the server's tools now. Any other one is asked about on a card, whatever the mode:
-   * Claude Code asks the app (see #canUseTool) even where its rules or Never ask would run it. Rules of the user's
-   * that ask about or deny a tool still do. Any other call goes on as it would.
-   * @param {{ tool_name: string, mcp_server?: { name: string } }} call
+   * read-only, as Claude Code lists the server's tools now, or where the user always allowed it for this contact. Any
+   * other one is asked about on a card, whatever the mode: Claude Code asks the app (see #canUseTool) even where its
+   * rules or Never ask would run it. Rules of the user's that ask about or deny a tool still do. Any other call goes on
+   * as it would.
+   * @param {{ tool_name: string, tool_use_id?: string, mcp_server?: { name: string } }} call
    */
-  async #readOnlyTool({ tool_name: name, mcp_server: server }) {
+  async #readOnlyTool({ tool_name: name, tool_use_id: id, mcp_server: server }) {
     if (!otherServersTool(name)) return {};
     const servers = await this.q?.mcpServerStatus().catch(() => null);
-    const reads = onlyReads(servers ?? [], name, server?.name);
+    const tool = calledTool(servers ?? [], name, server?.name);
+    const known = tool && { server: server.name, tool: tool.name };
+    const allowed = readsOnly(tool) || Boolean(known && this.contact.allowedTools?.some((one) => sameTool(one, known)));
+    // Its card can allow the very tool for good.
+    if (!allowed && known && id) this.askedTools.set(id, known);
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
-        permissionDecision: reads ? 'allow' : 'ask',
-        ...(!reads && { permissionDecisionReason: READ_ONLY_MCP_ASKED }),
+        permissionDecision: allowed ? 'allow' : 'ask',
+        ...(!allowed && { permissionDecisionReason: READ_ONLY_MCP_ASKED }),
       },
     };
   }

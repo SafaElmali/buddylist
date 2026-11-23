@@ -125,7 +125,9 @@
  * @property {boolean} [canAlways]     whether "Always allow" is offered
  * @property {string} [alwaysLabel]    what "Always allow" says instead, where it covers less: "Allow Computer Use in
  *   Preview for this conversation"
- * @property {'conversation'} [alwaysScope]  how long that covers: the rest of the conversation, as its session lasts
+ * @property {'conversation' | 'contact'} [alwaysScope]  what that covers: the rest of the conversation, as its session
+ *   lasts, or the contact that asks, from then on (`alwaysTool`). Every Always allow, if unset
+ * @property {AllowedTool} [alwaysTool]  with `alwaysScope` `contact`: the MCP tool it lets the contact use unasked
  * @property {Question[]} [questions]  (`question`)
  * @property {string} [plan]           Markdown (`plan`)
  * @property {InstructionsChange} [instructions]  (`instructions`)
@@ -368,6 +370,16 @@
  * @property {string} [address]  its URL, or the command that starts it
  * @property {string} [origin]   where it is set up, in a few words: a plugin, the project, the user's own settings
  * @property {number} [tools]    how many tools it gives the agent, once connected
+ * @property {{ tool: string, contactId: string, name: string }[]} [allowed]  its tools the agents of the conversation
+ *   use without asking, by whom (see {@link AllowedTool}). The app adds it: its provider never says
+ */
+
+/**
+ * An MCP tool the user always allows one contact that changes no files to use, by the names its server lists it with.
+ * The app keeps it with the contact, never in its provider's own settings: no other agent and no folder gets it.
+ * @typedef {Object} AllowedTool
+ * @property {string} server
+ * @property {string} tool
  */
 
 /**
@@ -572,6 +584,8 @@
  *   sandbox and is told no to every request to run a command with more access, and an agent over ACP is put in its
  *   `readOnlyMode`, where it has one, and is told no to the file changes and commands it asks for. No approval
  *   undoes it, in any mode
+ * @property {AllowedTool[]} [allowedTools]  with `readOnly`, the MCP tools it uses without asking, though their
+ *   servers don't mark them read-only. Only a provider whose sessions ask about those itself reads this
  * @property {string[]} [readDirs]       folders besides its own it reads in, as a project's manager reads in its
  *   workers' worktrees (see main/managers.js). Only a provider with the app's tools reads this
  * @property {string} [agent]            the agent definition of the user's it runs as, by name (see
