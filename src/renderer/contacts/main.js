@@ -68,7 +68,7 @@ const tips = () => [
   'Point at a project and click <b>+</b> for another contact on it. Press <b>Enter</b> and its branch is named after your first message, or type a name of your own.',
   '<b>Invite</b> a second contact into a conversation and they answer in turn. Start a message with <b>@</b> and a name to ask just one.',
   'Your contacts are listed by <b>project</b>. Right-click one and choose <b>New contact in this project...</b> for another on the same project.',
-  'Sort your projects into <b>groups</b>: create one from the <b>Contacts</b> menu, then right-click a contact to move it.',
+  'Sort your projects into <b>groups</b>: create one from the <b>Contacts</b> menu, then right-click a project or a contact and choose <b>Move to group</b>.',
   'Click <b>...</b> next to the search box to group the list by project, status or service, to show one project only, or to sort it.',
   'A project that is not on your Mac yet? <b>...</b> > <b>Add project</b> clones one from GitHub, or starts a new one with <b>Quick start</b>.',
   'Right-click a contact to <b>pin</b> it to the top of its project, to add it to your <b>favorites</b>, or to <b>archive</b> one you are done with for now. Its history and its folder are kept.',
