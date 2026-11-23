@@ -11,6 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
+## v0.7.14
+
+- **Sort contacts by priority, and put projects in your groups** — Right-click a contact and choose **Priority** to make it **High** or **Low**, or pick it in **Edit contact...**: an arrow before its name says so, and **Sort by > Priority** lists the High ones first in each section, then Normal, then Low, a manager still leading its workers. Grouped by project, right-click a project and choose **Move to group**, or drag its line onto a group's line: your groups, such as "Work" and "Side projects", head the projects in them, and fold them all away with a click. The phone app shows them the same way. Every list stays as it was until you set a priority or move a project.
+
 ## v0.7.13 — 2026-11-22
 
 - **Download what an agent shares, in one click** — A picture in a conversation has **⤓** in its corner beside **Reply**, there when you point at it or `Tab` to it, and the picture viewer has **Download** in its bar, or `D`. On a call's small pictures, **Reply** is now its icon alone. A link to a video or a sound an agent shares has a **⤓** after it. Under a row of pictures a call handed back, such as 8 screenshots, **Download all 8** saves them all in a folder you pick, each under its own name, such as `home.png` or `screenshot-2.png`, and never over a file already there. Every download is the picture or file as it was shared, at its full size. One on the web has no **⤓**.

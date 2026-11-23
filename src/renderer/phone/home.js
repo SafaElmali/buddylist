@@ -1,5 +1,5 @@
-// The phone app's Home: who is waiting for you, who is at work, and everyone else (see shared/phone-sections.js). A
-// row opens its conversation. Project sections and manager teams fold independently on this phone. A phone set to less
+// The phone app's Home: who is waiting for you, who is at work, and everyone else (see shared/phone-sections.js), the
+// projects under the computer's groups. A row opens its conversation. Project sections and manager teams fold independently on this phone. A phone set to less
 // than full access is told so once, first of the hints (see access.js).
 import { el, html, raw } from '../lib/dom.js';
 import { pictureArt } from '../lib/pictures.js';
@@ -17,7 +17,7 @@ import {
   roleOf,
   rowNote,
 } from '../../shared/phone-sections.js';
-import { startedUnder } from '../../shared/list-view.js';
+import { headed, priorityOf, startedUnder } from '../../shared/list-view.js';
 
 /** The row last opened from Home, which has the focus again once Back brings Home back. */
 let opened = null;
@@ -81,6 +81,16 @@ const keptFolds = () => {
   return new Set(['section:archived']);
 };
 
+const PRIORITY_MARKS = { high: { arrow: '↑', title: 'High priority' }, low: { arrow: '↓', title: 'Low priority' } };
+/** What a contact of high or low priority wears before its name, as on the computer. Normal wears nothing. */
+const priorityMark = (contact) => {
+  const level = priorityOf(contact);
+  const mark = PRIORITY_MARKS[level];
+  return mark
+    ? html`<span class="ph-priority" data-priority="${level}" aria-label="${mark.title}">${mark.arrow}</span>`
+    : '';
+};
+
 /** @param {import('../../shared/phone-sections.js').ContactView} contact */
 const row = (contact, { projectNote = false, depth = 0, led = false, started = 0, folded = false } = {}) => {
   const role = roleOf(contact);
@@ -95,7 +105,8 @@ const row = (contact, { projectNote = false, depth = 0, led = false, started = 0
       <span class="ph-avatar ph-${dotOf(contact)}">${raw(pictureArt(contact.avatar || 'default'))}</span>
       <span class="ph-row-text">
         <span class="ph-row-name"
-          ><span class="ph-name">${contact.name}</span>${role ? html`<span class="ph-badge">${role}</span>` : ''}</span
+          >${priorityMark(contact)}<span class="ph-name">${contact.name}</span
+          >${role ? html`<span class="ph-badge">${role}</span>` : ''}</span
         >
         ${projectNote ? html`<span class="ph-row-project">${projectLabel(contact)}</span>` : ''}
         <span class="ph-row-note"
@@ -129,10 +140,13 @@ export class Home {
   /**
    * @param {HTMLElement} root
    * @param {{ contacts: import('../../shared/phone-sections.js').ContactView[], signOut: () => void,
-   *   notifications: import('./notifications.js').Notifications }} opts
+   *   notifications: import('./notifications.js').Notifications,
+   *   desk?: { groups?: import('../../shared/groups.js').Group[], settings?: object } }} opts  `desk`: the computer's
+   *   groups and settings, which lay out its contact list; read each time Home is drawn
    */
-  constructor(root, { contacts, signOut, notifications }) {
+  constructor(root, { contacts, signOut, notifications, desk = {} }) {
     this.root = root;
+    this.desk = desk;
     this.signOut = signOut;
     this.notifications = notifications;
     this.folded = keptFolds();
@@ -314,7 +328,7 @@ export class Home {
   /** Home as it is: its sections, with one hint under Waiting. */
   #sections(contacts) {
     // Waiting stays, saying when nothing needs you, while there is anyone at all.
-    const sections = homeSections(contacts).filter(
+    const sections = homeSections(contacts, this.desk).filter(
       (section) => section.members.length || (section.id === 'waiting' && contacts.length)
     );
     // One hint at a time, under Waiting: what this phone may do first, as it explains what isn't there, then
@@ -323,7 +337,7 @@ export class Home {
     const contactsFolded = new Set(
       [...this.folded].filter((key) => key.startsWith('contact:')).map((key) => key.slice('contact:'.length))
     );
-    const drawn = sections.map((section) => {
+    const drawOne = (section) => {
       const priority = section.id === 'waiting' || section.id === 'working';
       const key = `section:${section.id}`;
       const open = priority || !this.folded.has(key);
@@ -360,6 +374,17 @@ export class Home {
           }
         </section>`
       );
+    };
+    // The projects in one of the computer's groups are under its heading, as in its contact list.
+    const drawn = headed(sections).map(({ section, group, projects }) => {
+      if (section) return drawOne(section);
+      const node = el(
+        html`<div class="ph-project-group" data-group="${group.id}">
+          <h2 class="ph-group-heading">${group.label}</h2>
+        </div>`
+      );
+      node.append(...projects.map(drawOne));
+      return node;
     });
     return [
       ...drawn.slice(0, 1),

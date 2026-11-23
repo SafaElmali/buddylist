@@ -295,6 +295,18 @@ body:has(> .ph-connection:not([hidden])) > .ph-screen {
   text-transform: uppercase;
 }
 
+/* One of the computer's groups: a heading over its projects', which are a step in, as in its contact list. */
+.ph-group-heading {
+  margin: 24px 16px 0;
+  color: var(--text-strong);
+  font-size: max(13px, calc(13rem / 15));
+  font-weight: 700;
+}
+
+.ph-project-group > .ph-section {
+  margin-left: 12px;
+}
+
 .ph-count {
   flex-shrink: 0;
   margin-left: 4px;
@@ -483,6 +495,18 @@ body:has(> .ph-connection:not([hidden])) > .ph-screen {
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A contact of high or low priority: an arrow before its name, as on the computer. */
+.ph-priority {
+  flex-shrink: 0;
+  margin-right: -2px;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.ph-priority[data-priority='high'] {
+  color: var(--danger);
 }
 
 .ph-badge {

@@ -33,7 +33,7 @@ import { cleanDraft, listMatching, parseReference, REFERENCE_HELP } from '../src
 import { NOT_A_DRAFT, waitingToStart } from '../src/shared/drafted.js';
 import { cleanGroupName, knownGroupId } from '../src/shared/groups.js';
 import { EVENTS, REQUESTS } from '../src/shared/ipc-channels.js';
-import { cleanListView } from '../src/shared/list-view.js';
+import { cleanListView, cleanPriority } from '../src/shared/list-view.js';
 import { cleanModelSettings } from '../src/shared/models.js';
 import { newBranchNotice } from '../src/shared/new-branch.js';
 import { cleanOpenIn } from '../src/shared/open-in.js';
@@ -1016,8 +1016,19 @@ const handlers = {
   [REQUESTS.contactUpdate]: (_win, id, patch) => {
     const before = store.getContact(id);
     if (!before) return null;
-    const clean = pick(patch, ['name', 'cwd', 'model', 'avatar', 'groupId', 'favorite', 'pinned', 'archiveMerged']);
+    const clean = pick(patch, [
+      'name',
+      'cwd',
+      'model',
+      'avatar',
+      'groupId',
+      'favorite',
+      'pinned',
+      'archiveMerged',
+      'priority',
+    ]);
     if ('archiveMerged' in clean && typeof clean.archiveMerged !== 'boolean') clean.archiveMerged = undefined;
+    if ('priority' in clean) clean.priority = cleanPriority(clean.priority);
     if ('groupId' in clean) clean.groupId = knownGroupId(clean.groupId, store.groups);
     const renamed = 'name' in clean && clean.name !== before.name;
     if (renamed) conversations.checkRename(id, clean.name);

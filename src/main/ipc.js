@@ -19,7 +19,7 @@ import { NOT_A_DRAFT, waitingToStart } from '../shared/drafted.js';
 import { cleanContactsPane } from '../shared/contacts-pane.js';
 import { tabsOf } from '../shared/chat-tabs.js';
 import { cleanGroupName, knownGroupId } from '../shared/groups.js';
-import { cleanListView } from '../shared/list-view.js';
+import { cleanListView, cleanPriority } from '../shared/list-view.js';
 import { cleanManager } from '../shared/managers.js';
 import { mediaKind } from '../shared/media.js';
 import { sameName } from '../shared/mentions.js';
@@ -957,7 +957,19 @@ export function registerIpc({
     const before = store.getContact(id);
     if (!before) return null;
     // `favorite` and `pinned` are kept as true or not at all (see Store.updateContact). `archived` has requests of its own.
-    const clean = pick(patch, ['name', 'cwd', 'model', 'avatar', 'groupId', 'favorite', 'pinned', 'archiveMerged']);
+    const clean = pick(patch, [
+      'name',
+      'cwd',
+      'model',
+      'avatar',
+      'groupId',
+      'favorite',
+      'pinned',
+      'archiveMerged',
+      'priority',
+    ]);
+    // High or Low, and nothing for Normal: a contact has that until you say otherwise.
+    if ('priority' in clean) clean.priority = cleanPriority(clean.priority);
     // Archived once merged, or not, is the contact's own choice. Anything else leaves it to Settings again.
     if ('archiveMerged' in clean && typeof clean.archiveMerged !== 'boolean') clean.archiveMerged = undefined;
     if (clean.cwd && !fs.existsSync(clean.cwd)) throw new Error('Pick a folder that exists.');
@@ -1528,6 +1540,8 @@ export function registerIpc({
     store.removeGroup(id);
     broadcastGroups();
     broadcastContacts();
+    // Its projects are in no group from now on, which the list's layout keeps.
+    broadcast(EVENTS.settingsChanged, store.settings);
   });
 
   // ---- conversations ------------------------------------------------------------------

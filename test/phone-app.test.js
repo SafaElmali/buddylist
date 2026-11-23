@@ -66,6 +66,38 @@ test('Home lists who waits first, asking before finished, then who works, then d
   assert.deepEqual(ids(sections[4]), ['archived']);
 });
 
+test('Home puts projects under the computer’s groups, and sorts by priority only as its contact list does', () => {
+  const groups = [{ id: 'g-work', name: 'Work' }];
+  const views = [
+    contact('a', { project: 'api' }),
+    contact('b', { name: 'zed', project: 'shop', lastActive: 1 }),
+    contact('c', { name: 'amy', project: 'shop', priority: 'high', lastActive: 0 }),
+    contact('d', { project: 'blog' }),
+  ];
+  const projectGroups = { api: 'g-work', blog: 'g-work' };
+  const laidOut = (sortBy) => homeSections(views, { groups, settings: { listView: { sortBy, projectGroups } } });
+  const sections = laidOut('priority');
+  assert.deepEqual(
+    sections.map((section) => [section.inGroup?.label ?? '', section.label]),
+    [
+      ['', 'Waiting for you'],
+      ['', 'Working'],
+      ['Work', 'api'],
+      ['Work', 'blog'],
+      ['', 'shop'],
+    ]
+  );
+  assert.deepEqual(ids(sections.at(-1)), ['c', 'b'], 'High first');
+  // Sorted another way on the computer, the phone keeps its own order, as it always did.
+  assert.deepEqual(ids(laidOut('name').at(-1)), ['b', 'c']);
+  // Without the computer's groups and settings, Home is what it was.
+  assert.deepEqual(
+    homeSections(views).map((section) => section.label),
+    ['Waiting for you', 'Working', 'api', 'blog', 'shop']
+  );
+  assert.ok(!homeSections(views).some((section) => section.inGroup));
+});
+
 test('Home lists one with commands left running in the background among the working, saying so, not as finished', () => {
   const running = contact('checks', {
     unread: 1,

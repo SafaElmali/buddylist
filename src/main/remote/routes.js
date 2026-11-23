@@ -5,6 +5,7 @@
 // down. Nothing is let through by default. Of those, a device asks only what it may (see allows): all of them with full
 // access, what reads and answers an agent with answer only, and what reads with read only.
 import { EVENTS, REQUESTS } from '../../shared/ipc-channels.js';
+import { listView } from '../../shared/list-view.js';
 import { ACCESS, accessOf, ASKS_FIRST_MODE } from '../../shared/remote-access.js';
 import { dataSize } from './pictures.js';
 
@@ -159,12 +160,17 @@ const notAllowed = (access) => {
 };
 
 /**
- * What a page is told of the app's settings: the theme it is drawn in, and nothing else. The rest has environment
- * variables, accounts, the agents' programs and instructions, and a setting added later stays on this computer
- * unless it is added here.
- * @param {{ theme?: unknown } | null | undefined} settings
+ * What a page is told of the app's settings: the theme it is drawn in, and how the contact list sorts and puts
+ * projects in your groups, which Home lays out its projects by (see homeSections). Nothing else: the rest has
+ * environment variables, accounts, the agents' programs and instructions, and a setting added later stays on this
+ * computer unless it is added here. Nor what the contact list hides or is narrowed down to.
+ * @param {{ theme?: unknown, listView?: unknown } | null | undefined} settings
  */
-export const remoteSettings = (settings) => ({ theme: settings?.theme });
+export const remoteSettings = (settings) => {
+  if (!settings?.listView) return { theme: settings?.theme };
+  const { sortBy, projectGroups } = listView(settings);
+  return { theme: settings.theme, listView: { sortBy, projectGroups } };
+};
 
 /** What a page never draws of a contact: its pull request's details, and how its agent is run. */
 const UNDRAWN = ['pullRequest', 'permissionMode', 'sessionId', 'model', 'guests', 'providerName', 'worktree'];

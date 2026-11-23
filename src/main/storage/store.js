@@ -55,6 +55,8 @@ const VERSION = 7;
  * @property {string[]} [answerOrder]  taking turns, who answers first in its conversation: itself and its guests, by id.
  *   Itself first and the guests as they joined, if unset
  * @property {true} [favorite]       listed under Favorites
+ * @property {'high' | 'low'} [priority]  how much it matters to you, as the list sorts it by priority; Normal when
+ *   it has none (see PRIORITY in shared/list-view.js)
  * @property {true} [pinned]         listed first in its section
  * @property {true} [archived]       put away: it is listed under Archived and gets no session until it is restored
  * @property {true} [paused]         sits out its own conversation with guests: it answers only when you mention it
@@ -732,11 +734,15 @@ export class Store {
     return group;
   }
 
-  /** Delete a group. Its contacts are kept, without a group. @param {string} id */
+  /** Delete a group. Its contacts and projects are kept, without a group. @param {string} id */
   removeGroup(id) {
     this.data.groups = this.data.groups.filter((g) => g.id !== id);
     for (const contact of this.data.contacts) {
       if (contact.groupId === id) contact.groupId = null;
+    }
+    const view = this.data.settings.listView;
+    if (view?.projectGroups) {
+      view.projectGroups = Object.fromEntries(Object.entries(view.projectGroups).filter(([, group]) => group !== id));
     }
     this.save();
   }

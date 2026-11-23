@@ -1,6 +1,7 @@
 // What you can do with a contact: its right-click menu, and the Actions and
 // Contacts menus of the menu bar for the one that is selected. Nothing in here
 // touches the page: the window passes in what each choice does.
+import { priorityItems } from '../../shared/list-view.js';
 import { newBranchItems } from '../../shared/new-branch.js';
 import { KEYWORDS } from '../../shared/palette.js';
 import { THIS_COMPUTER } from '../../shared/projects.js';
@@ -40,6 +41,8 @@ import { shownPullRequest } from './rows.js';
  *   of them: Manager settings... of a manager, at its own Manager page; left out where there is no such window
  * @property {(manager: any) => any[]} [teamOf]  the conversations a manager oversees (see chat/team-tab.js)
  * @property {(manager: any) => void} [deleteTeam]  Delete contacts... of a manager: those, the manager staying
+ * @property {(contact: any, priority: 'high' | 'normal' | 'low') => void} setPriority  how much it matters, which the
+ *   list can be sorted by
  * @property {(contact: any) => void} togglePin       first in its section, or back in its place
  * @property {(contact: any) => void} toggleFavorite
  * @property {(contact: any) => void} archive
@@ -176,6 +179,7 @@ export function manageItems(contact, on) {
     ...(contact?.manages && on.settings
       ? [{ label: 'Manager settings...', keywords: KEYWORDS.manager, action: () => on.settings(contact, 'manager') }]
       : []),
+    { label: 'Priority', disabled: !contact, submenu: contact ? priorityItems(contact, on.setPriority) : [] },
     {
       label: contact?.pinned ? 'Unpin' : 'Pin to top',
       key: 'p',

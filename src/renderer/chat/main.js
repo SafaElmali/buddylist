@@ -32,7 +32,7 @@ import { isWebAddress } from '../../shared/browser.js';
 import { linkedFile } from '../../shared/links.js';
 import { appearanceItems } from '../../shared/theme.js';
 import { contactsPane as contactsPaneIn, paneMenu as contactMenu } from '../../shared/contacts-pane.js';
-import { pinning, unpinning } from '../../shared/list-view.js';
+import { grouping, pinning, unpinning } from '../../shared/list-view.js';
 import { addsManager, managerSettingsOf, managersFor, switchedTo, teamChoices } from '../../shared/managers.js';
 import { matchesShortcut, shortcutKeys, shortcutLabel, systemOf } from '../../shared/shortcuts.js';
 import { NEXT_TAB_SHORTCUT, PREVIOUS_TAB_SHORTCUT, steppedTab } from '../../shared/chat-tabs.js';
@@ -85,7 +85,7 @@ import {
   deleteTeamDialog,
   removeProjectDialog,
 } from '../contacts/delete-dialog.js';
-import { projectItems, projectMenuItems, viewItems } from '../contacts/list-menu.js';
+import { groupChoices, projectItems, projectMenuItems, viewItems } from '../contacts/list-menu.js';
 import {
   addAnotherManager,
   addProjectManager,
@@ -342,6 +342,7 @@ const contacts = new ContactsPane($('#contacts-pane'), {
   addIn: (project) => addIn(project),
   addUnder: (manager) => addContactFrom(manager, manager.id),
   assign: assignDragged,
+  moveProject: (name, groupId) => moveProject(name, groupId),
   addLike: (like) => addContactLike(like),
   // A second click on it puts its menu away again.
   addProject: (button) => (isMenuOpen() ? closeMenu() : toggleMenu(button, projectMenu)),
@@ -364,6 +365,7 @@ const contacts = new ContactsPane($('#contacts-pane'), {
         unread: ({ id, unread }) => api.contacts.setUnread(id, !unread),
         addFrom: addContactFrom,
         rename: ({ id }) => contacts.rename(id),
+        priority: ({ id }, priority) => api.contacts.update(id, { priority }),
         pin: ({ id, pinned }) => api.contacts.update(id, { pinned: !pinned }),
         favorite: ({ id, favorite }) => api.contacts.update(id, { favorite: !favorite }),
         archive: archiveContactDialog,
@@ -1319,6 +1321,9 @@ const sectionManager = (section) => {
   return section.empty ? managerOfProject(section.empty.key) : managerOf(section.members[0].id);
 };
 
+/** A project into one of your groups, or out of any, in the contact list too: they are laid out by one setting. */
+const moveProject = (name, groupId) => api.app.updateSettings({ listView: grouping(contacts.view, name, groupId) });
+
 /**
  * What a project's right-click menu beside the conversation does, as in the contact list. Hiding one is
  * that list's alone: this one shows every project. The preview has no Settings to open.
@@ -1355,6 +1360,9 @@ const onProject = () => ({
       turnOff: turnOffManager,
     },
   }),
+  // As in the contact list, but a group is made there: this window has no dialog for it.
+  moveItems: (name) =>
+    groupChoices(adding.groups, contacts.view.projectGroups[name], (groupId) => moveProject(name, groupId)),
   pin: (name, pinned) => api.app.updateSettings({ listView: (pinned ? pinning : unpinning)(contacts.view, name) }),
   archiveAll: archiveAllDialog,
   deleteAll: (name, members) => deleteAllDialog(name, members, { remove: ctx.settings.removeWorktrees }),

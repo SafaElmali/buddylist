@@ -3,6 +3,7 @@
 // has its grouping and sorting. And the menu of a project, on a right-click, in both
 // lists, with its manager. Nothing in here touches the page: the window passes in what each choice does.
 import { smallIcon } from '../lib/icons.js';
+import { knownGroupId } from '../../shared/groups.js';
 import { GROUP_BY, SORT_BY } from '../../shared/list-view.js';
 import { THIS_COMPUTER } from '../../shared/projects.js';
 
@@ -38,6 +39,8 @@ import { THIS_COMPUTER } from '../../shared/projects.js';
  * @property {(project: ProjectFolder) => void} openFolder  its own folder in Finder (or the file manager), as a
  *   contact's Open folder opens the contact's. One that is gone says so
  * @property {(project: ProjectFolder) => void} copyPath  that folder's, to paste elsewhere
+ * @property {(name: string) => MenuItem[]} [moveItems]  the groups of yours it can be put in, by its name (see
+ *   groupChoices); left out where it can't be
  * @property {(name: string, pinned: boolean) => void} pin  list it before the other projects, or no longer
  * @property {(name: string) => void} [hide]       leave its contacts out of the contact list; left out
  *   beside a conversation, which lists every project (see paneView in contacts-pane.js)
@@ -89,6 +92,7 @@ export function projectMenuItems(section, on, manager = null) {
         ]
       : []),
     ...(on.manager && manager?.repository ? managerItems(contact, manager, on) : []),
+    ...moveItems(name, on),
     { label: section.pinned ? 'Unpin project' : 'Pin project', action: () => on.pin(name, !section.pinned) },
     ...(on.hide ? [{ label: 'Hide project', action: () => on.hide(name) }] : []),
     { separator: true },
@@ -120,12 +124,36 @@ function emptyMenuItems(section, on, manager) {
         ]
       : []),
     ...(on.manager && manager?.repository ? managerItems(null, manager, on) : []),
+    ...moveItems(name, on),
     { label: section.pinned ? 'Unpin project' : 'Pin project', action: () => on.pin(name, !section.pinned) },
     ...(on.hide ? [{ label: 'Hide project', action: () => on.hide(name) }] : []),
     { separator: true },
     { label: 'Remove project...', danger: true, action: () => on.remove(name, []) },
   ];
 }
+
+/**
+ * Move to group, for a project grouped by project: its line goes under the group's. Nothing where it can't be.
+ * @param {string} name
+ * @param {ProjectHandlers} on
+ * @returns {MenuItem[]}
+ */
+const moveItems = (name, on) => (on.moveItems ? [{ label: 'Move to group', submenu: on.moveItems(name) }] : []);
+
+/**
+ * The groups a contact or a project can be moved to: each of yours, its own ticked, then No group, and New group...
+ * where one can be made. One in a group that is gone is in none.
+ * @param {import('../../shared/groups.js').Group[]} groups
+ * @param {string | null | undefined} current  the id of the group it is in
+ * @param {(groupId: string | null) => void} move
+ * @param {() => void} [create]  New group...: one made, with it in it
+ * @returns {MenuItem[]}
+ */
+export const groupChoices = (groups, current, move, create) => [
+  ...groups.map((g) => ({ label: g.name, checked: g.id === current, action: () => move(g.id) })),
+  { label: 'No group', checked: !knownGroupId(current, groups), action: () => move(null) },
+  ...(create ? [{ separator: true }, { label: 'New group...', action: create }] : []),
+];
 
 /**
  * Open folder and Copy path, of the project's own folder, in a group of their own after the new contacts: where a

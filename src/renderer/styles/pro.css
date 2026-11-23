@@ -857,6 +857,7 @@
   --draw-chevron-down: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='m4 6 4 4 4-4'/></svg>");
   --draw-arrow-left: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'><path d='M7 3.4 2.4 8 7 12.6M2.8 8h10.8'/></svg>");
   --draw-arrow-right: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'><path d='M9 3.4 13.6 8 9 12.6M13.2 8H2.4'/></svg>");
+  --draw-arrow-up: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'><path d='M3.4 7 8 2.4 12.6 7M8 2.8v10.8'/></svg>");
   --draw-arrow-down: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'><path d='M3.4 9 8 13.6 12.6 9M8 13.2V2.4'/></svg>");
   --draw-rotate: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'><path d='M13.2 8A5.2 5.2 0 1 1 11.6 4.2'/><path d='M13.2 2.4v3h-3'/></svg>");
   --draw-x: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'><path d='m3.6 3.6 8.8 8.8M12.4 3.6l-8.8 8.8'/></svg>");
@@ -1147,6 +1148,14 @@
 
   [data-icon='sm-pin'] {
     --icon: var(--draw-pin);
+  }
+
+  [data-icon='sm-priorityHigh'] {
+    --icon: var(--draw-arrow-up);
+  }
+
+  [data-icon='sm-priorityLow'] {
+    --icon: var(--draw-arrow-down);
   }
 
   [data-icon='sm-fork'] {
@@ -3445,6 +3454,18 @@
   & .group-header:hover {
     background: var(--row-hover-bg);
     text-decoration: none;
+  }
+
+  /* One of your groups over projects: a heading over theirs, as over the parts of a form. */
+  & .project-group > .group-header {
+    color: var(--text);
+    font-size: 11px;
+  }
+
+  /* On its name: its line is a button, which has neither from the line. */
+  & .project-group > .group-header .group-label {
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
 
   & .group-toggle {

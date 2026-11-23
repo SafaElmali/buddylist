@@ -166,6 +166,39 @@ test('Home shows one hint at a time, right under Waiting, so waiting rows come f
   assert.match(quiet.list.children[1].textContent, /Home screen/);
 });
 
+test('Home draws the computer’s groups over their projects, and marks a contact of high or low priority', (t) => {
+  const { root } = setup(t);
+  const views = [
+    contact('api-1', { project: 'api', priority: 'high' }),
+    contact('blog-1', { project: 'blog', priority: 'low' }),
+    contact('shop-1'),
+  ];
+  const desk = {
+    groups: [{ id: 'g-work', name: 'Work' }],
+    settings: { listView: { projectGroups: { api: 'g-work', blog: 'g-work' } } },
+  };
+  const home = new Home(root, {
+    contacts: views,
+    desk,
+    signOut: () => {},
+    notifications: { state: 'off', card: () => null },
+  });
+  const group = root.querySelector('[data-group="g-work"]');
+  assert.equal(group.querySelector('.ph-group-heading').textContent.trim(), 'Work');
+  assert.deepEqual(
+    group.querySelectorAll('.ph-section').map((section) => section.dataset.section),
+    ['project:api', 'project:blog']
+  );
+  assert.equal(root.querySelector('[data-section="project:shop"]').closest('[data-group]'), null);
+  assert.equal(root.querySelector('[data-id="api-1"] .ph-priority').getAttribute('aria-label'), 'High priority');
+  assert.equal(root.querySelector('[data-id="blog-1"] .ph-priority').getAttribute('aria-label'), 'Low priority');
+  assert.equal(root.querySelector('[data-id="shop-1"] .ph-priority'), null);
+  // The computer's groups change: Home follows once it is drawn again.
+  desk.settings = { listView: {} };
+  home.contactsChanged(views);
+  assert.equal(root.querySelector('[data-group]'), null);
+});
+
 test('Waiting stays on Home with a line when nothing needs you; nobody at all says so instead', (t) => {
   const { root, draw } = setup(t);
   const home = draw(contacts.filter((one) => one.id !== 'waiting'));

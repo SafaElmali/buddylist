@@ -1,7 +1,7 @@
-// The phone app's Home: who needs you, who is working, then the desktop's project sections.
+// The phone app's Home: who needs you, who is working, then the desktop's project sections, under the desktop's groups.
 // The Mac counts who waits for you the same way, for the badge on the phone app's icon.
 import { WAITING_TO_START, waitingToStart } from './drafted.js';
-import { DEFAULT_LIST_VIEW, listSections } from './list-view.js';
+import { DEFAULT_LIST_VIEW, listSections, listView } from './list-view.js';
 import { THIS_COMPUTER } from './projects.js';
 
 /**
@@ -41,13 +41,26 @@ const atWork = (contact) => contact.status === 'busy' || Boolean(contact.inBackg
 const finishedUnread = (contact) => (contact.unread || 0) > 0 && !atWork(contact);
 
 /**
+ * How Home lays out the desktop's sections: by project, in the order its contacts were added, as it always has, but
+ * under the desktop's groups, and by priority while its contact list is.
+ * @param {object} [settings]
+ */
+const laidOut = (settings) => {
+  const { sortBy, projectGroups } = listView(settings);
+  return { ...DEFAULT_LIST_VIEW, projectGroups, ...(sortBy === 'priority' && { sortBy }) };
+};
+
+/**
  * Waiting for you and Working come first, even when empty. Each contact appears once: the remaining contacts
  * use the desktop's project grouping and ordering, including Favorites, This computer, Offline and Archived.
- * Empty project sections are omitted: the phone cannot add contacts to them.
+ * Empty project sections are omitted: the phone cannot add contacts to them. The projects in one of the desktop's
+ * groups are under it, as its contact list has them, and sorted by priority there, they are here too.
  * @param {ContactView[]} views
+ * @param {{ groups?: import('./groups.js').Group[], settings?: object }} [desk]  the desktop's groups, and its
+ *   settings, which say how its contact list is laid out
  * @returns {Section[]}
  */
-export function homeSections(views) {
+export function homeSections(views, { groups = [], settings } = {}) {
   const listed = views.filter((contact) => !contact.archived);
   const asking = listed.filter(asks).sort(newestFirst);
   const finished = listed.filter((contact) => !asks(contact) && finishedUnread(contact)).sort(newestFirst);
@@ -59,8 +72,8 @@ export function homeSections(views) {
     { id: 'working', label: 'Working', members: working },
     ...listSections(
       views.filter((c) => !placed.has(c)),
-      [],
-      DEFAULT_LIST_VIEW
+      groups,
+      laidOut(settings)
     ).filter((s) => s.members.length),
   ];
 }
