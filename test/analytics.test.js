@@ -1900,6 +1900,8 @@ test('an invitation for a manager’s message says so, and never what the messag
   // A manager's agent invited into one of its workers, approved or not.
   await respond('invite', 'allow');
   await respond('invite', 'deny');
+  // And a guest it takes out of one.
+  await respond('remove', 'allow');
   // A manager's answer to a worker's question, approved or not.
   await respond('answer-question', 'allow');
   await respond('answer-question', 'deny');
@@ -1923,6 +1925,7 @@ test('an invitation for a manager’s message says so, and never what the messag
       ['invitation answered', 'deny', 'message'],
       ['invitation answered', 'allow', 'invite'],
       ['invitation answered', 'deny', 'invite'],
+      ['invitation answered', 'allow', 'remove'],
       ['invitation answered', 'allow', 'answer-question'],
       ['invitation answered', 'deny', 'answer-question'],
       ['invitation answered', 'allow', 'terminals'],

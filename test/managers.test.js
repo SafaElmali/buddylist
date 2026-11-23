@@ -1168,9 +1168,105 @@ test('an agent there already is said to be, and nobody else joins or is counted'
   const answer = await app.managers.invite(manager.id, { to: 'Claude (tags)', service: 'claude', model: 'opus' });
   assert.equal(
     answer,
-    'Claude (Opus 5.5) is in Claude (tags)’s conversation already, as Reviewer. Nobody else joined.'
+    'Claude (Opus 5.5) is in Claude (tags)’s conversation already, as Reviewer. Nobody else joined. To have it on ' +
+      'another model or effort level, take it out with remove_from_conversation, then invite it again.'
   );
   assert.equal(app.invitedCount(), 0);
+});
+
+// ---- guests a manager takes out of its workers ------------------------------------------------------
+
+/** A worker of the manager's, in the app, with a guest the user added from Invite and one the manager invited. */
+async function withGuests(t) {
+  const app = setup(t);
+  const { conversations, managers, sessions, manager, removed } = inTheApp(app);
+  const worker = app.worker('Claude (tags)');
+  conversations.inviteNew(worker.id, { provider: 'codex', name: 'Codex' });
+  await managers.invite(manager.id, { to: 'Claude (tags)', service: 'claude' });
+  const names = () => conversations.participants(worker.id).map((one) => one.name);
+  return { app, conversations, managers, sessions, manager, worker, names, removed };
+}
+
+test('a manager takes a guest the user added out of one of its workers, by its name as the Agents tab shows it', async (t) => {
+  const { app, conversations, managers, manager, worker, names, removed } = await withGuests(t);
+  const codex = conversations.participants(worker.id).find((one) => one.name === 'Codex');
+  assert.deepEqual(names(), ['Claude (tags)', 'Codex', 'Reviewer']);
+  const answer = await managers.remove(manager.id, { to: 'claude (TAGS)', guest: 'codex' });
+  assert.equal(answer, 'Codex has left Claude (tags)’s conversation.');
+  assert.deepEqual(names(), ['Claude (tags)', 'Reviewer']);
+  // As the Agents tab's Remove has it: one made for this conversation alone is deleted with it.
+  assert.equal(app.store.getContact(codex.id), undefined);
+  assert.equal(app.history.read(worker.id).at(-1).text, 'Codex has left the conversation.');
+  assert.equal(removed(), 1, 'counted, as one the user takes out is');
+});
+
+test('a manager takes out a guest it invited, and the same role joins again after it', async (t) => {
+  const { managers, manager, names } = await withGuests(t);
+  await managers.remove(manager.id, { to: 'Claude (tags)', guest: 'Reviewer' });
+  assert.deepEqual(names(), ['Claude (tags)', 'Codex']);
+  const answer = await managers.invite(manager.id, { to: 'Claude (tags)', service: 'claude', model: 'opus' });
+  assert.match(answer, /^Claude \(Opus\) has joined Claude \(tags\)’s conversation as Reviewer\./);
+  assert.deepEqual(names(), ['Claude (tags)', 'Codex', 'Reviewer']);
+});
+
+test('a listed contact a manager takes out of a worker stays on the contact list', async (t) => {
+  const { app, conversations, managers, manager, worker, names } = await withGuests(t);
+  const yours = app.worker('Gemini', { provider: 'gemini', under: null });
+  conversations.invite(worker.id, yours.id);
+  await managers.remove(manager.id, { to: 'Claude (tags)', guest: 'Gemini' });
+  assert.ok(!names().includes('Gemini'));
+  assert.equal(app.store.getContact(yours.id)?.name, 'Gemini');
+});
+
+test('the worker’s own agent is no guest to take out, and nobody leaves', async (t) => {
+  const { managers, manager, names, removed } = await withGuests(t);
+  await assert.rejects(managers.remove(manager.id, { to: 'Claude (tags)', guest: 'claude (tags)' }), {
+    message: 'Claude (tags) is its own agent, not a guest: only its guests can be taken out.',
+  });
+  assert.deepEqual(names(), ['Claude (tags)', 'Codex', 'Reviewer']);
+  assert.equal(removed(), 0);
+});
+
+test('a guest that isn’t there is said not to be, with the guests that are', async (t) => {
+  const { app, managers, manager } = await withGuests(t);
+  await assert.rejects(managers.remove(manager.id, { to: 'Claude (tags)', guest: 'Full-Stack Reviewer' }), {
+    message: 'Full-Stack Reviewer isn’t in Claude (tags)’s conversation. Its guests are Codex and Reviewer.',
+  });
+  app.worker('Claude (posts)');
+  await assert.rejects(managers.remove(manager.id, { to: 'Claude (posts)', guest: 'Reviewer' }), {
+    message: 'Reviewer isn’t in Claude (posts)’s conversation. It has no guests.',
+  });
+});
+
+test('a manager takes nobody out of a conversation it doesn’t oversee', async (t) => {
+  const { app, release } = twoManagers(t);
+  const theirs = app.worker('Claude (release)', { under: release.id });
+  app.store.addGuest(theirs.id, { id: app.worker('Codex', { under: null }).id, permissionMode: 'default' });
+  await assert.rejects(app.managers.remove(app.managerContact().id, { to: 'Claude (release)', guest: 'Codex' }), {
+    message: /^No conversation working on shop is called “Claude \(release\)”\./,
+  });
+  assert.equal(app.store.getContact(theirs.id).guests.length, 1);
+  await assert.rejects(app.managers.remove(theirs.id, { to: 'Claude (release)', guest: 'Codex' }), {
+    message: 'Only a project’s manager has this, and this conversation is none.',
+  });
+});
+
+test('a guest at work is stopped as it is taken out, and the manager is told so', async (t) => {
+  const { conversations, managers, sessions, manager, worker, names } = await withGuests(t);
+  // The worker's own agent is paused, so the guest of the user's answers the manager's message: the reviewer answers
+  // only after changes.
+  conversations.setPaused(worker.id, worker.id, true);
+  await managers.say(manager.id, worker.name, 'Look at the tags.');
+  const codex = conversations.participants(worker.id).find((one) => one.name === 'Codex');
+  const session = sessions.findLast((one) => one.contact.id === codex.id);
+  let interrupted = 0;
+  session.interrupt = async () => void (interrupted += 1);
+  session.emit({ type: 'state', state: 'working' });
+  const answer = await managers.remove(manager.id, { to: 'Claude (tags)', guest: 'Codex' });
+  assert.equal(answer, 'Codex has left Claude (tags)’s conversation. It was at work there, and was stopped.');
+  assert.equal(interrupted, 1);
+  assert.equal(session.closed, true);
+  assert.deepEqual(names(), ['Claude (tags)', 'Reviewer']);
 });
 
 test('with no role a manager’s agent is a reviewer, of the service named, that answers after the worker’s changes', async (t) => {
@@ -1861,6 +1957,8 @@ function inTheApp(app, settings = {}, makeSession, folders = { inRepository, sta
       descriptor,
       list: () => services,
       upgradeHistory: (_id, entries) => entries,
+      // Their built-in models stand in, as when a service's CLI can't be asked.
+      models: async () => null,
       createSession: (contact, emit) => {
         if (makeSession && !contact.manages) {
           const session = makeSession(contact, emit);
@@ -1906,6 +2004,7 @@ function inTheApp(app, settings = {}, makeSession, folders = { inRepository, sta
   });
   const shown = [];
   let answered = 0;
+  let removed = 0;
   const managers = new Managers({
     store: app.store,
     history: app.history,
@@ -1916,12 +2015,21 @@ function inTheApp(app, settings = {}, makeSession, folders = { inRepository, sta
     onContactsChanged: () => {},
     onProjectChanged: () => {},
     onAnswered: () => (answered += 1),
+    onRemoved: () => (removed += 1),
     changes: app.managers.changes,
   });
   const before = app.projects.settings(app.key).manager;
   const after = app.projects.update(app.key, { manager: { ...before, ...settings, on: true } }).manager;
   managers.settingsChanged(app.key, before, after);
-  return { conversations, managers, sessions, shown, answered: () => answered, manager: app.managerContact() };
+  return {
+    conversations,
+    managers,
+    sessions,
+    shown,
+    answered: () => answered,
+    removed: () => removed,
+    manager: app.managerContact(),
+  };
 }
 
 test('in the app, a manager gets the active guest’s answer while the original worker stays paused', async (t) => {

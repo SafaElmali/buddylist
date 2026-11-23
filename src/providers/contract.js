@@ -37,17 +37,18 @@
  * @property {true} [stale]          the agent couldn't change the list any more, as its tool lost track of it: what
  *   it shows may be out of date (`todo`)
  * @property {string} [label]        free-form name: a skill, a helper task, a tool, the account to go on in, which
- *   of its project's instructions the agent read or saved, or the conversation a manager messaged, looked at or
- *   invited an agent into (`app`)
+ *   of its project's instructions the agent read or saved, or the conversation a manager messaged, looked at,
+ *   invited an agent into or took one out of (`app`)
  * @property {string} [agent]        the kind of helper that was asked, as its provider names it (`delegate`), or the
- *   service and model of the agent a manager invites, such as "Claude (opus)" (`app`, `invite`)
+ *   service and model of the agent a manager invites, such as "Claude (opus)" (`app`, `invite`), or the guest it takes
+ *   out, by its name there (`app`, `remove`)
  * @property {string} [role]         what the agent a manager invites joins as, such as "Reviewer" (`app`, `invite`)
  * @property {string} [prompt]       what the helper was asked, in the agent's words (`delegate`), what the agent
  *   is to be sent when a check-in it set is due (`schedule`), or the first message of a conversation it starts,
  *   the project's instructions it saves, a manager's message, what an agent it invites is to do first, or the brief
  *   it saves (`app`)
  * @property {string} [source]       where a generic tool comes from, e.g. an MCP server
- * @property {'fallback' | 'terminals' | 'conversation' | 'read-instructions' | 'save-instructions' | 'message' | 'invite' | 'look' | 'teams' | 'read-brief' | 'save-brief' | 'read-sources' | 'save-sources' | 'link-pr' | 'set' | 'cancel' | 'list'} [action]
+ * @property {'fallback' | 'terminals' | 'conversation' | 'read-instructions' | 'save-instructions' | 'message' | 'invite' | 'remove' | 'look' | 'teams' | 'read-brief' | 'save-brief' | 'read-sources' | 'save-sources' | 'link-pr' | 'set' | 'cancel' | 'list'} [action]
  *   what the app itself was asked for (`app`, see shared/app-tools.js), or what the agent did about its check-ins
  *   (`schedule`, see shared/check-ins.js)
  * @property {string} [schedule]     when a check-in is due, as a cron expression (`schedule`)

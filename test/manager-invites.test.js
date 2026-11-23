@@ -51,6 +51,7 @@ function setup() {
     descriptor: (id) => descriptors[id] || claudeProvider,
     upgradeHistory: (_id, entries) => entries,
     models: async (id) => CATALOGS[id] ?? null,
+    knownModels: (id) => CATALOGS[id] ?? null,
     createSession: (contact, emit, where) => {
       const session = {
         contact,
@@ -434,11 +435,73 @@ test('the same agent asked for again is there already: nobody else joins', async
   });
   assert.deepEqual(again, { ...first, already: true, starts: false });
   assert.equal(app.guests().length, 1);
-  // Another model is another reviewer, under a name of its own.
+  // Another service is another reviewer, under a name of its own.
   await app.conversations.inviteAsked(app.worker.id, { provider: 'codex', by: app.manager });
   assert.deepEqual(
     app.guests().map((guest) => guest.name),
     ['Reviewer', 'Reviewer 2']
+  );
+});
+
+/** A role of the user's that reviews, on Claude's Sonnet. */
+const FULL_STACK = { ...REVIEW_ROLE, id: 'full-stack', name: 'Full-Stack Reviewer', model: 'claude-sonnet-5-5' };
+
+test('a role the user added is there already for the manager, on whatever model: nobody else joins', async () => {
+  const app = setup();
+  app.store.updateSettings({ roles: [FULL_STACK] });
+  // Added by hand, from Invite's Roles tab, before the manager asks for it on another model and effort level.
+  app.conversations.inviteRole(app.worker.id, FULL_STACK);
+  const [yours] = app.guests();
+  const joined = await app.conversations.inviteAsked(app.worker.id, {
+    provider: 'claude',
+    model: 'Opus 5.5',
+    effort: 'high',
+    role: FULL_STACK,
+    by: app.manager,
+  });
+  // The one there, as it is: its own model, not the one asked for.
+  assert.deepEqual(joined, {
+    id: yours.id,
+    name: 'Full-Stack Reviewer',
+    agent: 'Claude (Sonnet 5.5)',
+    already: true,
+    starts: false,
+  });
+  assert.deepEqual(
+    app.guests().map((guest) => [guest.name, guest.model]),
+    [['Full-Stack Reviewer', 'claude-sonnet-5-5']]
+  );
+});
+
+test('a manager’s reviewer asked for again on another model or effort level is there already, as it is', async () => {
+  const app = setup();
+  const first = await app.conversations.inviteAsked(app.worker.id, { provider: 'claude', by: app.manager });
+  const again = await app.conversations.inviteAsked(app.worker.id, {
+    provider: 'claude',
+    model: 'Opus 5.5',
+    effort: 'max',
+    by: app.manager,
+  });
+  assert.deepEqual(again, { ...first, already: true });
+  assert.equal(app.guests().length, 1);
+});
+
+test('different roles each join, and a guest of no role is no reviewer', async () => {
+  const app = setup();
+  app.store.updateSettings({ roles: [FULL_STACK, TESTER] });
+  // Of the user's: a Codex contact of no role.
+  app.conversations.inviteNew(app.worker.id, { provider: 'codex', name: 'Codex' });
+  for (const role of [FULL_STACK, TESTER, null]) {
+    const joined = await app.conversations.inviteAsked(app.worker.id, {
+      provider: role?.provider ?? 'codex',
+      role,
+      by: app.manager,
+    });
+    assert.equal(joined.already, false, role?.name ?? 'Reviewer');
+  }
+  assert.deepEqual(
+    app.guests().map((guest) => guest.name),
+    ['Codex', 'Full-Stack Reviewer', 'Tester', 'Reviewer']
   );
 });
 
