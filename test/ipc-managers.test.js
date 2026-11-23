@@ -236,6 +236,36 @@ test(
 );
 
 test(
+  'a project manager’s managers are picked when it is added and with Assign managers..., and never by Settings',
+  opts,
+  async (t) => {
+    const app = fixture(t);
+    const boss = app.turnOn();
+    const releaseId = await app.invoke(REQUESTS.projectAddManager, app.shopKey, { name: 'release manager' });
+    const leadId = await app.invoke(REQUESTS.projectAddManager, app.shopKey, { lead: true, team: [releaseId] });
+    const team = () => app.managers.settingsOf(app.shopKey, leadId).team;
+    assert.deepEqual(team(), [releaseId]);
+    assert.equal(await app.invoke(REQUESTS.projectAssignManagers, leadId, { team: [boss.id, releaseId] }), true);
+    assert.deepEqual(team(), [boss.id, releaseId]);
+    // A window saving what the project manager is set up with leaves its list as it is.
+    const saved = await app.invoke(REQUESTS.projectUpdate, app.shopKey, {
+      manager: { ...app.managers.settingsOf(app.shopKey, leadId), team: [], rules: 'Be brief.' },
+    });
+    assert.deepEqual(saved.managers.find((one) => one.id === leadId).team, [boss.id, releaseId]);
+    assert.equal(saved.managers.find((one) => one.id === leadId).rules, 'Be brief.');
+    // Over all of them again; what isn't a list or a project manager changes nothing.
+    await app.invoke(REQUESTS.projectAssignManagers, leadId, { all: true });
+    assert.equal(team(), undefined);
+    await app.invoke(REQUESTS.projectAssignManagers, leadId, { team: 'not a list' });
+    assert.deepEqual(team(), []);
+    await assert.rejects(
+      async () => app.invoke(REQUESTS.projectAssignManagers, boss.id, { all: true }),
+      /Only a project manager oversees managers/
+    );
+  }
+);
+
+test(
   'another manager is added, listed with the project, and conversations are put under one or none',
   opts,
   async (t) => {

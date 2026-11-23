@@ -11,6 +11,7 @@ import { cantManage, MANAGER_MODEL, projectManagerName, turnedOn, withoutManager
 import { modelPicker, servicePicker } from './model-picker.js';
 import { askModels } from './models.js';
 import { creatingManager } from './creation-flow.js';
+import { managerBoxes } from './assign-dialog.js';
 
 /** @typedef {import('../../providers/contract.js').ProviderDescriptor} ProviderDescriptor */
 
@@ -386,7 +387,9 @@ export function addAnotherManager(project, { providers, open, fromContact }) {
 /**
  * The dialog for a project's project manager: a manager over its managers, which hands their work on as the user asks.
  * Add project manager adds it, and closes it with its contact. It starts from nothing, on Claude with the light model
- * a manager starts with: it oversees managers, so what it checks, its scope and its workers are none of its.
+ * a manager starts with: it oversees managers, so what it checks, its scope and its workers are none of its. Oversees
+ * ticks its managers, as Assign managers... does (see managerBoxes): all of them to begin with, where no other project
+ * manager is over all.
  * @param {ProjectManager} project
  * @param {ProviderDescriptor[]} providers
  * @param {AbortSignal} signal  the lifetime of this creation flow
@@ -421,6 +424,7 @@ function projectManagerDialog(project, providers, signal) {
             enough.</span
           >
         </label>
+        <div class="oversees"><span class="field-label">Oversees</span></div>
         <label
           ><span class="field-label">First source ${OPTIONAL}</span>
           <input
@@ -437,6 +441,8 @@ function projectManagerDialog(project, providers, signal) {
   );
   const fields = /** @type {any} */ (form.elements);
   serviceModel(form, providers);
+  const boxes = managerBoxes(null, project);
+  form.querySelector('.oversees')?.append(boxes.node);
   const result = formDialog({
     title: `Add a project manager to ${project.name}`,
     form,
@@ -449,6 +455,7 @@ function projectManagerDialog(project, providers, signal) {
         provider: fields.provider.value,
         model: fields.model.value,
         link: fields.link.value,
+        ...boxes.picked(),
       }),
   });
   setTimeout(() => form.isConnected && fields.name.focus());

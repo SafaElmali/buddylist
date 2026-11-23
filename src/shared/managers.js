@@ -36,6 +36,8 @@ import { mentions } from './mentions.js';
  * @property {string} brief  what it knows of the project so far. It keeps this itself, and the user can edit it
  * @property {NewWorkers} [workers]  what the conversations it starts answer with, as New workers use has it. None for
  *   the user's defaults for new contacts
+ * @property {string[]} [team]  for a project manager, the managers it oversees, by contact. None for all of them, the
+ *   ones added later too: what every project manager had before it could have a list (see leadOfEach)
  */
 
 /**
@@ -138,9 +140,11 @@ export const SCOPE_MAX = 20;
 export const PATTERN_MAX = 200;
 /**
  * How many managers a project can have: its first, and the others (see `managers` in ProjectSettings). Its project
- * manager, which oversees them, is not counted.
+ * managers, which oversee them, are not counted.
  */
 export const MANAGERS_MAX = 8;
+/** How many project managers a project can have, each over managers of its own. */
+export const LEADS_MAX = 4;
 /** What a contact's id is like: what names a project's manager by its contact has to be. */
 const CONTACT_ID = /^[A-Za-z0-9-]{1,64}$/;
 /** How long a model's id can be, as a contact's. */
@@ -423,6 +427,13 @@ export function cleanManager(value) {
     brief: lines(typed.brief, BRIEF_MAX),
     ...(scope.length && { scope }),
     ...((workers.use !== 'defaults' || workers.mode) && { workers }),
+    // An empty list is kept: a project manager over nobody is not one over all.
+    ...(Array.isArray(typed.team) && {
+      team: [...new Set(typed.team.filter((id) => typeof id === 'string' && CONTACT_ID.test(id)))].slice(
+        0,
+        MANAGERS_MAX
+      ),
+    }),
   };
 }
 
@@ -491,6 +502,56 @@ export const scopedManager = (managers, conversation) =>
 export const managersAtWork = (project) =>
   (project?.managers ?? []).filter((one) => one.settings.on && !one.archived && !one.leads);
 
+/**
+ * Which project manager oversees each of a project's managers at work: the one at work whose list has it, or else the
+ * one at work with no list, which is over all of them but the ones the others picked, the ones added later too. A
+ * project manager turned off or put away frees its managers so, until it is back. The main process and the windows
+ * both go by this.
+ * @param {{ id: string, leads?: boolean, archived: boolean, settings: Pick<ManagerSettings, 'on' | 'team'> }[]} managers
+ *   the project's, its project managers too, its first first
+ * @returns {Map<string, string>}  manager -> its project manager, by id; none for one under no project manager
+ */
+export function leadOfEach(managers) {
+  const leads = managers.filter((one) => one.leads && one.settings.on && !one.archived);
+  const overAll = leads.find((one) => !one.settings.team);
+  return new Map(
+    managersAtWork({ managers }).flatMap((one) => {
+      const lead = leads.find((l) => l.settings.team?.includes(one.id)) ?? overAll;
+      return lead ? [[one.id, lead.id]] : [];
+    })
+  );
+}
+
+/**
+ * What a project manager's Assign managers... lists, and what Add a project manager... does for a new one (`lead`
+ * null): each of the project's managers at work, where it is now (`under`: its project manager, by id; '' for none),
+ * and ticked where it is under this one, as it would be turned off too. `all`: the box for all of them, the ones
+ * added later too: ticked for the one over all, unticked where none is over all or for a new one where none is, and
+ * null where another is over all, as at most one project manager is.
+ * @param {{ id: string } | null} lead
+ * @param {{ managers?: { id: string, name: string, leads?: boolean, archived: boolean, settings: Pick<ManagerSettings, 'on' | 'team'> }[] }} project
+ *   as the main process says it (see ProjectManager in renderer/contacts/manager-dialog.js)
+ * @returns {{ all: boolean | null, managers: { id: string, name: string, under: string, where: string, ticked: boolean }[] }}
+ */
+export function leadChoices(lead, project) {
+  const all = project.managers ?? [];
+  const over = leadOfEach(
+    all.map((one) => (one.id === lead?.id ? { ...one, archived: false, settings: { ...one.settings, on: true } } : one))
+  );
+  const nameOf = (id) => all.find((one) => one.id === id)?.name ?? '';
+  const overAll = all.find((one) => one.leads && !one.settings.team);
+  return {
+    all: overAll ? overAll.id === lead?.id || null : !lead,
+    managers: managersAtWork(project).map(({ id, name }) => ({
+      id,
+      name,
+      under: over.get(id) ?? '',
+      where: over.has(id) ? `Under ${nameOf(over.get(id))}` : 'No project manager',
+      ticked: Boolean(lead) && over.get(id) === lead?.id,
+    })),
+  };
+}
+
 /** The value of Under's last choice, which adds a manager to the project. No contact's id is like it. */
 export const ADDS_MANAGER = '+';
 
@@ -520,7 +581,7 @@ export function underFor(project, wanted = '') {
 
 /**
  * What a project's managers besides its first are set up with, as it is kept: each named by its contact, once,
- * and no more of them than a project can have, with its project manager.
+ * and no more of them than a project can have, with its project managers.
  * @param {unknown} value
  * @returns {ManagerSettings[]}
  */
@@ -529,7 +590,7 @@ export function cleanManagers(value) {
   return (Array.isArray(value) ? value : [])
     .map(cleanManager)
     .filter((one) => one.id && !seen.has(one.id) && seen.add(one.id))
-    .slice(0, MANAGERS_MAX);
+    .slice(0, MANAGERS_MAX - 1 + LEADS_MAX);
 }
 
 /**
@@ -597,14 +658,15 @@ export function turnedOn(settings, { model, link = '', provider = settings.provi
 
 /**
  * What a manager added with "Add another manager" starts with when it starts from another of its project's: what that
- * one is set up with, all but its contact, whether it is on, its scope and, unless asked for, its brief. The brief is
+ * one is set up with, all but its contact, whether it is on, its scope, a project manager's managers and, unless asked
+ * for, its brief. The brief is
  * a copy, as it is now: each keeps its own from then on.
  * @param {ManagerSettings} settings  the one it starts from
  * @param {{ brief?: boolean }} [also]
  * @returns {ManagerSettings}
  */
 export function startedFrom(settings, { brief = false } = {}) {
-  const { id: _id, on: _on, scope: _scope, brief: itsBrief, ...rest } = settings;
+  const { id: _id, on: _on, scope: _scope, team: _team, brief: itsBrief, ...rest } = settings;
   return cleanManager({ ...rest, ...(brief && { brief: itsBrief }) });
 }
 
@@ -661,13 +723,13 @@ const TAGS_NOTE =
  * the others are, as each oversees the conversations under it alone.
  * @param {string} project  its name
  * @param {ManagerSettings} settings
- * @param {{ name?: string, others?: string[], lead?: string }} [team]  its own name, the project's other managers at
- *   work, by name, and its project manager at work, by name: '' for none
+ * @param {{ name?: string, others?: string[], lead?: string, leadsAll?: boolean }} [team]  its own name, the project's
+ *   other managers at work, by name, and its project manager at work, by name: '' for none. `leadsAll`: that one is
+ *   over the project's other managers at work too
  */
-export function managerInstructions(project, settings, { name = '', others = [], lead = '' } = {}) {
+export function managerInstructions(project, settings, { name = '', others = [], lead = '', leadsAll = true } = {}) {
   const { sources, rules } = settings;
   const looks = checkList(settings);
-  const theirs = others.length > 1 ? `${others.slice(0, -1).join(', ')} and ${others.at(-1)}` : others[0];
   return [
     others.length ? `[You are ${name}, one of the managers of ${project}]` : `[You are the manager of ${project}]`,
     `The conversations working on ${project} that are under you are your workers: each is an agent in a worktree ` +
@@ -689,12 +751,12 @@ export function managerInstructions(project, settings, { name = '', others = [],
       'discovery call without a different approach, and do not claim work is underway when it is still waiting.',
     ...(others.length
       ? [
-          `${theirs} ${others.length === 1 ? 'oversees' : 'oversee'} the project’s other conversations: leave those ` +
+          `${listedNames(others)} ${others.length === 1 ? 'oversees' : 'oversee'} the project’s other conversations: leave those ` +
             'alone. When the user asks about one that is not yours, say which manager it is under, as the user ' +
             'can put it under you.',
         ]
       : []),
-    ...(lead ? [leadNote(lead)] : []),
+    ...(lead ? [leadNote(lead, leadsAll)] : []),
     'Know what the project is building. Read the sources below with the tools you have, such as Linear, Slack, ' +
       'Figma, Notion or Google Drive, and follow the links you find in them: PRDs, tickets and their acceptance ' +
       'criteria, discussions and what was decided in them, designs. Keep what you learn in the brief, with the ' +
@@ -746,9 +808,10 @@ export function managerInstructions(project, settings, { name = '', others = [],
  * What a manager is told of the project manager over it: that it hands jobs between the teams, and how the manager
  * answers it.
  * @param {string} lead  the project manager, by name
+ * @param {boolean} all  it is over the project's other managers too
  */
-const leadNote = (lead) =>
-  `${lead} is the project manager over you and the project’s other managers. It may send you a message, or hand ` +
+const leadNote = (lead, all) =>
+  `${lead} is the project manager over you${all ? ' and the project’s other managers' : ''}. It may send you a message, or hand ` +
   'you a job from another team: that worker’s branch, folder, pull request and changes come with it. Do it with ' +
   'your own workers, as the message says. Your reply to its message goes back to it. Once a job’s result is in ' +
   'later, such as a review worker’s verdict, send it a short report with the message_project_manager tool: the ' +
@@ -761,14 +824,21 @@ const leadNote = (lead) =>
  * changes, and looks at those when it needs to.
  * @param {string} project  its name
  * @param {Pick<ManagerSettings, 'sources' | 'rules'>} settings
- * @param {{ name?: string, managers?: string[] }} [team]  its own name, and the project's managers at work, by name
+ * @param {{ name?: string, managers?: string[], others?: string[] }} [team]  its own name, the project's managers at
+ *   work under it, and the ones at work under another project manager or none, by name
  */
-export function projectManagerInstructions(project, { sources, rules }, { name = '', managers = [] } = {}) {
+export function projectManagerInstructions(
+  project,
+  { sources, rules },
+  { name = '', managers = [], others = [] } = {}
+) {
+  const yours = !others.length
+    ? `The managers of ${project} are under you: ${listedNames(managers)}. `
+    : `${listedNames(managers)} ${managers.length === 1 ? 'is the manager' : 'are the managers'} of ${project} under ` +
+      `you. ${listedNames(others)} ${others.length === 1 ? 'is' : 'are'} not yours: leave ${others.length === 1 ? 'it' : 'them'} alone. `;
   return [
     `[You are ${name || projectManagerName(project)}, the project manager of ${project}]`,
-    (managers.length
-      ? `The managers of ${project} are under you: ${listedNames(managers)}. `
-      : `${project} has no manager at work under you yet: the user adds them. `) +
+    (managers.length ? yours : `${project} has no manager at work under you yet: the user adds them. `) +
       'Each oversees conversations of its own, its workers: agents in worktrees of their own. You oversee the ' +
       'managers, and act through them. Do not change any files: read them, and run only commands that change ' +
       'nothing. You start no conversation and message no worker: the managers do.',
@@ -839,7 +909,8 @@ export function managerGuestInstructions(project, { guest, manager, lead = false
 }
 
 /** The list of names, as a sentence says it: "A, B and C". */
-const listedNames = (names) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]);
+export const listedNames = (names) =>
+  names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
 
 const STATUS_LETTER = { modified: 'M', new: 'A', deleted: 'D', renamed: 'R', conflicted: 'U' };
 
@@ -1208,6 +1279,30 @@ export const jobsDropped = (manager, why, jobs) =>
   `[${manager} ${{ 'turned-off': 'was turned off', 'put-away': 'was put away', deleted: 'was deleted' }[why]} ` +
   `before it reported on ${listedNames(jobs)}. ${FROM_BUDDYLIST}] Nobody is on ${jobs.length === 1 ? 'it' : 'them'} ` +
   'now: tell the user, or hand them to another manager.';
+
+/**
+ * What a project manager is told when a manager it handed jobs to was put under another project manager, or under
+ * none, before it reported on them: its report goes there now.
+ * @param {string} manager  its name
+ * @param {string} to  the project manager it is under now, by name: '' for none
+ * @param {string[]} jobs  what it owed an answer on: a worker's name each, or a message's beginning
+ */
+export const jobsMoved = (manager, to, jobs) =>
+  `[${manager} is ${to ? `${to}’s` : 'under no project manager'} now, before it reported on ${listedNames(jobs)}. ` +
+  `${FROM_BUDDYLIST}] ${to ? `Its report goes to ${to}` : 'It reports to nobody'}: tell the user, or hand ` +
+  `${jobs.length === 1 ? 'it' : 'them'} to another of your managers.`;
+
+/**
+ * What a project manager is told when the managers it oversees changed: the ones it has now.
+ * @param {string[]} managers  by name
+ */
+export const teamNote = (managers) =>
+  [
+    `[The user changed what you are set up with: the managers you oversee. ${FROM_BUDDYLIST}]`,
+    managers.length
+      ? `Your managers are now: ${listedNames(managers)}. Message them alone, and hand on their workers’ jobs.`
+      : 'You oversee no manager now, until the user puts one under you.',
+  ].join('\n');
 
 /**
  * What a project manager is told once it is turned on: to read its brief, and to look at the teams.

@@ -601,6 +601,7 @@ test('no other counted request passes on anything it was asked with', async () =
     REQUESTS.contactSetUnread,
     REQUESTS.contactAssign,
     REQUESTS.contactAssignAll,
+    REQUESTS.projectAssignManagers,
     REQUESTS.projectContinueWorker,
     REQUESTS.contactAutoMerge,
     REQUESTS.contactShowPullRequest,
@@ -970,6 +971,24 @@ test('many conversations put under a manager at once are counted with where they
   );
   const sent = JSON.stringify(posts);
   for (const id of ['c1', 'c2', 'c3', 'manager-1']) assert.equal(sent.includes(id), false, id);
+});
+
+test('the managers put under a project manager are counted with whether it is over all, never which', async () => {
+  const { analytics, posts } = setup();
+  const assign = analytics.counting(REQUESTS.projectAssignManagers, () => true);
+  await assign({}, 'lead-1', { all: true });
+  await assign({}, 'lead-1', { team: ['manager-1', 'manager-2'] });
+  await analytics.flush();
+  const counts = posts.flatMap((post) => post.body.batch);
+  assert.deepEqual(
+    counts.map(({ event, properties: { all } }) => [event, all]),
+    [
+      ['managers assigned', true],
+      ['managers assigned', false],
+    ]
+  );
+  const sent = JSON.stringify(posts);
+  for (const id of ['lead-1', 'manager-1', 'manager-2']) assert.equal(sent.includes(id), false, id);
 });
 
 test('archiving or deleting a project’s contacts at once is counted only when one was', async () => {

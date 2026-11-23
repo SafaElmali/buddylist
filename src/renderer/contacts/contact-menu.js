@@ -36,6 +36,7 @@ import { shownPullRequest } from './rows.js';
  * @property {(contact: any) => void} [addManager]  Assign to manager... there: a manager for its project, with it under it
  * @property {(manager: any) => any[]} [teamChoices]  the conversations a manager can oversee (see assign-dialog.js)
  * @property {(manager: any) => void} [assignTeam]  Assign conversations...: many of them under a manager at once
+ * @property {(lead: any) => void} [assignManagers]  Assign managers...: the managers a project manager oversees
  * @property {(manager: any) => void} [continueWorkers]  continue stopped workers with another service
  * @property {(contact: any, section: string) => void} [settings]  its project's pages in the Settings window, at one
  *   of them: Manager settings... of a manager, at its own Manager page; left out where there is no such window
@@ -162,14 +163,18 @@ export function manageItems(contact, on) {
   };
   // Nothing about an archived contact is changed while it is put away.
   if (contact?.archived) return [remove];
+  const { assignManagers } = on;
   return [
     { label: 'Rename...', key: 'r', disabled: !contact, action: () => on.rename(contact) },
     { label: 'Edit contact...', key: 'e', disabled: !contact, action: () => on.edit(contact) },
     { label: 'Move to group', disabled: !contact, submenu: contact ? on.moveItems(contact) : [] },
     ...assignItems(contact, on),
-    // A manager: which of its project's conversations it oversees, many at once.
+    // A manager: which of its project's conversations it oversees, many at once. A project manager: which managers.
     ...(contact && on.assignTeam && on.teamChoices?.(contact).length
       ? [{ label: 'Assign conversations...', action: () => on.assignTeam(contact) }]
+      : []),
+    ...(contact?.leads && assignManagers
+      ? [{ label: 'Assign managers...', action: () => assignManagers(contact) }]
       : []),
     // A manager: its own page in Settings, as its project's menu has it. With several, each has its own. A project
     // manager has no workers of its own to continue.

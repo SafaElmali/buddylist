@@ -443,6 +443,7 @@ test('a project with a manager offers a project manager, and once it has one, it
     'Add another manager...',
     'Project manager settings...',
     'Turn off project manager',
+    'Add another project manager...',
   ]);
   find(items, 'Project manager settings...').action();
   find(items, 'Turn off project manager').action();
@@ -456,6 +457,30 @@ test('a project with a manager offers a project manager, and once it has one, it
   assert.ok(!labels(projectMenuItems(section([claude]), on, off)).includes('Turn off project manager'));
   const none = { ...shop(false), managers: [] };
   assert.ok(!labels(projectMenuItems(section([claude]), on, none)).includes('Add a project manager...'));
+  find(items, 'Add another project manager...').action();
+  assert.deepEqual(chosen.at(-1), ['add lead', led]);
+});
+
+test('a project with two project managers says Project managers..., as it says Managers..., and adds another', () => {
+  const { on, chosen } = managerRecorder();
+  on.manager.addAnother = () => {};
+  on.manager.addLead = (project) => chosen.push(['add lead', project]);
+  const working = (id, more = {}) => ({ id, name: id, archived: false, settings: { id, on: true }, ...more });
+  const two = {
+    ...shop(true),
+    managers: [working('m1'), working('p1', { leads: true }), working('p2', { leads: true })],
+  };
+  const items = projectMenuItems(section([claude]), on, two);
+  assert.deepEqual(pages(items).slice(-2), ['Project managers...', 'Add another project manager...']);
+  assert.ok(!labels(items).includes('Turn off project manager'), 'each turns off in its own window');
+  find(items, 'Project managers...').action();
+  assert.deepEqual(chosen.at(-1)[2], 'manager');
+  // One of them put away is none of them.
+  const away = {
+    ...two,
+    managers: [working('m1'), working('p1', { leads: true }), working('p2', { leads: true, archived: true })],
+  };
+  assert.ok(labels(projectMenuItems(section([claude]), on, away)).includes('Project manager settings...'));
 });
 
 // ---- its own folder ----------------------------------------------------------------------------------------------

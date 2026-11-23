@@ -132,6 +132,7 @@ contextBridge.exposeInMainWorld('messenger', {
     handoverWorkers: invoke('project:handover-workers'),
     continueWorker: invoke('project:continue-worker'),
     addManager: invoke('project:add-manager'),
+    assignManagers: invoke('project:assign-managers'),
     update: invoke('project:update'),
     remove: invoke('project:remove'),
     remotes: invoke('project:remotes'),

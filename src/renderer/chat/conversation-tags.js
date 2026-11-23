@@ -3,6 +3,7 @@
 // messages it, and asks you first. A click on a tag in a message shows that conversation, as a row of the Team tab
 // does. A mention is something else: in a group, it says who answers (see shared/mentions.js).
 import { mentionRanges, sameName } from '../../shared/mentions.js';
+import { inTeamOf } from '../../shared/managers.js';
 import { crewOf, teamOf } from './team-tab.js';
 
 /** What a tag is drawn with, and found by when it is clicked. */
@@ -27,17 +28,26 @@ export const taggable = (contact, contacts, participants) =>
     : [];
 
 /**
- * What a project manager's conversation tags: its managers, then the project's conversations, whose jobs it hands on.
+ * What a project manager's conversation tags: its managers, then the project's conversations whose jobs it hands on:
+ * the ones under its managers, and the ones under no manager. Another project manager's are not its own.
  * @param {any} lead
  * @param {any[]} contacts
  */
-const leadsTags = (lead, contacts) => [
-  ...crewOf(lead, contacts),
-  ...contacts.filter(
-    (one) =>
-      !one.manages && !one.archived && !one.guestOf && !one.tabOf && one.project === lead.project && one.id !== lead.id
-  ),
-];
+function leadsTags(lead, contacts) {
+  const crew = crewOf(lead, contacts);
+  return [
+    ...crew,
+    ...contacts.filter(
+      (one) =>
+        !one.manages &&
+        !one.archived &&
+        !one.guestOf &&
+        !one.tabOf &&
+        one.project === lead.project &&
+        (!one.overseenBy || crew.some((manager) => inTeamOf(manager, one)))
+    ),
+  ];
+}
 
 /**
  * Where a text tags a conversation: each tag from its @ to the end of the name, in order. Names match in any letter

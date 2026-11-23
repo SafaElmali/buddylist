@@ -60,6 +60,27 @@ test('Home draws project labels, desktop manager hierarchy and working links, wi
   assert.equal(root.querySelector('[data-id="worker"]').closest('li').getAttribute('style'), '--ph-depth: 2');
 });
 
+test('Home draws each project manager over its own managers, and one under neither on its own', (t) => {
+  const { root, draw, ids } = setup(t);
+  draw([
+    contact('lead', { manages: 'shop', oversees: true, leads: true }),
+    contact('lead-b', { manages: 'shop', oversees: true, leads: true }),
+    contact('release', { manages: 'shop', oversees: true, ledBy: 'lead' }),
+    contact('docs', { manages: 'shop', oversees: true, ledBy: 'lead-b' }),
+    contact('api', { manages: 'shop', oversees: true, ledBy: null }),
+    contact('install-guide', { overseenBy: 'docs' }),
+    contact('rate-limits', { overseenBy: 'api' }),
+  ]);
+  assert.deepEqual(ids('project:shop'), ['lead', 'release', 'lead-b', 'docs', 'install-guide', 'api', 'rate-limits']);
+  const depth = (id) => root.querySelector(`[data-id="${id}"]`).closest('li').getAttribute('style');
+  assert.deepEqual(['docs', 'install-guide', 'api', 'rate-limits'].map(depth), [
+    '--ph-depth: 1',
+    '--ph-depth: 2',
+    '--ph-depth: 0',
+    '--ph-depth: 1',
+  ]);
+});
+
 test('project and manager folds survive updates and a new Home, independently, preserving focus and scroll', (t) => {
   const { document, root, draw, fold, ids } = setup(t);
   const home = draw();

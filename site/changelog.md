@@ -11,6 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
+## v0.7.15
+
+- **Pick the managers a project manager oversees** — A project manager oversaw all of a project’s managers. Now tick the ones it oversees when you add it, or later with **Assign managers...** in its right-click and Team menus, and add another with **Add another project manager...**, such as one over the release and review managers and one over the docs and api managers. A manager is under one project manager at most, and each one messages, looks at and hears only from its own. One you already have keeps all of its managers, and the ones you add later, as before.
+
 ## v0.7.14 — 2026-11-23
 
 - **Sort contacts by priority, and put projects in your groups** — Right-click a contact and choose **Priority** to make it **High** or **Low**, or set it in **Edit contact...**: an arrow before its name shows which. **Sort by > Priority** lists the High ones first in each section, then Normal, then Low, with a manager still leading its workers. Grouped by project, right-click a project and choose **Move to group**, or drag its line onto a group's line: your groups, such as "Work" and "Side projects", head the projects in them, and a click on a group's line folds them all away. The phone app shows your groups too, and sorts by priority when your Mac does. Every list stays as it was until you set a priority or move a project.

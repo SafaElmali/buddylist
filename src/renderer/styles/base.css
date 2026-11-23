@@ -1193,7 +1193,8 @@ img.emoticon {
   --dialog-width: 460px;
 }
 
-/* "Assign to manager...": a choice for each of the project's managers, and one for none, with what each oversees. */
+/* "Assign to manager...": a choice for each of the project's managers, and one for none, with what each oversees. A
+   project manager's managers, in its Oversees and its Assign managers..., are listed the same way. */
 .assign-form {
   display: flex;
   flex-direction: column;
@@ -1202,7 +1203,9 @@ img.emoticon {
   max-width: 100%;
 }
 
-.assign-choices {
+.assign-choices,
+.oversees,
+.assign-managers {
   display: flex;
   flex-direction: column;
   gap: 4px;
