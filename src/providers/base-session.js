@@ -188,6 +188,15 @@ export class BaseSession {
   async setEffort(_effort) {}
 
   /**
+   * The MCP tools its contact uses without asking from now on, as the user always allowed them for it (see
+   * `allowedTools` on SessionContact). Only a provider whose sessions ask about those itself reads it.
+   * @param {import('./contract.js').AllowedTool[] | undefined} tools
+   */
+  setAllowedTools(tools) {
+    this.contact.allowedTools = tools;
+  }
+
+  /**
    * Answer in another output style. A provider without output styles offers
    * none, so it has nothing to change.
    * @param {string} _style

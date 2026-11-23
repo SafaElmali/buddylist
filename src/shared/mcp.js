@@ -7,6 +7,13 @@
 /** @type {readonly McpAction[]} what the user can do about a server */
 export const MCP_ACTIONS = Object.freeze(['reconnect', 'sign-in', 'enable', 'disable']);
 
+/**
+ * Whether two MCP tools always allowed for a contact are the same: one server's tool of one name.
+ * @param {import('../providers/contract.js').AllowedTool} a
+ * @param {import('../providers/contract.js').AllowedTool} b
+ */
+export const sameTool = (a, b) => a.server === b.server && a.tool === b.tool;
+
 /** What each is called on its button, and while it is going on. */
 export const MCP_ACTION_LABELS = Object.freeze({
   reconnect: { label: 'Reconnect', doing: 'Reconnecting...' },

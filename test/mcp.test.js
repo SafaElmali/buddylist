@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { onlyReads, toMcpServer } from '../src/providers/claude/mcp.js';
+import { calledTool, readsOnly, toMcpServer } from '../src/providers/claude/mcp.js';
 import { descriptor as claude } from '../src/providers/claude/descriptor.js';
 import { createProviders } from '../src/providers/index.js';
 import {
@@ -15,6 +15,9 @@ import {
   mcpGlance,
   mcpSummary,
 } from '../src/shared/mcp.js';
+
+/** Whether a call of an MCP server's tool only reads, as the session's hook tells. */
+const onlyReads = (...call) => readsOnly(calledTool(...call));
 
 const STATUSES = ['connected', 'failed', 'needs-auth', 'pending', 'disabled'];
 const server = (name, status, extra = {}) => ({ name, status, ...extra });
@@ -320,4 +323,20 @@ test('a call that could be either of two tools is known to be neither, and a too
   ];
   assert.equal(onlyReads(servers, 'mcp__a__x__get', 'a'), false, 'x__get of a, or get of a server written a__x');
   assert.equal(onlyReads(servers, 'mcp__a__list', 'a'), true, 'list, not a__list, which leaves the server no part');
+});
+
+test('the tool a call is for is the one its server lists it as, or none where that can’t be told', () => {
+  const tracker = { name: 'save.ticket', annotations: {} };
+  const servers = [
+    server('claude.ai Tracker ', 'connected', { tools: [tracker, { name: 'list', annotations: { readOnly: true } }] }),
+    server('a', 'connected', { tools: [{ name: 'get' }, { name: 'x__get' }] }),
+  ];
+  // A claude.ai connector's name is written differently in the call's: the tool comes back by its server's names.
+  assert.equal(calledTool(servers, 'mcp__claude_ai_Tracker__save_ticket', 'claude.ai Tracker '), tracker);
+  assert.equal(calledTool(servers, 'mcp__claude_ai_Tracker__save_ticket'), null, 'no server named');
+  assert.equal(calledTool(servers, 'mcp__claude_ai_Tracker__save_ticket', 'a'), null, 'another server');
+  assert.equal(calledTool(servers, 'mcp__claude_ai_Tracker__close', 'claude.ai Tracker '), null, 'a tool not listed');
+  assert.equal(calledTool(servers, 'mcp__a__x__get', 'a'), null, 'either of two tools');
+  assert.equal(readsOnly(null), false);
+  assert.equal(readsOnly({ annotations: { readOnly: true, destructive: true } }), false);
 });

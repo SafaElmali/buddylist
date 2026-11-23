@@ -55,6 +55,8 @@ const VERSION = 7;
  * @property {string[]} [answerOrder]  taking turns, who answers first in its conversation: itself and its guests, by id.
  *   Itself first and the guests as they joined, if unset
  * @property {true} [favorite]       listed under Favorites
+ * @property {import('../../providers/contract.js').AllowedTool[]} [allowedTools]  MCP tools it uses without asking
+ *   where it changes no files, as the user always allowed them for it (see Conversations.allowTool)
  * @property {'high' | 'low'} [priority]  how much it matters to you, as the list sorts it by priority; Normal when
  *   it has none (see PRIORITY in shared/list-view.js)
  * @property {true} [pinned]         listed first in its section

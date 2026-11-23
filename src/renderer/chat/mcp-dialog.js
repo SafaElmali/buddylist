@@ -82,6 +82,13 @@ export function mcpDialog({ contactId, participants }) {
         <div class="mcp-detail">${busy ? MCP_ACTION_LABELS[busy].doing : mcpDetail(server)}</div>
         ${server.address ? html`<div class="mcp-address" title="${server.address}">${server.address}</div>` : ''}
         ${why ? html`<div class="mcp-error">${why}</div>` : ''}
+        ${(server.allowed ?? []).map(
+          ({ tool, contactId: who, name: whose }) =>
+            html`<div class="mcp-allowed">
+              <span>Always allowed for ${whose}: <b>${tool}</b></span>
+              <button class="btn" type="button" data-ask-again="${who}" data-tool="${tool}">Ask again</button>
+            </div>`
+        )}
       </div>
       <div class="mcp-actions">
         ${mcpActionsFor(server).map(
@@ -170,10 +177,25 @@ export function mcpDialog({ contactId, participants }) {
     await load();
   };
 
+  /** Takes back an Always allow of one of a server's tools: whose it was asks before its next call again. */
+  const askAgain = async (name, who, tool) => {
+    failed.delete(name);
+    try {
+      await api.chat.mcpAskAgain(contactId, who, { server: name, tool });
+    } catch (err) {
+      failed.set(name, errorText(err));
+    }
+    if (!closed) await load();
+  };
+
   list.addEventListener('click', (e) => {
-    const button = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (e.target).closest('[data-action]'));
+    const button = /** @type {HTMLElement | null} */ (
+      /** @type {HTMLElement} */ (e.target).closest('[data-action], [data-ask-again]')
+    );
     const name = /** @type {HTMLElement | null} */ (button?.closest('.mcp-row'))?.dataset.name;
-    if (name) act(name, button.dataset.action);
+    if (!name) return;
+    if (button.dataset.askAgain) askAgain(name, button.dataset.askAgain, button.dataset.tool);
+    else act(name, button.dataset.action);
   });
   refresh.addEventListener('click', load);
   // Before the first answer there is nothing to filter: that answer is drawn with what was typed.

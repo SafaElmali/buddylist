@@ -286,6 +286,31 @@ test('an Always allow that covers the rest of the conversation says so, and only
   );
 });
 
+test('an Always allow for one contact names whose it is, and only a phone with full access offers it', () => {
+  const prompt = {
+    kind: 'tool',
+    activity: { kind: 'tool', label: 'save_ticket', source: 'tracker' },
+    canAlways: true,
+    alwaysScope: 'contact',
+    alwaysTool: { server: 'tracker', tool: 'save_ticket' },
+  };
+  const choices = (may) =>
+    toolCard(prompt, 'shop manager', may).choices.map(({ label, quiet }) => [label, Boolean(quiet)]);
+  assert.deepEqual(choices({ always: true }), [
+    ['Decline', false],
+    ['Allow', false],
+    ['Always allow for shop manager', true],
+  ]);
+  assert.deepEqual(choices({ always: false }), [
+    ['Decline', false],
+    ['Allow', false],
+  ]);
+  assert.equal(
+    answeredLine({ kind: 'tool', decision: 'always', activity: prompt.activity, scope: 'contact' }, 'shop manager'),
+    'You always allow save_ticket (tracker) for shop manager.'
+  );
+});
+
 test('questions are answered once each has an option picked or something written, which wins', () => {
   const questions = [
     { question: 'Which test runner?', options: [{ label: 'node:test' }, { label: 'Vitest' }], multiSelect: false },

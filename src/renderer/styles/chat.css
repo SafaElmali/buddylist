@@ -7818,6 +7818,20 @@ body.shaking .window-body {
   overflow-wrap: anywhere;
 }
 
+/* A tool one of the conversation's agents uses without asking, and the way to have it ask again. */
+.mcp-allowed {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.mcp-allowed span {
+  overflow-wrap: anywhere;
+}
+
 /* Side by side, so a row is a line or two tall and many fit in sight. */
 .mcp-actions {
   flex: none;
