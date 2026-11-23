@@ -1,11 +1,12 @@
 // The docs at buddylist.dev/docs: the guides in docs/ for the people who use buddylist, a page
 // each, with every guide listed on the left and the page's headings on the right. Each guide is
 // also served as written, at its address with .md, for anyone (or any agent) who would rather
-// read Markdown. docs/landing-page.md#docs says how to add one.
+// read Markdown: only its links are changed, to go where the page's do. docs/landing-page.md#docs
+// says how to add one.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Marked } from 'marked';
+import { Lexer, Marked } from 'marked';
 import { RELEASES_REPO } from '../src/shared/release-notes.js';
 import { plainText } from './site-seo.js';
 
@@ -196,6 +197,10 @@ const FIRST = 'getting-started.md';
 // A link with a scheme, such as https: or mailto:, goes where it says.
 const ADDRESS = /^[a-z][a-z\d+.-]*:/i;
 
+// Where marked reads a link's target, and a reference's: its own rules, each match keeping its place.
+const withPlaces = (rule) => new RegExp(rule.source, `${rule.flags}d`);
+const TARGET = { link: withPlaces(Lexer.rules.inline.gfm.link), def: withPlaces(Lexer.rules.block.gfm.def) };
+
 const escape = (text) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -243,6 +248,48 @@ function headingsOf(tokens, file) {
   return headings;
 }
 
+/** A token's children, in the order the guide has them. A link's words are passed over with it. */
+const childrenOf = (token) => {
+  if (token.type === 'list') return token.items;
+  if (token.type === 'table') return [...token.header, ...token.rows.flat()].flatMap((cell) => cell.tokens);
+  return token.type === 'link' || token.type === 'image' ? undefined : token.tokens;
+};
+
+/**
+ * Where each link's target is in a guide's Markdown, and its token, a reference's too. It passes
+ * over the guide token by token, so a link shown in backticks or in a fenced block is passed over
+ * as code, and line by line, as a list or a quote has its lines without their indent or >. A target
+ * it can't find as written, which marked has read differently, stops the build.
+ */
+function targetsIn(source, tokens, file) {
+  const targets = [];
+  let at = 0;
+  const pass = (raw) => {
+    for (const line of raw.split('\n')) {
+      const found = source.indexOf(line, at);
+      if (found >= 0) at = found + line.length;
+    }
+  };
+  const walk = (list) => {
+    for (const token of list) {
+      const [start, end] = TARGET[token.type]?.exec(token.raw)?.indices[2] ?? [];
+      const children = childrenOf(token);
+      if (start !== undefined) {
+        pass(token.raw.slice(0, start));
+        const target = token.raw.slice(start, end);
+        const found = source.indexOf(target, at);
+        if (found < 0) throw new Error(`docs/${file}: can't find the link to ${target} as written`);
+        at = found + target.length;
+        targets.push({ start: found, end: at, token });
+        pass(token.raw.slice(end));
+      } else if (children) walk(children);
+      else pass(token.raw);
+    }
+  };
+  walk(tokens);
+  return targets;
+}
+
 /**
  * Where a link in a guide goes: another guide's page on the site, or any other file or folder of
  * the repository on GitHub. Why it can't go anywhere, otherwise.
@@ -268,16 +315,25 @@ function siteHref(href, page, pages) {
   return file ? `${target.path}${hash}` : href;
 }
 
+/** A page's link from the site's address, so it goes the same way wherever its Markdown is read. */
+function fromSite(href, page, url) {
+  if (href.startsWith('#')) return `${url}${page.path}${href}`;
+  return href.startsWith('/') ? `${url}${href}` : href;
+}
+
 /**
  * Every guide as a page, its links pointing at the pages they name, or at GitHub for a file of the
  * repository that isn't a guide. A link to a file the repository doesn't have stops the build, and
- * so do a link to a heading a guide doesn't have and a picture the site doesn't have.
+ * so do a link to a heading a guide doesn't have and a picture the site doesn't have. Each page's
+ * `markdown` is its guide as written, but for its links: they go where the page's do, from `url`.
  * @param {(file: string) => string} read  a guide's Markdown, by its name in docs/
+ * @param {string} [url]  the site's address, such as https://buddylist.dev; without it, links start at /
  */
-export function docPages(read) {
+export function docPages(read, url = '') {
   const pages = DOCS.flatMap(({ heading, guides }) =>
     guides.map(({ file, about }) => {
-      const tokens = markdown.lexer(read(file));
+      const source = read(file);
+      const tokens = markdown.lexer(source);
       const headings = headingsOf(tokens, file);
       return {
         file,
@@ -287,6 +343,7 @@ export function docPages(read) {
         out: file === FIRST ? 'docs/index.html' : `docs/${file.replace(/\.md$/, '')}.html`,
         title: headings[0].text,
         headings,
+        source,
         tokens,
       };
     })
@@ -294,15 +351,20 @@ export function docPages(read) {
   const byFile = new Map(pages.map((page) => [`docs/${page.file}`, page]));
   for (const page of pages) {
     markdown.walkTokens(page.tokens, (token) => {
-      if (token.type === 'link') token.href = siteHref(token.href, page, byFile);
+      if (token.type === 'link' || token.type === 'def') token.href = siteHref(token.href, page, byFile);
       if (token.type === 'image' && !ADDRESS.test(token.href)) {
         throw new Error(`docs/${page.file} shows ${token.href}, which isn't on the site`);
       }
     });
   }
-  return pages.map(({ tokens, ...page }, i) => ({
+  return pages.map(({ source, tokens, ...page }, i) => ({
     ...page,
     html: markdown.parser(tokens),
+    // From the last target back, so each one before it is still where it was found.
+    markdown: targetsIn(source, tokens, page.file).reduceRight(
+      (text, { start, end, token }) => text.slice(0, start) + fromSite(token.href, page, url) + text.slice(end),
+      source
+    ),
     previous: pages[i - 1],
     next: pages[i + 1],
   }));

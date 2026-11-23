@@ -40,7 +40,7 @@ const published = JSON.parse(process.env.SITE_RELEASES || '{"versions":[]}');
 const facts = pageFacts(page);
 const DOCS = path.join(ROOT, 'docs');
 const readGuide = (file) => fs.readFileSync(path.join(DOCS, file), 'utf8');
-const guides = docPages(readGuide);
+const guides = docPages(readGuide, SITE_URL);
 
 /** The day a file was last committed, YYYY-MM-DD, or nothing outside a checkout. */
 const committed = (file) => {
@@ -90,7 +90,7 @@ fs.mkdirSync(path.join(OUT, 'demo'), { recursive: true });
 fs.mkdirSync(path.join(OUT, 'docs'));
 fs.writeFileSync(path.join(OUT, 'index.html'), fill('index.html', page));
 fs.writeFileSync(path.join(OUT, 'changelog.html'), fill('changelog.html'));
-// Each guide as a page, and as the Markdown it is written in beside it.
+// Each guide as a page, and beside it as the Markdown it is written in, its links going where the page's do.
 const docTemplate = read('docs.html');
 for (const guide of guides) {
   const markup = fillTokens(
@@ -103,7 +103,7 @@ for (const guide of guides) {
     'site/docs.html'
   );
   fs.writeFileSync(path.join(OUT, guide.out), markup);
-  fs.copyFileSync(path.join(DOCS, guide.file), path.join(OUT, 'docs', guide.file));
+  fs.writeFileSync(path.join(OUT, 'docs', guide.file), guide.markdown);
 }
 fs.writeFileSync(path.join(OUT, 'sponsor.html'), fill('sponsor.html'));
 // _headers is for Cloudflare: it keeps the demo's windows out of search results.
@@ -134,7 +134,7 @@ for (const file of [...files, 'promo.mp4', 'promo-720.mp4', 'promo-poster.jpg'])
 fs.writeFileSync(path.join(OUT, 'robots.txt'), robotsTxt(SITE_URL));
 fs.writeFileSync(path.join(OUT, 'sitemap.xml'), sitemapXml(SITE_URL, guides, modified));
 fs.writeFileSync(path.join(OUT, 'llms.txt'), llmsTxt(SITE_URL, facts, guides));
-fs.writeFileSync(path.join(OUT, 'llms-full.txt'), llmsFullTxt(SITE_URL, facts, guides, readGuide));
+fs.writeFileSync(path.join(OUT, 'llms-full.txt'), llmsFullTxt(SITE_URL, facts, guides));
 fs.copyFileSync(path.join(ROOT, 'build', 'icon-128.png'), path.join(OUT, 'icon.png'));
 fs.copyFileSync(path.join(ROOT, 'docs', 'screenshot.png'), path.join(OUT, 'screenshot.png'));
 for (const file of ['index.html', 'contacts.html', 'chat.html', 'history.html', 'toast.html', NOTICES]) {

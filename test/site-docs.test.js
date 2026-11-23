@@ -1,10 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { marked } from 'marked';
 import worker from '../site/worker.js';
 import { artworkTokens, fillTokens } from '../scripts/site-artwork.js';
 import { anchorFor, docPages, docPath, docTokens, DOCS } from '../scripts/site-docs.js';
 
+const SITE = 'https://buddylist.example';
+const SOURCE = 'https://github.com/SafaElmali/buddylist';
 const readFile = (file) => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 const readGuide = (file) => readFile(`docs/${file}`);
 const TEMPLATE = readFile('site/docs.html');
@@ -29,7 +32,7 @@ const built = (page, pages) =>
     TEMPLATE,
     {
       ...artworkTokens,
-      SITE_URL: () => 'https://buddylist.example',
+      SITE_URL: () => SITE,
       ANALYTICS: () => '',
       JSON_LD: () => '{}',
       ...docTokens(page, pages),
@@ -170,6 +173,149 @@ test("a guide that doesn't start with its title stops the build", () => {
   assert.throws(() => docPages(guidesOf({ 'codex.md': '## Codex\n' })), /doesn't start with a # title/);
 });
 
+// ---- the Markdown ------------------------------------------------------------------------------
+
+/** The Markdown copy of a guide written with these lines, beside a guide with a heading to link to. */
+const copyOf = (lines) =>
+  pageOf(
+    docPages(
+      guidesOf({ 'codex.md': lines.join('\n'), 'welcome-wizard.md': '# The welcome wizard\n\n## Signing in\n' }),
+      SITE
+    ),
+    'codex.md'
+  ).markdown;
+
+test("a guide's Markdown links where its page does, from the site's address, and is otherwise as written", () => {
+  const links = {
+    'welcome-wizard.md': `${SITE}/docs/welcome-wizard`,
+    'welcome-wizard.md#signing-in': `${SITE}/docs/welcome-wizard#signing-in`,
+    'getting-started.md': `${SITE}/docs/`,
+    './gemini.md': `${SITE}/docs/gemini`,
+    '#here': `${SITE}/docs/codex#here`,
+    '../README.md#guides': `${SOURCE}/blob/main/README.md#guides`,
+    'browser-preview.md': `${SOURCE}/blob/main/docs/browser-preview.md`,
+    '../scripts/': `${SOURCE}/tree/main/scripts`,
+    '../src/pack/winks': `${SOURCE}/tree/main/src/pack/winks`,
+    'https://example.com/a.md': 'https://example.com/a.md',
+    'mailto:someone@example.com': 'mailto:someone@example.com',
+  };
+  const guide = (to) => [
+    '# Codex',
+    '',
+    '## Here',
+    '',
+    `See [a](${to('welcome-wizard.md')}), [*b*](${to('welcome-wizard.md#signing-in')} "Signing in") and`,
+    `**[c](${to('getting-started.md')})**, [d](${to('./gemini.md')}) or [e](${to('#here')}).`,
+    '',
+    `- [f](${to('../README.md#guides')}) in a list`,
+    `  > [g](${to('browser-preview.md')}) in a quote`,
+    '',
+    '| Where | Link |',
+    '| --- | --- |',
+    `| [h](${to('../scripts/')}) | [i](${to('../src/pack/winks')}) |`,
+    '',
+    `[j](${to('https://example.com/a.md')}) [k](${to('mailto:someone@example.com')}) https://example.com/b`,
+    '',
+  ];
+  assert.equal(copyOf(guide((href) => href)), guide((href) => links[href]).join('\n'));
+});
+
+test('a link shown as code, or escaped, stays as written, even beside the same link for real', () => {
+  const written = [
+    '# Codex',
+    '',
+    'Write `[a](settings.md)` for [a](settings.md), but not \\[b](settings.md).',
+    '',
+    '```md',
+    '[c](settings.md)',
+    '```',
+    '',
+    '- In a list:',
+    '',
+    '  ```md',
+    '  [d](settings.md)',
+    '  ```',
+    '',
+    '  Then [d](settings.md).',
+    '',
+    '      [e](settings.md) indented four spaces is code too',
+    '',
+  ];
+  const settings = `${SITE}/docs/settings`;
+  assert.equal(
+    copyOf(written),
+    written
+      .join('\n')
+      .replace('for [a](settings.md)', `for [a](${settings})`)
+      .replace('Then [d](settings.md)', `Then [d](${settings})`)
+  );
+});
+
+test('a link by reference goes where its page does, from where the reference is defined', () => {
+  assert.equal(
+    copyOf([
+      '# Codex',
+      '',
+      'See [the wizard][wizard] and [Settings].',
+      '',
+      '[wizard]: welcome-wizard.md#signing-in',
+      '[Settings]: ../docs/settings.md "The Settings window"',
+      '',
+    ]),
+    [
+      '# Codex',
+      '',
+      'See [the wizard][wizard] and [Settings].',
+      '',
+      `[wizard]: ${SITE}/docs/welcome-wizard#signing-in`,
+      `[Settings]: ${SITE}/docs/settings "The Settings window"`,
+      '',
+    ].join('\n')
+  );
+});
+
+test("a reference to a file the repository doesn't have stops the build, even one no link uses", () => {
+  assert.throws(
+    () => copyOf(['# Codex', '', '[nope]: nope.md']),
+    /docs\/codex\.md links to nope\.md, which is neither a guide on the site nor a file in the repository/
+  );
+});
+
+test('a guide with Windows line endings, or a list indented with tabs, keeps them and has its links changed', () => {
+  const lines = (to) => [
+    '# Codex',
+    '',
+    `See [a](${to('settings.md')}) and`,
+    `[b](${to('gemini.md')}).`,
+    '',
+    `-\t[c](${to('faq.md')})`,
+    '',
+    `\t- [d](${to('grok.md')})`,
+    '',
+    '1.\tSee',
+    `\t[e](${to('codex.md#codex')})`,
+    '',
+  ];
+  const onSite = (href) => `${SITE}/docs/${href.replace('.md', '')}`;
+  for (const newline of ['\n', '\r\n', '\r']) {
+    const written = lines((href) => href).join(newline);
+    assert.equal(copyOf([written]), lines(onSite).join(newline), JSON.stringify(newline));
+  }
+});
+
+test('a link marked reads differently from how it is written stops the build, so no copy is cut in the wrong place', () => {
+  // A table cell's \| is a | to marked, so the target it read is nowhere in the guide.
+  assert.throws(
+    () => copyOf(['# Codex', '', '| A |', '| --- |', '| [a](https://example.com/x\\|y) |']),
+    /docs\/codex\.md: can't find the link to https:\/\/example\.com\/x\|y as written/
+  );
+});
+
+test('without the site’s address, the Markdown’s links start at its root', () => {
+  const pages = docPages(guidesOf({ 'codex.md': '# Codex\n\n[a](settings.md) [b](#codex)\n' }));
+  assert.equal(pageOf(pages, 'codex.md').markdown, '# Codex\n\n[a](/docs/settings) [b](/docs/codex#codex)\n');
+});
+
 // ---- the pages --------------------------------------------------------------------------------
 
 test('Getting started is the docs’ own address, and every other guide is a page under it', () => {
@@ -308,6 +454,29 @@ test('every guide the site lists builds: its links and their headings are all th
   assert.equal(pages.length, FILES.length);
   assert.equal(new Set(pages.map(({ title }) => title)).size, pages.length);
   assert.equal(new Set(FILES).size, FILES.length);
+});
+
+test("every guide's Markdown is as written but for its link targets, each a full address", () => {
+  // Every inline link's target, and every reference's, as a test of its own finds them.
+  const targets = /\]\([^)]*\)|^ {0,3}\[[^\]]+\]:\s*\S+/gm;
+  const read = (text) => {
+    const found = { links: [], code: [] };
+    marked.walkTokens(marked.lexer(text), (token) => {
+      if (token.type === 'link') found.links.push(token.href);
+      if (token.type === 'code' || token.type === 'codespan') found.code.push(token.raw);
+    });
+    return found;
+  };
+  for (const page of docPages(readGuide, SITE)) {
+    const written = readGuide(page.file);
+    const copy = page.markdown;
+    assert.equal(copy.replace(targets, ']()'), written.replace(targets, ']()'), page.file);
+    const before = read(written);
+    const after = read(copy);
+    assert.deepEqual(after.code, before.code, page.file);
+    assert.equal(after.links.length, before.links.length, page.file);
+    for (const href of after.links) assert.match(href, /^(https|mailto):/, `${page.file}: ${href}`);
+  }
 });
 
 test("each guide's description fits in a search result", () => {

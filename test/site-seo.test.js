@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { marked } from 'marked';
+import { docPages } from '../scripts/site-docs.js';
 import {
   docJsonLd,
   jsonLd,
@@ -16,6 +18,7 @@ import {
 const SITE = 'https://buddylist.example';
 
 const read = (file) => fs.readFileSync(new URL(`../site/${file}`, import.meta.url), 'utf8');
+const readGuide = (file) => fs.readFileSync(new URL(`../docs/${file}`, import.meta.url), 'utf8');
 const html = read('index.html');
 const facts = pageFacts(html);
 
@@ -274,23 +277,44 @@ test('llms.txt lists each guide by its Markdown, with what it is about, before t
   );
 });
 
-test('llms-full.txt is llms.txt, then every guide in full under its address', () => {
+test('llms-full.txt is llms.txt, then every guide in full under its address, its links from the site’s', () => {
   const docs = [
-    { file: 'getting-started.md', title: 'Getting started', about: 'Install it.', path: '/docs/' },
-    { file: 'codex.md', title: 'Codex', about: 'Chat with Codex.', path: '/docs/codex' },
+    {
+      file: 'getting-started.md',
+      title: 'Getting started',
+      about: 'Install it.',
+      path: '/docs/',
+      markdown: `# Getting started\n\nDownload it, then [chat with Codex](${SITE}/docs/codex).\n\n`,
+    },
+    {
+      file: 'codex.md',
+      title: 'Codex',
+      about: 'Chat with Codex.',
+      path: '/docs/codex',
+      markdown: '# Codex\n\nInstall codex.\n',
+    },
   ];
-  const guides = {
-    'getting-started.md': '# Getting started\n\nDownload it.\n\n',
-    'codex.md': '# Codex\n\nInstall codex.\n',
-  };
-  const text = llmsFullTxt(SITE, facts, docs, (file) => guides[file]);
+  const text = llmsFullTxt(SITE, facts, docs);
   assert.ok(
     text.endsWith(
-      `\n---\n\nFrom ${SITE}/docs/\n\n# Getting started\n\nDownload it.\n\n---\n\nFrom ${SITE}/docs/codex\n\n# Codex\n\nInstall codex.\n`
+      `\n---\n\nFrom ${SITE}/docs/\n\n# Getting started\n\nDownload it, then [chat with Codex](${SITE}/docs/codex).\n\n---\n\nFrom ${SITE}/docs/codex\n\n# Codex\n\nInstall codex.\n`
     )
   );
   assert.ok(text.startsWith(llmsTxt(SITE, facts, docs)));
   assert.ok(!text.endsWith('\n\n'));
+});
+
+test('llms-full.txt has no relative link left: each goes where it does on the site', () => {
+  const links = [];
+  const text = llmsFullTxt(SITE, facts, docPages(readGuide, SITE));
+  marked.walkTokens(marked.lexer(text), (token) => {
+    if (token.type === 'link' || token.type === 'def') links.push(token.href);
+  });
+  assert.ok(links.length > 300, `${links.length} links`);
+  for (const href of links) assert.match(href, /^[a-z][a-z\d+.-]*:/i, href);
+  assert.ok(links.includes(`${SITE}/docs/settings#scripts`));
+  assert.ok(links.includes('https://github.com/SafaElmali/buddylist/blob/main/src/renderer/styles/theme.css'));
+  assert.ok(links.includes('https://github.com/SafaElmali/buddylist/tree/main/src/renderer/onboarding/pictures'));
 });
 
 // ---- the page's <head> ------------------------------------------------------------------------
