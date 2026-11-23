@@ -258,9 +258,10 @@ const childrenOf = (token) => {
 /**
  * Where each link's target is in a guide's Markdown, and its token, a reference's too. It passes
  * over the guide token by token, so a link shown in backticks or in a fenced block is passed over
- * as code, and line by line, as a list or a quote has its lines without their indent or >.
+ * as code, and line by line, as a list or a quote has its lines without their indent or >. A target
+ * it can't find as written, which marked has read differently, stops the build.
  */
-function targetsIn(source, tokens) {
+function targetsIn(source, tokens, file) {
   const targets = [];
   let at = 0;
   const pass = (raw) => {
@@ -275,8 +276,10 @@ function targetsIn(source, tokens) {
       const children = childrenOf(token);
       if (start !== undefined) {
         pass(token.raw.slice(0, start));
-        const found = source.indexOf(token.raw.slice(start, end), at);
-        at = found + end - start;
+        const target = token.raw.slice(start, end);
+        const found = source.indexOf(target, at);
+        if (found < 0) throw new Error(`docs/${file}: can't find the link to ${target} as written`);
+        at = found + target.length;
         targets.push({ start: found, end: at, token });
         pass(token.raw.slice(end));
       } else if (children) walk(children);
@@ -324,9 +327,9 @@ function fromSite(href, page, url) {
  * so do a link to a heading a guide doesn't have and a picture the site doesn't have. Each page's
  * `markdown` is its guide as written, but for its links: they go where the page's do, from `url`.
  * @param {(file: string) => string} read  a guide's Markdown, by its name in docs/
- * @param {string} [url]  the site's address, such as https://buddylist.dev
+ * @param {string} [url]  the site's address, such as https://buddylist.dev; without it, links start at /
  */
-export function docPages(read, url) {
+export function docPages(read, url = '') {
   const pages = DOCS.flatMap(({ heading, guides }) =>
     guides.map(({ file, about }) => {
       const source = read(file);
@@ -358,7 +361,7 @@ export function docPages(read, url) {
     ...page,
     html: markdown.parser(tokens),
     // From the last target back, so each one before it is still where it was found.
-    markdown: targetsIn(source, tokens).reduceRight(
+    markdown: targetsIn(source, tokens, page.file).reduceRight(
       (text, { start, end, token }) => text.slice(0, start) + fromSite(token.href, page, url) + text.slice(end),
       source
     ),

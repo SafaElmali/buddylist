@@ -281,6 +281,41 @@ test("a reference to a file the repository doesn't have stops the build, even on
   );
 });
 
+test('a guide with Windows line endings, or a list indented with tabs, keeps them and has its links changed', () => {
+  const lines = (to) => [
+    '# Codex',
+    '',
+    `See [a](${to('settings.md')}) and`,
+    `[b](${to('gemini.md')}).`,
+    '',
+    `-\t[c](${to('faq.md')})`,
+    '',
+    `\t- [d](${to('grok.md')})`,
+    '',
+    '1.\tSee',
+    `\t[e](${to('codex.md#codex')})`,
+    '',
+  ];
+  const onSite = (href) => `${SITE}/docs/${href.replace('.md', '')}`;
+  for (const newline of ['\n', '\r\n', '\r']) {
+    const written = lines((href) => href).join(newline);
+    assert.equal(copyOf([written]), lines(onSite).join(newline), JSON.stringify(newline));
+  }
+});
+
+test('a link marked reads differently from how it is written stops the build, so no copy is cut in the wrong place', () => {
+  // A table cell's \| is a | to marked, so the target it read is nowhere in the guide.
+  assert.throws(
+    () => copyOf(['# Codex', '', '| A |', '| --- |', '| [a](https://example.com/x\\|y) |']),
+    /docs\/codex\.md: can't find the link to https:\/\/example\.com\/x\|y as written/
+  );
+});
+
+test('without the site’s address, the Markdown’s links start at its root', () => {
+  const pages = docPages(guidesOf({ 'codex.md': '# Codex\n\n[a](settings.md) [b](#codex)\n' }));
+  assert.equal(pageOf(pages, 'codex.md').markdown, '# Codex\n\n[a](/docs/settings) [b](/docs/codex#codex)\n');
+});
+
 // ---- the pages --------------------------------------------------------------------------------
 
 test('Getting started is the docs’ own address, and every other guide is a page under it', () => {
