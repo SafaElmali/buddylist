@@ -71,6 +71,20 @@ test('a built-in display picture is drawn as its art, without the frame', () => 
   assert.doesNotMatch(pictureArt('claude'), /class="dp/);
 });
 
+test('each Gemini picture fills its mark with gradients of its own, so two on one list both show their colours', () => {
+  const ids = (svg) => [...svg.matchAll(/ id="([^"]+)"/g)].map(([, id]) => id);
+  const [one, two] = [avatarSvg('gemini'), avatarSvg('gemini')];
+  assert.equal(ids(one).length, 3);
+  assert.deepEqual(
+    [...one.matchAll(/url\(#([^)]+)\)/g)].map(([, id]) => id),
+    ids(one)
+  );
+  assert.deepEqual(
+    ids(one).filter((id) => ids(two).includes(id)),
+    []
+  );
+});
+
 test('a picture from the pack is drawn as the image from the pack', () => {
   assert.equal(pictureArt('pack:Cat & Dog.png'), `<img src="${packUrl('pictures', 'Cat & Dog.png')}" alt="">`);
 });

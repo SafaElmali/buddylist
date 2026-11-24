@@ -7,7 +7,7 @@ export const descriptor = {
   appTools: true,
   name: 'Gemini',
   avatar: 'gemini',
-  avatars: [{ id: 'gemini', label: 'Gemini twins' }],
+  avatars: [{ id: 'gemini', label: 'Gemini mark' }],
   // Gemini CLI's own approval modes, under the ids it gives them.
   permissionModes: [
     { id: 'default', label: 'Ask before acting', short: 'Asks first' },
