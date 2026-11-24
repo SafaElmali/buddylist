@@ -11,10 +11,10 @@ its release is published. Write the notes first; `node scripts/release.js prepar
 version into package.json and package-lock.json in the release prep PR.
 -->
 
-## v0.7.15
+## v0.7.15 — 2026-11-24
 
-- **Pick the managers a project manager oversees** — A project manager oversaw all of a project’s managers. Now tick the ones it oversees when you add it, or later with **Assign managers...** in its right-click and Team menus, and add another with **Add another project manager...**, such as one over the release and review managers and one over the docs and api managers. A manager is under one project manager at most, and each one messages, looks at and hears only from its own. One you already have keeps all of its managers, and the ones you add later, as before.
-- **Gemini contacts wear Gemini’s own mark** — A Gemini contact’s picture was the twins of its name, the ♊ sign on a night-sky tile. Now it is Gemini’s own four-pointed sparkle in its colours on white, like the Gemini app icon, in the contact list, conversations, Invite, toasts and the phone app. Gemini contacts you already have change by themselves.
+- **Pick the managers a project manager oversees, and add more than one** — A project had one project manager, over all of its managers. Now tick the ones it oversees under **Oversees** when you add it, or later with **Assign managers...** in its right-click or **Team** menu. **Add another project manager...** adds one more, such as one over the release and review managers and one over the docs and api managers. A manager is under one project manager at most, and each project manager messages, looks at and hears from its own managers alone. A project manager you already have keeps overseeing all of its project’s managers, and the ones you add later.
+- **Gemini contacts wear Gemini’s own mark** — A Gemini contact’s picture was the twins of its name, the ♊ sign on a night-sky tile. Now it is Gemini’s own four-pointed sparkle in its colours on white, like the Gemini app icon, in conversations, the contact list’s hover cards, Invite, Edit contact’s picker, toasts and the phone app. Gemini contacts you already have change by themselves.
 
 ## v0.7.14 — 2026-11-23
 

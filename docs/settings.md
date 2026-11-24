@@ -183,7 +183,7 @@ A manager using Claude, Codex, Gemini, OpenCode, Hermes or Grok that oversees th
 - **Instructions** are what it is told on top.
 - **Brief** is what it knows of the project so far. It writes the brief itself. Edit it to set something right, and it is told what you changed. The **Brief** tab beside its conversation shows it too, and its **Edit in Settings...** opens this page.
 
-**Project manager.** Once the project has a manager at work, and no [project manager](project-managers.md#project-manager) yet, the page ends with **Add a project manager...**: a manager over its managers, which hands a worker’s job from one to another as you tell it. Its settings are then listed first, without **New workers use**, **Scope** or **Checks**, as it has no conversations of its own.
+**Project manager.** Once the project has a manager at work, and no [project manager](project-managers.md#project-manager) yet, the page ends with **Add a project manager...**: a manager over its managers, which hands a worker’s job from one to another as you tell it. Its settings are then listed first, without **New workers use**, **Scope** or **Checks**, as it has no conversations of its own. With one, the page ends with **Add another project manager...** instead, for one over the managers you tick for it (see [Several project managers](project-managers.md#several-project-managers)).
 
 Good to know:
 
